@@ -14,7 +14,7 @@ git clone https://github.com/JeffersonLab/jlab_optimization.git
 ```
 * Install jlab_optimization (via pip):
 ```
-cd control-for-accelerators-in-hep
+cd jlab_optimization
 pip install -e . --user
 ```
 
