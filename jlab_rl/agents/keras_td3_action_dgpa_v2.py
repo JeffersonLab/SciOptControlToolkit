@@ -39,7 +39,7 @@ class KerasTD3ActorDGPA(KerasTD3):
     # @tf.function
     def train_critic(self, states, actions, rewards, next_states):
         next_actions, next_actions_std, _ = self.target_actor_dpga_model(next_states, training=False)
-        next_actions_std = next_actions_std / self.num_states
+        #next_actions_std = next_actions_std / self.num_states
         noise = tf.random.normal(next_actions.shape,
                                  mean=np.zeros(next_actions.shape),
                                  stddev=5 * next_actions_std)
@@ -74,7 +74,6 @@ class KerasTD3ActorDGPA(KerasTD3):
         self.target_actor_dpga_model.var = self.actor_dpga_model.var
         self.target_actor_dpga_model.old_var = self.actor_dpga_model.old_var
         self.target_actor_dpga_model.k = self.actor_dpga_model.k
-        #self.target_actor_dpga_model.gp = self.actor_dpga_model.gp
 
     #@tf.function
     def train_actor_dpga(self, states):
@@ -93,19 +92,19 @@ class KerasTD3ActorDGPA(KerasTD3):
             # s_pred = tf.math.log(tf.math.square(y_std))
             # loss_term1 = tf.math.exp(-s_pred) * q_value * q_value
             # loss_term2 = s_pred
-            # loss = 0.5 * tf.math.reduce_mean(loss_term1 + loss_term2) + distance_loss
+            # loss = 0.5 * tf.math.reduce_mean(loss_term1 + loss_term2)
 
-
+        self.actor_dpga_model.update_variance( tf.zeros(q_value.shape) , q_value)
         gradient = tape.gradient(loss, self.actor_dpga_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_dpga_model.trainable_variables))
         # Soft reset
         self.actor_dpga_model.gp.prior.assign(
-            0.99 * self.actor_dpga_model.gp.prior
-            + 0.01 * self.actor_dpga_model.gp.noise_scale * tf.eye(self.actor_dpga_model.gp.n_fourier_features))
+            0.01 * self.actor_dpga_model.gp.prior + 0.99 * self.actor_dpga_model.gp.previous_prior)
+        var = self.actor_dpga_model.get_variance()
+        self.actor_dpga_model.get_layer('gp').set_noise_scale(var)
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch):
         self.train_critic(state_batch, action_batch, reward_batch, next_state_batch)
-        #self.actor_dpga_model.counts += 1
         self.train_actor_dpga(state_batch)
 
     def train(self):
@@ -144,8 +143,8 @@ class KerasTD3ActorDGPA(KerasTD3):
             # Normal actor
             state = np.expand_dims(state, 0)
             # DPGA actor
-            sampled_dgpa_actions, sampled_dgpa_actions_std, _ = self.actor_dpga_model(state)
-            sampled_dgpa_actions_std = sampled_dgpa_actions_std / self.num_states
+            sampled_dgpa_actions, sampled_dgpa_actions_std, _ = self.actor_dpga_model(state, training=False)
+            #sampled_dgpa_actions_std = sampled_dgpa_actions_std / self.num_states
             # tf.print('sampled_dgpa_actions: ', sampled_dgpa_actions)
             # tf.print('sampled_dgpa_actions_std: ', sampled_dgpa_actions_std)
             # sampled_actions = sampled_dgpa_actions
