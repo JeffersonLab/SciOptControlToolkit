@@ -26,93 +26,26 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import jlab_rl
 import tensorflow as tf
-from tensorflow.keras.optimizers import Adam
+# from tensorflow.keras.optimizers import Adam
 import numpy as np
-import os
 from os.path import join
 import time
+from jlab_rl.agents.keras_td3 import KerasTD3
 from jlab_rl.models.keras_dgpa_actor import Keras_Actor_DGPA
 from jlab_rl.models.keras_dgpa_actor import euclidean_dist
 
-class KerasTD3ActorDGPA(jlab_rl.Agent):
 
-    def __init__(self, env, warmup_size, logdir=None, model_load_path=None, model_save_path=None, **kwargs):
-        """ Define all key variables required for all agent """
-
-        # Get env info
-        super().__init__(**kwargs)
-        self.env = env
-        self.model_load_path = model_load_path
-        self.model_save_path = model_save_path
-        self.num_states = env.observation_space.shape[0]
-        self.num_actions = env.action_space.shape[0]
-        self.upper_bound = env.action_space.high
-        self.lower_bound = env.action_space.low
-        print('upper_bound: ', self.upper_bound)
-        print('lower_bound: ', self.lower_bound)
-        self.action_width = (self.upper_bound+self.lower_bound)/2.0
-
-        # Buffer
-        self.min_buffer_counter = warmup_size
-        self.buffer_counter = 0
-        self.buffer_capacity = 5000000
-        self.batch_size = 100
-        self.state_buffer = np.zeros((self.buffer_capacity, self.num_states))
-        self.action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
-        self.reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.next_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
-        self.done_buffer = np.zeros((self.buffer_capacity, 1))
-        self.per_buffer = np.ones((self.buffer_capacity, 1))
-
-        # Used to update target networks
-        self.tau = 0.05
-        self.gamma = 0.99
-
-        # Setup Optimizers
-        critic_lr = 3e-4
-        actor_lr = 3e-4
-        self.critic_optimizer1 = Adam(critic_lr, epsilon=1e-08)
-        self.critic_optimizer2 = Adam(critic_lr, epsilon=1e-08)
-        self.actor_optimizer = Adam(actor_lr, epsilon=1e-08)
-
-        self.hidden_size = 256
-        self.layer_std = 1.0 / np.sqrt(self.num_actions)
-
-        # build and initialize the models
-        self.initialize_new_models()
-        # Load models for retraining
-        if model_load_path is not None:
-            self.load()
-
-        # update counting
-        self.ntrain_calls = 0
-        self.actor_update_freq=2
-        self.critic_update_freq=2
-
-        try:
-            os.mkdir(logdir)
-        except OSError as error:
-            print(error)
-        file_writer = tf.summary.create_file_writer(logdir + '/metrics')
-        file_writer.set_as_default()
-
-        self.nactions = tf.Variable(0)
+class KerasTD3ActorDGPA(KerasTD3):
 
     @tf.function
     def train_critic(self, states, actions, rewards, next_states):
         next_actions, next_actions_std = self.target_actor_dpga_model(next_states, training=False)
-        next_actions_std = next_actions_std/self.num_states
+        next_actions_std = next_actions_std / self.num_states
         noise = tf.random.normal(next_actions.shape,
                                  mean=np.zeros(next_actions.shape),
-                                 stddev=5*next_actions_std)
-
-        # noise = tf.random.normal(next_actions.shape,
-        #                          mean=np.zeros(next_actions.shape),
-        #                          stddev=next_actions_std)
+                                 stddev=5 * next_actions_std)
         next_legal_actions = next_actions + noise
-
         new_q1 = self.target_critic1([next_states, next_legal_actions], training=False)
         new_q2 = self.target_critic2([next_states, next_legal_actions], training=False)
         new_q = tf.math.minimum(new_q1, new_q2)
@@ -122,7 +55,7 @@ class KerasTD3ActorDGPA(jlab_rl.Agent):
         # Critic 1
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
-            td_errors1 = q_values1-q_targets
+            td_errors1 = q_values1 - q_targets
             critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
         self.critic_optimizer1.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
@@ -130,7 +63,7 @@ class KerasTD3ActorDGPA(jlab_rl.Agent):
         # Critic 2
         with tf.GradientTape() as tape:
             q_values2 = self.critic_model2([states, actions], training=False)
-            td_errors2 = q_values2-q_targets
+            td_errors2 = q_values2 - q_targets
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
@@ -146,10 +79,9 @@ class KerasTD3ActorDGPA(jlab_rl.Agent):
         self.target_actor_dpga_model.counts = self.actor_dpga_model.counts
         self.target_actor_dpga_model.calib = self.actor_dpga_model.calib
 
-
-    #@tf.function
+    # TODO: this function is slow!!!
+    @tf.function
     def train_actor_dpga(self, states):
-        self.actor_dpga_model.counts += 1
         # Use Critic 1
         with tf.GradientTape() as tape:
             actions, fourier_pred, hidden_x, input_x, y_std = self.actor_dpga_model(states, training=True)
@@ -164,7 +96,7 @@ class KerasTD3ActorDGPA(jlab_rl.Agent):
             c2 = hidden_dist - l2 * inp_dist
             loss1 = tf.reduce_mean(tf.nn.relu(c1))
             loss2 = tf.reduce_mean(tf.nn.relu(c2))
-            distance_loss = (loss1 + loss2) / 2.0
+            distance_loss =  (loss1 + loss2) / 2.0
             # original total loss
             loss = loss_mu + distance_loss
 
@@ -180,38 +112,21 @@ class KerasTD3ActorDGPA(jlab_rl.Agent):
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_dpga_model.trainable_variables))
         # Predictive Covariance update
         phi = tf.stop_gradient(fourier_pred)
-        P = tf.linalg.matmul(phi, tf.transpose(phi))
-        S = tf.eye(self.actor_dpga_model.fourier_dim) - \
-            tf.linalg.matmul(tf.linalg.inv(P + (self.actor_dpga_model.scale ** 2) * tf.eye(self.actor_dpga_model.fourier_dim)), P)
-        # Bug is here
-        if self.actor_dpga_model.counts > 1:
-            self.actor_dpga_model.cov = 0.99 * self.actor_dpga_model.cov  + 0.01 * tf.linalg.matmul(P, S)
-        #
-        tf.summary.scalar('Action loss', data=loss, step=int(self.actor_dpga_model.counts))
-
-    def get_critic(self):
-
-        # State as input
-        state_input = tf.keras.layers.Input(shape=(self.num_states))
-        # Action as input
-        action_input = tf.keras.layers.Input(shape=(self.num_actions))
-        state_action = tf.keras.layers.Concatenate()([state_input, action_input])
-        state_action1 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
-        state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
-        outputs = tf.keras.layers.Dense(1)(state_action2)
-        # Outputs single value for give state-action
-        model = tf.keras.Model([state_input, action_input], outputs)
-        #model.summary()
-        return model
-
-    @tf.function
-    def soft_update(self, target_weights, weights):
-        for (target_weight, weight) in zip(target_weights, weights):
-            target_weight.assign(weight * self.tau + target_weight * (1.0 - self.tau))
+        self.actor_dpga_model.update_cov(phi)
+        # P = tf.linalg.matmul(phi, tf.transpose(phi))
+        # S = tf.eye(self.actor_dpga_model.fourier_dim) - \
+        #     tf.linalg.matmul(
+        #         tf.linalg.inv(P + (self.actor_dpga_model.scale ** 2) * tf.eye(self.actor_dpga_model.fourier_dim)), P)
+        # # Bug is here
+        # if self.actor_dpga_model.counts > 1:
+        #     self.actor_dpga_model.cov = 0.99 * self.actor_dpga_model.cov + 0.01 * tf.linalg.matmul(P, S)
+        # #
+        #tf.summary.scalar('Action loss', data=loss, step=int(self.actor_dpga_model.counts))
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch):
         self.train_critic(state_batch, action_batch, reward_batch, next_state_batch)
         self.train_actor_dpga(state_batch)
+        self.actor_dpga_model.counts += 1
 
     def train(self):
         """ Method used to train """
@@ -231,47 +146,13 @@ class KerasTD3ActorDGPA(jlab_rl.Agent):
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
         #
         self.update(state_batch, action_batch, reward_batch, next_state_batch)
-        if self.ntrain_calls%self.actor_update_freq==0:
+        if self.ntrain_calls % self.actor_update_freq == 0:
             self.soft_update_dgpa()
-        if self.ntrain_calls%self.critic_update_freq==0:
+        if self.ntrain_calls % self.critic_update_freq == 0:
             self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
             self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
-    def rdm_action(self, state):
-        done=False
-        n=0
-        nbests=0
-        nmax=5000
-        best_samples, best_new_ustate = None, None
-        best_penalty = -9999
-        while(done!=True):
-            n = n+1
-            sampled_actions = self.env.action_space.sample()
-            uactions = self.env.unnormalized(sampled_actions, self.env.actions_low_scale, self.env.actions_high_scale )
-            ustate = self.env.unnormalized(state, self.env.states_low_scale, self.env.states_high_scale )
-            new_ustate = np.add(ustate[0:self.num_actions], uactions)
-            penalty = self.env._computePenalty(new_ustate)
-            if best_penalty<penalty:
-               best_penalty = penalty
-               best_samples = sampled_actions
-               best_new_ustate = new_ustate
-               nbests = nbests+1
-
-            if penalty >= 0:
-                #print('Valid new_ustate[{}]: {} --> penalty: {}'.format(n, new_ustate, penalty))
-                #print('sampled_actions[{}]: {} --> penalty: {}'.format(n, sampled_actions, penalty))
-                done = True
-            if n>=nmax:
-                done = True
-                sampled_actions = best_samples
-                #print('Limit new_ustate: {} --> penalty: {}'.format(best_new_ustate, best_penalty))
-                #print('Limit sampled_actions: {} --> penalty: {}'.format(best_samples, best_penalty))
-                #print('# bests:',nbests)
-                #print('# of trials:',n)
-
-        return sampled_actions
-
-    def action(self, state, train=True):
+    def action(self, state, train=True, monitoring=False):
         """ Method used to provide the next action using the target model """
         self.nactions = self.nactions + 1
         # TD3 version
@@ -283,35 +164,23 @@ class KerasTD3ActorDGPA(jlab_rl.Agent):
             state = np.expand_dims(state, 0)
             # DPGA actor
             sampled_dgpa_actions, sampled_dgpa_actions_std = self.actor_dpga_model(state)
-            sampled_dgpa_actions_std = sampled_dgpa_actions_std/self.num_states
+            sampled_dgpa_actions_std = sampled_dgpa_actions_std / self.num_states
             # sampled_actions = sampled_dgpa_actions
             noise = tf.random.normal(sampled_dgpa_actions.shape,
-                                               mean=np.zeros(sampled_dgpa_actions.shape),
-                                               stddev=5*sampled_dgpa_actions_std)
+                                     mean=np.zeros(sampled_dgpa_actions.shape),
+                                     stddev=5 * sampled_dgpa_actions_std)
             sampled_actions = sampled_dgpa_actions + noise
-            #tf.print('sampled_dgpa_actions_std:', sampled_dgpa_actions_std)
-            #print('sampled_dgpa_actions_std:', sampled_dgpa_actions_std)
-            for i in range(self.num_actions):
-                tf.summary.scalar('Action_{} mean'.format(i), data=sampled_dgpa_actions[0][i], step=int(self.nactions))
-                tf.summary.scalar('Action_{} noise'.format(i), data=noise[0][i], step=int(self.nactions))
-                if sampled_dgpa_actions[0][i]!=0:
-                    rel_std = float(sampled_dgpa_actions_std[0]/np.abs(sampled_dgpa_actions[0][i]))
-                    tf.summary.scalar('Action_{} std'.format(i), data=rel_std, step=int(self.nactions))
-        legal_action = np.clip(sampled_actions, self.lower_bound, self.upper_bound)
+            if monitoring:
+                for i in range(self.num_actions):
+                    tf.summary.scalar('Action_{} mean'.format(i), data=sampled_dgpa_actions[0][i],
+                                      step=int(self.nactions))
+                    tf.summary.scalar('Action_{} noise'.format(i), data=noise[0][i], step=int(self.nactions))
+                    if sampled_dgpa_actions[0][i] != 0:
+                        rel_std = float(sampled_dgpa_actions_std[0] / np.abs(sampled_dgpa_actions[0][i]))
+                        tf.summary.scalar('Action_{} std'.format(i), data=rel_std, step=int(self.nactions))
+            legal_action = np.clip(sampled_actions, self.lower_bound, self.upper_bound)
 
         return [np.squeeze(legal_action)], [np.squeeze(noise)]
-
-    def memory(self, obs_tuple):
-        # Set index to zero if buffer_capacity is exceeded,
-        # replacing old records
-        index = self.buffer_counter % self.buffer_capacity
-
-        self.state_buffer[index] = obs_tuple[0]
-        self.action_buffer[index] = obs_tuple[1]
-        self.reward_buffer[index] = obs_tuple[2]
-        self.next_state_buffer[index] = obs_tuple[3]
-
-        self.buffer_counter += 1
 
     def load(self):
         """ Load the ML models """
@@ -327,37 +196,32 @@ class KerasTD3ActorDGPA(jlab_rl.Agent):
 
     def initialize_new_models(self):
         """ Initialize new models from scratch """
-        rff=256
+        rff = 256
         self.actor_dpga_model = Keras_Actor_DGPA(hidden_size=self.hidden_size,
                                                  num_inputs=self.num_states,
                                                  num_outputs=self.num_actions,
                                                  fourier_dim=rff,
                                                  upper_bound=self.upper_bound,
                                                  lower_bound=self.lower_bound)
-        #print(self.actor_dpga_model.cov)
+        # print(self.actor_dpga_model.cov)
         self.target_actor_dpga_model = Keras_Actor_DGPA(hidden_size=self.hidden_size,
                                                         num_inputs=self.num_states,
                                                         num_outputs=self.num_actions,
                                                         fourier_dim=rff,
                                                         upper_bound=self.upper_bound,
                                                         lower_bound=self.lower_bound)
-        #print(self.target_actor_dpga_model.cov)
-        #print(dir(self.target_actor_dpga_model))
+
         self.soft_update_dgpa()
 
-        # self.actor_model = self.get_actor()
-        # self.target_actor = self.get_actor()
-        # self.target_actor.set_weights(self.actor_model.get_weights())
-
         seed1 = time.time_ns()
-        print('seed1:',seed1)
+        print('seed1:', seed1)
         tf.random.set_seed(seed1)
         self.critic_model1 = self.get_critic()
         self.target_critic1 = self.get_critic()
         self.target_critic1.set_weights(self.critic_model1.get_weights())
 
         seed2 = time.time_ns()
-        print('seed2:',seed2)
+        print('seed2:', seed2)
         tf.random.set_seed(seed2)
         self.critic_model2 = self.get_critic()
         self.target_critic2 = self.get_critic()
