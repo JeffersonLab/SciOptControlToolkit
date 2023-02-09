@@ -32,8 +32,8 @@ import numpy as np
 from os.path import join
 import time
 from jlab_rl.agents.keras_td3 import KerasTD3
-from jlab_rl.models.keras_dgpa_actor import Keras_Actor_DGPA
-from jlab_rl.models.keras_dgpa_actor import euclidean_dist
+from jlab_rl.models.keras_dgpa_actor_v1 import Keras_Actor_DGPA
+from jlab_rl.models.keras_dgpa_actor_v1 import euclidean_dist
 
 
 class KerasTD3ActorDGPA(KerasTD3):
@@ -79,8 +79,7 @@ class KerasTD3ActorDGPA(KerasTD3):
         self.target_actor_dpga_model.counts = self.actor_dpga_model.counts
         self.target_actor_dpga_model.calib = self.actor_dpga_model.calib
 
-    # TODO: this function is slow!!!
-    @tf.function
+    #@tf.function
     def train_actor_dpga(self, states):
         # Use Critic 1
         with tf.GradientTape() as tape:
@@ -96,7 +95,7 @@ class KerasTD3ActorDGPA(KerasTD3):
             c2 = hidden_dist - l2 * inp_dist
             loss1 = tf.reduce_mean(tf.nn.relu(c1))
             loss2 = tf.reduce_mean(tf.nn.relu(c2))
-            distance_loss =  (loss1 + loss2) / 2.0
+            distance_loss = (loss1 + loss2) / 2.0
             # original total loss
             loss = loss_mu + distance_loss
 
@@ -112,21 +111,21 @@ class KerasTD3ActorDGPA(KerasTD3):
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_dpga_model.trainable_variables))
         # Predictive Covariance update
         phi = tf.stop_gradient(fourier_pred)
-        self.actor_dpga_model.update_cov(phi)
-        # P = tf.linalg.matmul(phi, tf.transpose(phi))
-        # S = tf.eye(self.actor_dpga_model.fourier_dim) - \
-        #     tf.linalg.matmul(
-        #         tf.linalg.inv(P + (self.actor_dpga_model.scale ** 2) * tf.eye(self.actor_dpga_model.fourier_dim)), P)
-        # # Bug is here
-        # if self.actor_dpga_model.counts > 1:
-        #     self.actor_dpga_model.cov = 0.99 * self.actor_dpga_model.cov + 0.01 * tf.linalg.matmul(P, S)
-        # #
-        #tf.summary.scalar('Action loss', data=loss, step=int(self.actor_dpga_model.counts))
+        #
+        P = tf.linalg.matmul(phi, tf.transpose(phi))
+        S = tf.eye(self.actor_dpga_model.fourier_dim) - \
+            tf.linalg.matmul(
+                tf.linalg.inv(P + (self.actor_dpga_model.scale ** 2) * tf.eye(self.actor_dpga_model.fourier_dim)), P)
+        # Bug is here
+        if self.actor_dpga_model.counts > 1:
+            self.actor_dpga_model.cov = 0.99 * self.actor_dpga_model.cov + 0.01 * tf.linalg.matmul(P, S)
+
+        #self.actor_dpga_model.update_cov(phi)
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch):
         self.train_critic(state_batch, action_batch, reward_batch, next_state_batch)
-        self.train_actor_dpga(state_batch)
         self.actor_dpga_model.counts += 1
+        self.train_actor_dpga(state_batch)
 
     def train(self):
         """ Method used to train """
@@ -153,6 +152,7 @@ class KerasTD3ActorDGPA(KerasTD3):
             self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
     def action(self, state, train=True, monitoring=False):
+        monitoring = True
         """ Method used to provide the next action using the target model """
         self.nactions = self.nactions + 1
         # TD3 version
@@ -165,11 +165,14 @@ class KerasTD3ActorDGPA(KerasTD3):
             # DPGA actor
             sampled_dgpa_actions, sampled_dgpa_actions_std = self.actor_dpga_model(state)
             sampled_dgpa_actions_std = sampled_dgpa_actions_std / self.num_states
+            # tf.print('sampled_dgpa_actions: ', sampled_dgpa_actions)
+            # tf.print('sampled_dgpa_actions_std: ', sampled_dgpa_actions_std)
             # sampled_actions = sampled_dgpa_actions
             noise = tf.random.normal(sampled_dgpa_actions.shape,
                                      mean=np.zeros(sampled_dgpa_actions.shape),
                                      stddev=5 * sampled_dgpa_actions_std)
             sampled_actions = sampled_dgpa_actions + noise
+
             if monitoring:
                 for i in range(self.num_actions):
                     tf.summary.scalar('Action_{} mean'.format(i), data=sampled_dgpa_actions[0][i],

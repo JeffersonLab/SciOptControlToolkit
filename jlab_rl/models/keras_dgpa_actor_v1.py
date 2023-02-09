@@ -156,15 +156,15 @@ class Keras_Actor_DGPA(tf.keras.Model):
         # Return a dict mapping metric names to current value
         return {m.name: m.result() for m in self.metrics}
 
-    @tf.function
-    def update_cov(self, phi):
-        P = tf.linalg.matmul(phi, tf.transpose(phi))
-        S = tf.eye(self.fourier_dim) - \
-            tf.linalg.matmul(
-                tf.linalg.inv(P + (self.scale ** 2) * tf.eye(self.fourier_dim)), P)
-        # Bug is here
-        if self.counts > 1:
-            self.cov = 0.99 * self.cov + 0.01 * tf.linalg.matmul(P, S)
+    #@tf.function
+    # def update_cov(self, phi):
+    #     P = tf.linalg.matmul(phi, tf.transpose(phi))
+    #     S = tf.eye(self.fourier_dim) - \
+    #         tf.linalg.matmul(
+    #             tf.linalg.inv(P + (self.scale ** 2) * tf.eye(self.fourier_dim)), P)
+    #     # Bug is here
+    #     if self.counts > 1:
+    #         self.cov = 0.99 * self.cov + 0.01 * tf.linalg.matmul(P, S)
 
     def call(self, inputs, training=False, return_hidden=False):
         ''' define the forward-pass of your model '''
