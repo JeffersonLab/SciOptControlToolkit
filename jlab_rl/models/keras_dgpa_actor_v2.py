@@ -152,14 +152,14 @@ class Keras_Actor_DGPA(tf.keras.Model):
 
         self.k.assign_add(n_samples)
 
-    def get_variance(self):
-        momentum = 0.9
-        var = tf.Variable((1 - momentum) * self.var + momentum * self.old_var)
-        self.old_var.assign(self.var)
-        self.mean.assign(0.0)
-        self.var.assign(0.0)
-        self.k.assign(0.0)
-        return var
+    # def get_variance(self):
+    #     momentum = 0.9
+    #     var = tf.Variable((1 - momentum) * self.var + momentum * self.old_var)
+    #     self.old_var.assign(self.var)
+    #     self.mean.assign(0.0)
+    #     self.var.assign(0.0)
+    #     self.k.assign(0.0)
+    #     return var
 
     # def fit(self, *args, **kwargs):
     #     kwargs["callbacks"] = list(kwargs.get("callbacks", []))

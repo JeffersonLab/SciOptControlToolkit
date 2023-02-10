@@ -43,6 +43,7 @@ class KerasTD3ActorDGPA(KerasTD3):
         noise = tf.random.normal(next_actions.shape,
                                  mean=np.zeros(next_actions.shape),
                                  stddev=5 * next_actions_std)
+        noise = np.clip(noise, -0.5, 0.5)
         next_legal_actions = next_actions + noise
         new_q1 = self.target_critic1([next_states, next_legal_actions], training=False)
         new_q2 = self.target_critic2([next_states, next_legal_actions], training=False)
@@ -94,14 +95,15 @@ class KerasTD3ActorDGPA(KerasTD3):
             # loss_term2 = s_pred
             # loss = 0.5 * tf.math.reduce_mean(loss_term1 + loss_term2)
 
-        self.actor_dpga_model.update_variance( tf.zeros(q_value.shape) , q_value)
+        #self.actor_dpga_model.update_variance( tf.zeros(q_value.shape) , q_value)
         gradient = tape.gradient(loss, self.actor_dpga_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_dpga_model.trainable_variables))
         # Soft reset
+        momentum = 0.999
         self.actor_dpga_model.gp.prior.assign(
-            0.01 * self.actor_dpga_model.gp.prior + 0.99 * self.actor_dpga_model.gp.previous_prior)
-        var = self.actor_dpga_model.get_variance()
-        self.actor_dpga_model.get_layer('gp').set_noise_scale(var)
+            (1-momentum) * self.actor_dpga_model.gp.prior + momentum * self.actor_dpga_model.gp.previous_prior)
+        # var = self.actor_dpga_model.get_variance()
+        # self.actor_dpga_model.get_layer('gp').set_noise_scale(var)
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch):
         self.train_critic(state_batch, action_batch, reward_batch, next_state_batch)
@@ -138,7 +140,7 @@ class KerasTD3ActorDGPA(KerasTD3):
         # TD3 version
         if self.buffer_counter < self.min_buffer_counter:
             sampled_actions = self.env.action_space.sample()
-            noise = 0
+            noise = tf.zeros(sampled_actions.shape)
         else:
             # Normal actor
             state = np.expand_dims(state, 0)
@@ -148,6 +150,8 @@ class KerasTD3ActorDGPA(KerasTD3):
             # tf.print('sampled_dgpa_actions: ', sampled_dgpa_actions)
             # tf.print('sampled_dgpa_actions_std: ', sampled_dgpa_actions_std)
             # sampled_actions = sampled_dgpa_actions
+            sampled_dgpa_actions_std = sampled_dgpa_actions_std - tf.ones(sampled_dgpa_actions_std.shape)
+
             noise = tf.random.normal(sampled_dgpa_actions.shape,
                                      mean=np.zeros(sampled_dgpa_actions.shape),
                                      stddev=5 * sampled_dgpa_actions_std)
@@ -161,8 +165,12 @@ class KerasTD3ActorDGPA(KerasTD3):
                     if sampled_dgpa_actions[0][i] != 0:
                         rel_std = float(sampled_dgpa_actions_std[0] / np.abs(sampled_dgpa_actions[0][i]))
                         tf.summary.scalar('Action_{} std'.format(i), data=rel_std, step=int(self.nactions))
-            legal_action = np.clip(sampled_actions, self.lower_bound, self.upper_bound)
 
+        legal_action = np.clip(sampled_actions, self.lower_bound, self.upper_bound)
+            # tf.print("sampled_dgpa_actions: ",sampled_dgpa_actions)
+            # tf.print("noise: ",noise)
+            # tf.print("sampled_actions: ", sampled_actions)
+            # tf.print("legal_action: ", legal_action)
         return [np.squeeze(legal_action)], [np.squeeze(noise)]
 
     def load(self):
