@@ -36,12 +36,14 @@ class Keras_Actor_DGPA(tf.keras.Model):
     ):
         super().__init__()
 
+        self.model_prior = tf.eye(fourier_dim) * noise_scale
         self.hidden_size = hidden_size
         self.num_inputs = num_inputs
         self.num_outputs = num_outputs
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
         self.layer_std = 1.0 / np.sqrt(float(hidden_size))
+        #self.layer_std = 1.0 / np.sqrt(float(self.num_inputs))
 
         # Layer 1
         self.l1 = tf.keras.layers.Dense(self.hidden_size,
@@ -62,6 +64,7 @@ class Keras_Actor_DGPA(tf.keras.Model):
             noise_scale=noise_scale,
             length_scale=length_scale,
             train_length_scale=train_length_scale,
+            do_custom_cov_update=True,
             name='gp'
         )
 

@@ -69,7 +69,7 @@ class KerasTD3ActorDGPA(KerasTD3):
 
     def soft_update_dgpa(self):
         # Update weights
-        self.soft_update(self.target_actor_dpga_model.variables, self.actor_dpga_model.variables)
+        self.soft_update(self.target_actor_dpga_model.trainable_variables, self.actor_dpga_model.trainable_variables)
         # # Update cov, etc.
         self.target_actor_dpga_model.mean = self.actor_dpga_model.mean
         self.target_actor_dpga_model.var = self.actor_dpga_model.var
@@ -98,12 +98,15 @@ class KerasTD3ActorDGPA(KerasTD3):
         #self.actor_dpga_model.update_variance( tf.zeros(q_value.shape) , q_value)
         gradient = tape.gradient(loss, self.actor_dpga_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_dpga_model.trainable_variables))
-        # Soft reset
-        momentum = 0.999
-        self.actor_dpga_model.gp.prior.assign(
-            (1-momentum) * self.actor_dpga_model.gp.prior + momentum * self.actor_dpga_model.gp.previous_prior)
         # var = self.actor_dpga_model.get_variance()
         # self.actor_dpga_model.get_layer('gp').set_noise_scale(var)
+
+    def update_prior(self):
+        # Soft reset
+        momentum = 0.9999
+        self.actor_dpga_model.model_prior = (1 - momentum) * self.actor_dpga_model.gp.prior \
+                                            + momentum * self.actor_dpga_model.model_prior
+        self.actor_dpga_model.gp.update_cov(self.actor_dpga_model.model_prior)
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch):
         self.train_critic(state_batch, action_batch, reward_batch, next_state_batch)
@@ -129,6 +132,8 @@ class KerasTD3ActorDGPA(KerasTD3):
         self.update(state_batch, action_batch, reward_batch, next_state_batch)
         if self.ntrain_calls % self.actor_update_freq == 0:
             self.soft_update_dgpa()
+        if self.ntrain_calls % 1000 == 0:
+            self.update_prior()
         if self.ntrain_calls % self.critic_update_freq == 0:
             self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
             self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
@@ -136,14 +141,20 @@ class KerasTD3ActorDGPA(KerasTD3):
     def action(self, state, train=True, monitoring=False):
         monitoring = True
         """ Method used to provide the next action using the target model """
+        state = np.expand_dims(state, 0)
+
+        if train==False:
+            sampled_dgpa_actions, _, _ = self.actor_dpga_model(state, training=False)
+            noise = tf.zeros(sampled_dgpa_actions.shape)
+            legal_action = np.clip(sampled_dgpa_actions, self.lower_bound, self.upper_bound)
+            return [np.squeeze(legal_action)], [np.squeeze(noise)]
+
         self.nactions = self.nactions + 1
         # TD3 version
         if self.buffer_counter < self.min_buffer_counter:
             sampled_actions = self.env.action_space.sample()
             noise = tf.zeros(sampled_actions.shape)
         else:
-            # Normal actor
-            state = np.expand_dims(state, 0)
             # DPGA actor
             sampled_dgpa_actions, sampled_dgpa_actions_std, _ = self.actor_dpga_model(state, training=False)
             #sampled_dgpa_actions_std = sampled_dgpa_actions_std / self.num_states
@@ -194,14 +205,19 @@ class KerasTD3ActorDGPA(KerasTD3):
                                                  fourier_dim=rff,
                                                  upper_bound=self.upper_bound,
                                                  lower_bound=self.lower_bound)
-        # print(self.actor_dpga_model.cov)
+        self.actor_dpga_model.build(input_shape=(None,self.num_states))
+        self.actor_dpga_model.summary()
         self.target_actor_dpga_model = Keras_Actor_DGPA(hidden_size=self.hidden_size,
                                                         num_inputs=self.num_states,
                                                         num_outputs=self.num_actions,
                                                         fourier_dim=rff,
                                                         upper_bound=self.upper_bound,
                                                         lower_bound=self.lower_bound)
+        self.target_actor_dpga_model.build(input_shape=(None,self.num_states))
+        self.target_actor_dpga_model.summary()
 
+        self.target_actor_dpga_model.set_weights(self.actor_dpga_model.get_weights())
+        self.target_actor_dpga_model.model_prior = self.actor_dpga_model.model_prior
         self.soft_update_dgpa()
 
         seed1 = time.time_ns()

@@ -216,9 +216,15 @@ class KerasTD3(jlab_rl.Agent):
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
-        self.nactions.assign(self.nactions + 1)
         state = np.expand_dims(state, 0)
 
+        if train==False:
+            sampled_action = self.actor_model.predict_on_batch(state)
+            noise = tf.zeros(sampled_action.shape)
+            legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
+            return [np.squeeze(legal_action)], [np.squeeze(noise)]
+
+        self.nactions.assign(self.nactions + 1)
         # TD3 version
         if self.buffer_counter < self.min_buffer_counter:
             sampled_action = self.env.action_space.sample()
@@ -230,12 +236,13 @@ class KerasTD3(jlab_rl.Agent):
         sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
             tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
-        q_pred = self.critic_model1([state, np.expand_dims(sampled_action, 0)])
-        tf.summary.scalar('Critic Prediction', data=np.squeeze(q_pred), step=int(self.nactions))
+        #q_pred = self.critic_model1([state, np.expand_dims(sampled_action, 0)])
+        #tf.summary.scalar('Critic Prediction', data=np.squeeze(q_pred), step=int(self.nactions))
         if train == True:
             sampled_action = sampled_action + noise
 
-        return [np.squeeze(sampled_action)], [np.squeeze(noise)]
+        legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
+        return [np.squeeze(legal_action)], [np.squeeze(noise)]
 
     def memory(self, obs_tuple):
         # Set index to zero if buffer_capacity is exceeded,

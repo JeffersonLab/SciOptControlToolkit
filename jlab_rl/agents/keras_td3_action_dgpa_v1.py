@@ -118,7 +118,7 @@ class KerasTD3ActorDGPA(KerasTD3):
                 tf.linalg.inv(P + (self.actor_dpga_model.scale ** 2) * tf.eye(self.actor_dpga_model.fourier_dim)), P)
         # Bug is here
         if self.actor_dpga_model.counts > 1:
-            momentum = 0.999
+            momentum = 0.99
             self.actor_dpga_model.cov = momentum * self.actor_dpga_model.cov + (1-momentum) * tf.linalg.matmul(P, S)
 
         #self.actor_dpga_model.update_cov(phi)
