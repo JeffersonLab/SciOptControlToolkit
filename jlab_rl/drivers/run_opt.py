@@ -87,9 +87,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     # noise = noise[0]
 
             # Receive state and reward from environment.
-            action = np.squeeze(action)
+            #action = np.squeeze(action)
             state, reward, done_old, done, info = env.step(action)
-
             nsteps += 1
             agent.memory((prev_state, action, reward, state))
             episodic_reward += reward
@@ -98,6 +97,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
             # Save information
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_nsteps))
+
+
+            # End this episode when `done` is True
+            if done_old:
+                break
 
             # End this episode when `done` is True
             if done:
@@ -110,7 +114,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         nepisode_mod = 10
         avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
         time_end = time.process_time()
-        print("Episode Elapsed Time {}".format((time_end - time_start)))
+        print("\nEpisode Elapsed Time {}".format((time_end - time_start)))
         print("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
         print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
         avg_reward_list.append(avg_reward)
