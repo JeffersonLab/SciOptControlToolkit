@@ -33,8 +33,8 @@ from tensorflow.keras.optimizers import Adam
 import numpy as np
 import os
 from os.path import join
-from tqdm import tqdm
-import time
+
+from jlab_rl.models.dynamic_model import DynamicModel
 
 class KerasGenericModelBasedAgent(jlab_rl.Agent):
 
@@ -110,19 +110,21 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
     def train_dynamic_model(self, states, actions, rewards, next_states):
         #print('Training dynamic model...')
         history = self.dynamic_model.fit(x=[states, actions], y=[next_states, rewards],
-                                         callbacks = self.dynamic_model_callbacks,
+                                         #callbacks = self.dynamic_model_callbacks,
                                          epochs=10, batch_size=self.batch_size, shuffle=True, verbose=0)
         # history = self.dynamic_model.fit(x=[self.state_buffer, self.action_buffer],
         #                                  y=[self.next_state_buffer, self.reward_buffer], epochs=250, verbose=0)
         #print("\nDynamic Model Loss: ", history.history['loss'][-1],"\n")
-        tf.summary.scalar('Dynamic Model Loss', data=history.history['loss'][-1], step=int(self.ntrain_calls))
+        #tf.summary.scalar('Dynamic Model Loss', data=history.history['loss'][-1], step=int(self.ntrain_calls))
 
         # Plot results
-        tf.summary.scalar('Dynamic Model Loss', data=history.history['loss'][-1], step=int(self.ntrain_calls))
+        #tf.summary.scalar('Dynamic Model Loss', data=history.history['loss'][-1], step=int(self.ntrain_calls))
         ns_pred, r_pred = self.dynamic_model([states, actions])
         # print(ns_pred.shape)
         # print(next_states.shape)
         tf.summary.histogram("Dynamic Model Reward Residual", r_pred-rewards, step=int(self.ntrain_calls))
+        tf.summary.scalar('Dynamic Model Dropout', data=self.dynamic_model.drop_percent, step=int(self.ntrain_calls))
+
         for s in range(ns_pred.shape[1]):
             tf.summary.histogram("Dynamic Model State {} Residual".format(s),
                                  (ns_pred.numpy())[:,s]-(next_states.numpy())[:,s], step=int(self.ntrain_calls))
@@ -178,23 +180,26 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
 
     def get_dynamic_model(self):
 
-        # State as input
-        state_input = tf.keras.layers.Input(shape=(self.num_states))
-        #state_input = tf.keras.layers.Dense(200, activation="tanh")(state_input)
-        # Action as input
-        action_input = tf.keras.layers.Input(shape=(self.num_actions))
-        #action_input = tf.keras.layers.Dense(200, activation="tanh")(action_input)
-        state_action = tf.keras.layers.Concatenate()([state_input, action_input])
-        state_action1 = tf.keras.layers.Dense(200, activation="tanh")(state_action)
-        state_action2 = tf.keras.layers.Dense(200, activation="tanh")(state_action1)
-        state_action3 = tf.keras.layers.Dense(100, activation="tanh")(state_action2)
-        # state_action1 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
-        # state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
-        # Predict the next state and the reward
-        next_states = tf.keras.layers.Dense(self.num_states, activation="linear")(state_action3)
-        reward = tf.keras.layers.Dense(1, activation="linear")(state_action3)
-        # Outputs single value for give state-action
-        model = tf.keras.Model([state_input, action_input], [next_states, reward])
+        model = DynamicModel(ndlayers=3, hidden_size=200, drop_percent=0.2,
+                             num_states=self.num_states, num_actions=self.num_actions)
+
+        # # State as input
+        # state_input = tf.keras.layers.Input(shape=(self.num_states))
+        # #state_input = tf.keras.layers.Dense(200, activation="tanh")(state_input)
+        # # Action as input
+        # action_input = tf.keras.layers.Input(shape=(self.num_actions))
+        # #action_input = tf.keras.layers.Dense(200, activation="tanh")(action_input)
+        # state_action = tf.keras.layers.Concatenate()([state_input, action_input])
+        # state_action1 = tf.keras.layers.Dense(200, activation="tanh")(state_action)
+        # state_action2 = tf.keras.layers.Dense(200, activation="tanh")(state_action1)
+        # state_action3 = tf.keras.layers.Dense(100, activation="tanh")(state_action2)
+        # # state_action1 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
+        # # state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
+        # # Predict the next state and the reward
+        # next_states = tf.keras.layers.Dense(self.num_states, activation="linear")(state_action3)
+        # reward = tf.keras.layers.Dense(1, activation="linear")(state_action3)
+        # # Outputs single value for give state-action
+        # model = tf.keras.Model([state_input, action_input], [next_states, reward])
 
         return model
 
@@ -257,19 +262,24 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         batch_indices = np.random.choice(record_range, self.batch_size)
 
         # Convert to tensors
-        state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
-        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
-        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
+        state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
+        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.float32)
+        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices], dtype=tf.float32)
         reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
+        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)
 
         # Train dynamic model and actor
         if self.buffer_counter > self.batch_size:
             self.update(state_batch, action_batch, reward_batch, next_state_batch)
 
-    def action(self, state, train=True):
+    def action(self, state, train=True, random_only=False):
         """ Method used to provide the next action using the target model """
         state = np.expand_dims(state, 0)
+
+        if random_only:
+            sampled_action = self.env.action_space.sample()
+            noise = np.zeros(self.num_actions)
+            return [np.squeeze(sampled_action)], [np.squeeze(noise)]
 
         if train==False:
             sampled_action = self.actor_model.predict_on_batch(state)
