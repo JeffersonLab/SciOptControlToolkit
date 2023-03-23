@@ -82,6 +82,7 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
 
         self.initialize_new_models()
+        self.nsamples = 1
         dynamic_lr = 3e-4
         self.dynamic_opt = Adam(dynamic_lr, epsilon=1e-08)
         self.dynamic_model_es = tf.keras.callbacks.EarlyStopping(monitor="loss")
@@ -119,15 +120,20 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
 
         # Plot results
         #tf.summary.scalar('Dynamic Model Loss', data=history.history['loss'][-1], step=int(self.ntrain_calls))
-        ns_pred, r_pred = self.dynamic_model([states, actions])
+        #ns_pred, r_pred = self.dynamic_model([states, actions])
+        ns_pred, ns_pred_std, r_pred, r_pred_std = self.dynamic_model.predict_uq([states, actions])
         # print(ns_pred.shape)
         # print(next_states.shape)
         tf.summary.histogram("Dynamic Model Reward Residual", r_pred-rewards, step=int(self.ntrain_calls))
+        #tf.summary.histogram("Dynamic Model Reward ", r_pred, step=int(self.ntrain_calls))
+        tf.summary.histogram("Dynamic Model Reward Error", r_pred_std, step=int(self.ntrain_calls))
         tf.summary.scalar('Dynamic Model Dropout', data=self.dynamic_model.drop_percent, step=int(self.ntrain_calls))
 
         for s in range(ns_pred.shape[1]):
             tf.summary.histogram("Dynamic Model State {} Residual".format(s),
                                  (ns_pred.numpy())[:,s]-(next_states.numpy())[:,s], step=int(self.ntrain_calls))
+            tf.summary.histogram("Dynamic Model State {} Error".format(s),
+                                 (ns_pred_std.numpy())[:,s], step=int(self.ntrain_calls))
         # for j in range(r_pred.shape[0]):
         #
         #     print(r_pred[j])
@@ -146,9 +152,10 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         with tf.GradientTape() as tape:
             for step in range(25):# tried 25 <-140>, 100 <1200>
                 actions = self.actor_model(states, training=True)
-                next_s_preds, reward_preds = self.dynamic_model([states, actions])
+                #next_s_preds, reward_preds = self.dynamic_model([states, actions])
+                next_s_preds, _,  reward_preds, reward_pred_stds = self.dynamic_model.predict_uq([states, actions])
                 states = next_s_preds
-                total_rewards = tf.add(total_rewards, reward_preds)
+                total_rewards = tf.add(total_rewards, reward_preds+reward_pred_stds)
             loss = -tf.math.reduce_mean(total_rewards)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))

@@ -87,7 +87,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     # noise = noise[0]
 
             # Receive state and reward from environment.
-            #action = np.squeeze(action)
+            if env_id != 'Pendulum-v1':
+                action = np.squeeze(action)
             state, reward, done_old, done, info = env.step(action)
             nsteps += 1
             agent.memory((prev_state, action, reward, state))
