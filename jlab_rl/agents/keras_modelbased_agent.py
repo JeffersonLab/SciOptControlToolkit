@@ -82,7 +82,7 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
 
         self.initialize_new_models()
-        self.nsamples = 1
+        self.nsamples = 5
         dynamic_lr = 3e-4
         self.dynamic_opt = Adam(dynamic_lr, epsilon=1e-08)
         self.dynamic_model_es = tf.keras.callbacks.EarlyStopping(monitor="loss")
@@ -278,6 +278,19 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         # Train dynamic model and actor
         if self.buffer_counter > self.batch_size:
             self.update(state_batch, action_batch, reward_batch, next_state_batch)
+
+    def run_episode(self, intial_state, nsteps):
+        intial_state = np.expand_dims(intial_state, 0)
+        state = intial_state
+        total_reward = 0
+        for step in range(nsteps):
+            action = self.actor_model(state)
+            next_s_pred, reward_pred = self.dynamic_model([state, action])
+            state = next_s_pred
+            total_reward += float(reward_pred)
+            #print('total_reward', total_reward, '->', float(reward_pred))
+        print("MBRL Episodic Reward is ==> {}".format(total_reward))
+        return total_reward
 
     def action(self, state, train=True, random_only=False):
         """ Method used to provide the next action using the target model """
