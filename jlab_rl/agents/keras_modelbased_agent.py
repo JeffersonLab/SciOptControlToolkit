@@ -152,10 +152,11 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         with tf.GradientTape() as tape:
             for step in range(25):# tried 25 <-140>, 100 <1200>
                 actions = self.actor_model(states, training=True)
-                #next_s_preds, reward_preds = self.dynamic_model([states, actions])
-                next_s_preds, _,  reward_preds, reward_pred_stds = self.dynamic_model.predict_uq([states, actions])
+                next_s_preds, reward_preds = self.dynamic_model([states, actions])
+                #next_s_preds, _,  reward_preds, reward_pred_stds = self.dynamic_model.predict_uq([states, actions])
+                #total_rewards = tf.add(total_rewards, reward_preds+reward_pred_stds)
                 states = next_s_preds
-                total_rewards = tf.add(total_rewards, reward_preds+reward_pred_stds)
+                total_rewards = tf.add(total_rewards, reward_preds)
             loss = -tf.math.reduce_mean(total_rewards)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
