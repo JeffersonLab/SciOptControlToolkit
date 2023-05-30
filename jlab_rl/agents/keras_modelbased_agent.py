@@ -36,6 +36,7 @@ from os.path import join
 
 from jlab_rl.models.dynamic_model import DynamicModel
 
+
 class KerasGenericModelBasedAgent(jlab_rl.Agent):
 
     def __init__(self, env, warmup_size=1000, logdir=None, model_load_path=None, model_save_path=None, **kwargs):
@@ -53,8 +54,8 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         self.num_actions = env.action_space.shape[0]
         self.upper_bound = env.action_space.high
         self.lower_bound = env.action_space.low
-        print('upper_bound: ',self.upper_bound)
-        print('lower_bound: ',self.lower_bound)
+        print('upper_bound: ', self.upper_bound)
+        print('lower_bound: ', self.lower_bound)
         self.action_width = (self.upper_bound+self.lower_bound)/2.0
 
         # Buffer
@@ -85,10 +86,10 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         self.nsamples = 5
         dynamic_lr = 3e-4
         self.dynamic_opt = Adam(dynamic_lr, epsilon=1e-08)
-        self.dynamic_model_es = tf.keras.callbacks.EarlyStopping(monitor="loss")
-        self.dynamic_model_rl = tf.keras.callbacks.ReduceLROnPlateau(monitor="loss")
+        self.dynamic_model_es = tf.keras.callbacks.EarlyStopping(monitor="mse")
+        self.dynamic_model_rl = tf.keras.callbacks.ReduceLROnPlateau(monitor="mse")
         self.dynamic_model_callbacks = [self.dynamic_model_es, self.dynamic_model_rl]
-        self.dynamic_model.compile(self.dynamic_opt, loss="MSE")
+        self.dynamic_model.compile(self.dynamic_opt, loss="mse", metrics='mse')
 
         # Load models for retraining
         if model_load_path is not None:
@@ -107,6 +108,7 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         file_writer.set_as_default()
         self.nactions = tf.Variable(0)
         self.nres = tf.Variable(0)
+        self.policy_training_started = False
 
     def train_dynamic_model(self, states, actions, rewards, next_states):
         #print('Training dynamic model...')
@@ -115,7 +117,8 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
                                          epochs=10, batch_size=self.batch_size, shuffle=True, verbose=0)
         # history = self.dynamic_model.fit(x=[self.state_buffer, self.action_buffer],
         #                                  y=[self.next_state_buffer, self.reward_buffer], epochs=250, verbose=0)
-        #print("\nDynamic Model Loss: ", history.history['loss'][-1],"\n")
+        #print("\nDynamic Model Loss: ", history,"\n")
+#        print("\nDynamic Model Loss: ", history.history['mse'][-1],"\n")
         #tf.summary.scalar('Dynamic Model Loss', data=history.history['loss'][-1], step=int(self.ntrain_calls))
 
         # Plot results
@@ -144,6 +147,7 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         return history
 
     def train_actor(self, states):
+        self.policy_training_started = True
         # Do rollout
         idxs = tf.range(tf.shape(states)[0])
         ridxs = tf.random.shuffle(idxs)[:128]
@@ -152,11 +156,13 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         with tf.GradientTape() as tape:
             for step in range(25):# tried 25 <-140>, 100 <1200>
                 actions = self.actor_model(states, training=True)
+                # No UQ
                 next_s_preds, reward_preds = self.dynamic_model([states, actions])
-                #next_s_preds, _,  reward_preds, reward_pred_stds = self.dynamic_model.predict_uq([states, actions])
-                #total_rewards = tf.add(total_rewards, reward_preds+reward_pred_stds)
-                states = next_s_preds
                 total_rewards = tf.add(total_rewards, reward_preds)
+                # W/ UQ
+                # next_s_preds, _,  reward_preds, reward_pred_stds = self.dynamic_model.predict_uq([states, actions])
+                # total_rewards = tf.add(total_rewards, reward_preds-reward_pred_stds)
+                # states = next_s_preds
             loss = -tf.math.reduce_mean(total_rewards)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
@@ -188,27 +194,8 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
 
     def get_dynamic_model(self):
 
-        model = DynamicModel(ndlayers=3, hidden_size=200, drop_percent=0.2,
+        model = DynamicModel(ndlayers=3, hidden_size=32, drop_value=0.05,#-2.0,
                              num_states=self.num_states, num_actions=self.num_actions)
-
-        # # State as input
-        # state_input = tf.keras.layers.Input(shape=(self.num_states))
-        # #state_input = tf.keras.layers.Dense(200, activation="tanh")(state_input)
-        # # Action as input
-        # action_input = tf.keras.layers.Input(shape=(self.num_actions))
-        # #action_input = tf.keras.layers.Dense(200, activation="tanh")(action_input)
-        # state_action = tf.keras.layers.Concatenate()([state_input, action_input])
-        # state_action1 = tf.keras.layers.Dense(200, activation="tanh")(state_action)
-        # state_action2 = tf.keras.layers.Dense(200, activation="tanh")(state_action1)
-        # state_action3 = tf.keras.layers.Dense(100, activation="tanh")(state_action2)
-        # # state_action1 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
-        # # state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
-        # # Predict the next state and the reward
-        # next_states = tf.keras.layers.Dense(self.num_states, activation="linear")(state_action3)
-        # reward = tf.keras.layers.Dense(1, activation="linear")(state_action3)
-        # # Outputs single value for give state-action
-        # model = tf.keras.Model([state_input, action_input], [next_states, reward])
-
         return model
 
     def get_actor(self):
@@ -254,7 +241,7 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         #if self.buffer_counter > self.min_buffer_counter + 5*self.batch_size:
         #if self.buffer_counter > self.min_buffer_counter + 2*self.batch_size:
         #if self.buffer_counter % 20 == 0 and self.buffer_counter > 5000:
-        if self.buffer_counter % 2 == 0 and self.buffer_counter > 4*self.batch_size:
+        #if self.buffer_counter % 2 == 0 and self.buffer_counter > 4*self.batch_size:
             self.train_actor(state_batch)
         # if self.ntrain_calls%self.actor_update_freq == 0:
         #     self.soft_update(self.target_actor.variables, self.actor_model.variables)
@@ -262,35 +249,61 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
     def train(self):
         """ Method used to train """
 #        self.ntrain_calls += 1
+        if self.buffer_counter>0:
+            # Get sampling range
+            record_range = min(self.buffer_counter, self.buffer_capacity)
 
-        # Get sampling range
-        record_range = min(self.buffer_counter, self.buffer_capacity)
+            # Randomly sample indices
+            batch_indices = np.random.choice(record_range, self.batch_size)
 
-        # Randomly sample indices
-        batch_indices = np.random.choice(record_range, self.batch_size)
+            # Convert to tensors
+            state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
+            action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.float32)
+            reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices], dtype=tf.float32)
+            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)
 
-        # Convert to tensors
-        state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
-        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.float32)
-        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices], dtype=tf.float32)
-        reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)
+            # Train dynamic model and actor
+            if self.buffer_counter > self.batch_size:
+                self.update(state_batch, action_batch, reward_batch, next_state_batch)
 
-        # Train dynamic model and actor
-        if self.buffer_counter > self.batch_size:
-            self.update(state_batch, action_batch, reward_batch, next_state_batch)
-
-    def run_episode(self, intial_state, nsteps):
-        intial_state = np.expand_dims(intial_state, 0)
-        state = intial_state
+    def run_dynamic_model_episode(self, env, nsteps):
+        state, _ = env.reset()
+        state = np.expand_dims(state, axis=0)
         total_reward = 0
         for step in range(nsteps):
+            #print('state shape {}'.format(state.shape))
             action = self.actor_model(state)
             next_s_pred, reward_pred = self.dynamic_model([state, action])
             state = next_s_pred
-            total_reward += float(reward_pred)
-            #print('total_reward', total_reward, '->', float(reward_pred))
-        print("MBRL Episodic Reward is ==> {}".format(total_reward))
+            total_reward += tf.squeeze(reward_pred)
+        print("MBRL Dynamic Episodic Reward is ==> {}".format(total_reward))
+        return total_reward
+
+    def run_env_episode(self, env, nsteps):
+        # theta, thetadot = env.state
+        # intial_state = np.array([np.cos(theta), np.sin(theta), thetadot], dtype=np.float32)
+        # intial_state = np.expand_dims(intial_state, axis=0)
+        #print(intial_state.shape)
+        # action = env.action_space.sample()
+        # print(action.shape)
+        # state = env.state()
+        # print('Initial state: {}'.format(init_state))
+        #
+        # state = np.expand_dims(env.observation_space.sample(), axis=0)#env.state#initial_state
+        state, _ = env.reset()
+        state = np.expand_dims(state, axis=0)
+        #state = tf.convert_to_tensor(state)
+        total_reward = 0
+        for _ in range(nsteps):
+            #print('state shape {}'.format(state.shape))
+            action = self.actor_model(state)
+            action = np.reshape(action, -1)
+            next_state, reward, done_old, done, info = env.step(action)
+            next_state = np.expand_dims(next_state, axis=0)
+            state = next_state
+            total_reward += float(reward)
+        print('Test total reward:{}'.format(total_reward))
         return total_reward
 
     def action(self, state, train=True, random_only=False):

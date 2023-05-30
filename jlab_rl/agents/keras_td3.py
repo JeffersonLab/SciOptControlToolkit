@@ -30,6 +30,7 @@ import jlab_rl as jlab_rl
 import tensorflow as tf
 from tensorflow.keras.initializers import RandomUniform
 from tensorflow.keras.optimizers import Adam
+#from tensorflow.keras.optimizers.legacy import Adam
 import numpy as np
 import os
 from os.path import join
@@ -37,11 +38,12 @@ import time
 
 class KerasTD3(jlab_rl.Agent):
 
-    def __init__(self, env, warmup_size, logdir=None, model_load_path=None, model_save_path=None, **kwargs):
+    def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, **kwargs):
         """ Define all key variables required for all agent """
 
         # Get env info
         super().__init__(**kwargs)
+        print('Running KerasTD3 __init__')
         self.env = env
         self.model_load_path = model_load_path
         self.model_save_path = model_save_path
@@ -79,7 +81,25 @@ class KerasTD3(jlab_rl.Agent):
         self.hidden_size = 256
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
 
+        # RFF
+        # self.nrff = nrff
+        # if self.nrff > 0:
+        #     self.rff_scale = tf.Variable(0.01, constraint=lambda z: tf.clip_by_value(z, 0.001, 0.1))
+        #     self.rff_map = tf.keras.layers.Dense(self.nrff,
+        #         trainable=False,
+        #         kernel_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
+        #         bias_initializer=tf.keras.initializers.RandomUniform(0, 2 * np.pi),
+        #         name='rff_map'
+        #     )
+
         # build and initialize the models
+        # self.actor_model = None
+        # self.train_actor = None
+        # self.critic_model1 = None
+        # self.critic_model2 = None
+        # self.target_critic1 = None
+        # self.target_critic2 = None
+
         self.initialize_new_models()
         # Load models for retraining
         if model_load_path is not None:
@@ -145,9 +165,20 @@ class KerasTD3(jlab_rl.Agent):
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
         state_action1 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
         state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
+        # if (self.nrff>0):
+        #     out = self.rff_scale*state_action2
+        #     y = self.rff_map(out)
+        #     y1 = tf.math.cos(y)
+        #     y2 = tf.math.sin(y)
+        #     out = tf.keras.layers.concatenate([y1, y2])
+        #     outputs = tf.keras.layers.Dense(1)(out)
+        # else:
+        #     outputs = tf.keras.layers.Dense(1)(state_action2)
         outputs = tf.keras.layers.Dense(1)(state_action2)
+
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)
+        print('Critic model:',model.summary())
         return model
 
     def get_actor(self):
@@ -172,6 +203,16 @@ class KerasTD3(jlab_rl.Agent):
         outputs = tf.keras.layers.Dense(self.num_actions, activation="tanh",
                                         kernel_initializer=last_init,
                                         use_bias=True)(out)
+
+        # if (self.nrff>0):
+        #     out = self.rff_scale*state_action2
+        #     y = self.rff_map(out)
+        #     y1 = tf.math.cos(y)
+        #     y2 = tf.math.sin(y)
+        #     out = tf.keras.layers.concatenate([y1, y2])
+        #     outputs = tf.keras.layers.Dense(1)(out)
+        # else:
+        #     outputs = tf.keras.layers.Dense(1)(state_action2)
 
         # Rescale for tanh [-1,1]
         outputs = tf.keras.layers.Lambda(
@@ -235,7 +276,8 @@ class KerasTD3(jlab_rl.Agent):
 
         sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
-            tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
+            if self.num_actions > 1:
+                tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
         #q_pred = self.critic_model1([state, np.expand_dims(sampled_action, 0)])
         #tf.summary.scalar('Critic Prediction', data=np.squeeze(q_pred), step=int(self.nactions))
         if train == True:
@@ -270,6 +312,8 @@ class KerasTD3(jlab_rl.Agent):
 
     def initialize_new_models(self):
         """ Initialize new models from scratch """
+        print('Running KerasTD3 initialize_new_models()')
+
         self.actor_model = self.get_actor()
         self.target_actor = self.get_actor()
         self.target_actor.set_weights(self.actor_model.get_weights())

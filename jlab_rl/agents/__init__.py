@@ -14,6 +14,11 @@ register(
     entry_point='jlab_rl.agents:KerasTD3'
 )
 
+register(
+    id='KerasTD3-RFF-v0',
+    entry_point='jlab_rl.agents:KerasTD3',
+    kwargs={'nrff': 128}
+)
 # Register TD3 w/ DGPA Actor using Steven model
 register(
     id='KerasTD3ActorDGPA-v2',

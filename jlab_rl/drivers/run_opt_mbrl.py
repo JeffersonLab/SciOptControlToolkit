@@ -5,10 +5,8 @@ import sys
 import time
 from datetime import datetime
 
-import gym
 import numpy as np
 import tensorflow as tf
-import torch
 import jlab_rl.agents
 from jlab_rl.utils.git_utilts import get_git_revision_short_hash
 from tqdm import tqdm
@@ -22,7 +20,10 @@ tf.random.set_seed(seed_value)
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
-    #
+    if env_id == 'ProxyApp-v0':
+        import jlab_rl.envs as gym
+    else:
+        import gym
     # Environment
     print('Running env: {}'.format(env_id))
     env = gym.make(env_id)
@@ -71,43 +72,38 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         prev_state, _ = env.reset()
         nsteps = 0
         episodic_reward = 0
-        for step in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
+
+        # Loop to train dynamic model and policy
+        for _ in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
             total_nsteps += 1
             action = env.action_space.sample()
-            # torch.Tensor([prev_state])
-            # if 'Torch' in agent_id:
-            #     tf_prev_state = torch.Tensor([prev_state])
-            #     action = agent.action(tf_prev_state)
-            # else:
-            #     action, noise = agent.action(tf.convert_to_tensor(prev_state))
-            #     if np.isnan(noise).any():
-            #         print('action:', action)
-            #         sys.exit(-11)
-            #     # TODO: We suspect this is to the the num_actions > 1
-            #     if env_id == "LunarLanderContinuous-v2":
-            #         action = action[0]
-            #         # noise = noise[0]
 
             # Receive state and reward from environment.
             if env_id != 'Pendulum-v1':
                 action = np.squeeze(action)
             state, reward, done_old, done, info = env.step(action)
+            #print('main loop - reward: {}'.format(reward))
             nsteps += 1
             agent.memory((prev_state, action, reward, state))
             episodic_reward += reward
             agent.train()
-            prev_state = state
 
-            # Save information
-            # tf.summary.scalar('Random Step Reward', data=episodic_reward, step=int(total_nsteps))
+            # Evaluate the dynamic model using the current policy
+            if agent.policy_training_started:
 
-#            if (ep % 10 == 0 or ep == (max_nepisodes-1)) and step==(max_nsteps-1):
-            if (done_old==True or done==True) and ep>5:
-                # print('step:', step)
-                init_state, _ = env.reset()
-                mb_episodic_reward = agent.run_episode(tf.convert_to_tensor(init_state), max_nsteps)
-                tf.summary.scalar('Model-Based Reward', data=float(mb_episodic_reward), step=int(mb_neps))
+                # Test using dynamical model
+                mb_episodic_reward = agent.run_dynamic_model_episode(env, max_nsteps)
+                tf.summary.scalar('Model-Based Dynamic Model Reward', data=float(mb_episodic_reward), step=int(mb_neps))
+
+                # Test on the actual system
+                mb_env_episodic_reward = agent.run_env_episode(env, max_nsteps)
+                tf.summary.scalar('Model-Based Env Reward', data=float(mb_env_episodic_reward), step=int(mb_neps))
+
+                # Increment
                 mb_neps += 1
+                # Print
+                print("Model-Based Dynamic Model Reward #{} ==> {}".format(mb_neps, mb_episodic_reward))
+                print("Model-Based Env Reward #{} ==> {}".format(mb_neps, mb_env_episodic_reward))
 
             # End this episode when `done` is True
             if done_old:
@@ -117,24 +113,52 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             if done:
                 break
 
-        ep_reward_list.append(episodic_reward)
-        tf.summary.scalar('Reward', data=episodic_reward, step=int(ep))
-
-        # Mean of last 40 episodes
-        nepisode_mod = 10
-        avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
-        time_end = time.process_time()
-        print("\nEpisode Elapsed Time {}".format((time_end - time_start)))
-        print("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
-        print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
-        avg_reward_list.append(avg_reward)
+        # for _ in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
+        #     total_nsteps += 1
+        #     action = env.action_space.sample()
+        #     # torch.Tensor([prev_state])
+        #     # if 'Torch' in agent_id:
+        #     #     tf_prev_state = torch.Tensor([prev_state])
+        #     #     action = agent.action(tf_prev_state)
+        #     # else:
+        #     #     action, noise = agent.action(tf.convert_to_tensor(prev_state))
+        #     #     if np.isnan(noise).any():
+        #     #         print('action:', action)
+        #     #         sys.exit(-11)
+        #     #     # TODO: We suspect this is to the the num_actions > 1
+        #     #     if env_id == "LunarLanderContinuous-v2":
+        #     #         action = action[0]
+        #     #         # noise = noise[0]
+        #
+        #     # Receive state and reward from environment.
+        #     if env_id != 'Pendulum-v1':
+        #         action = np.squeeze(action)
+        #     state, reward, done_old, done, info = env.step(action)
+        #     nsteps += 1
+        #     #if info == '':
+        #     agent.memory((prev_state, action, reward, state))
+        #     episodic_reward += reward
+        #     agent.train()
+        #     prev_state = state
+        #
+        # ep_reward_list.append(episodic_reward)
+        # #tf.summary.scalar('Reward', data=episodic_reward, step=int(ep))
+        #
+        # # Mean of last 40 episodes
+        # nepisode_mod = 10
+        # avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
+        # time_end = time.process_time()
+        # print("\nEpisode Elapsed Time {}".format((time_end - time_start)))
+        # print("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
+        # print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
+        # avg_reward_list.append(avg_reward)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--index", help="Index for tracking", type=int, default=0)
     parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=10)
     parser.add_argument("--nsteps", help="Number of steps", type=int, default=1000)
-    parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
+    parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasGenericModelBaseAdgent-v0')
     parser.add_argument("--nwarmup", help="Agent warm-up size", type=int, default=0)
     parser.add_argument("--env", help="Environment used for RL", type=str, default='HalfCheetah-v4')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')

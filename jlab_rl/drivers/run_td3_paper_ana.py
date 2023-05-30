@@ -71,13 +71,14 @@ def run_opt(index, ntrials, max_nepisodes, max_nsteps, agent_id, warmup_size, en
         prev_state, _ = env.reset()
         nsteps = 0
         episodic_reward = 0
-        for _ in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
+        for _ in range(int(max_nsteps)):
+#        for _ in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
             total_nsteps += 1
             if 'Torch' in agent_id:
                 tf_prev_state = torch.Tensor([prev_state])
                 action = agent.action(tf_prev_state)
             else:
-                action, noise = agent.action(tf.convert_to_tensor(prev_state))
+                action, noise = agent.action(tf.convert_to_tensor(prev_state), random_only=True)
                 if np.isnan(noise).any():
                     print('action:', action)
                     sys.exit(-11)
@@ -85,9 +86,12 @@ def run_opt(index, ntrials, max_nepisodes, max_nsteps, agent_id, warmup_size, en
                 if env_id == "LunarLanderContinuous-v2":
                     action = action[0]
                     # noise = noise[0]
+                # if env_id == "InvertedPendulum-v4":
+                #     action = [action]
 
             # Receive state and reward from environment.
-            action = np.squeeze(action)
+            #action = np.squeeze(action)
+            # print(action)
             state, reward, done_old, done, info = env.step(action)
 
             nsteps += 1
@@ -99,7 +103,7 @@ def run_opt(index, ntrials, max_nepisodes, max_nsteps, agent_id, warmup_size, en
             # Save information
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_nsteps))
 
-            if total_nsteps>0 and total_nsteps%1000==0:
+            if total_nsteps > warmup_size and total_nsteps % (agent.batch_size+2) == 0:
                 ntests += 1
                 trial_rewards = []
                 for t in tqdm(range(ntrials), desc='Index {} - Trial'.format(index)):
@@ -107,7 +111,7 @@ def run_opt(index, ntrials, max_nepisodes, max_nsteps, agent_id, warmup_size, en
                     trial_env._max_episode_steps = max_nsteps
                     this_trial_prev_state, _ = env.reset()
                     this_total_trial_reward = 0
-                    for _ in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
+                    for _ in range(int(max_nsteps)):
                         this_trial_action, this_trial_noise = agent.action(tf.convert_to_tensor(this_trial_prev_state),
                                                                            train=False)
                         this_trial_action = np.squeeze(this_trial_action)
@@ -118,28 +122,28 @@ def run_opt(index, ntrials, max_nepisodes, max_nsteps, agent_id, warmup_size, en
                     trial_rewards.append(this_total_trial_reward)
 
                 reward_mean = np.array(trial_rewards).mean()
-                reward_std = np.array(trial_rewards).std()
-                tf.summary.scalar('Reward mean', data=reward_mean, step=int(ntests))
-                tf.summary.scalar('Reward std', data=reward_std, step=int(ntests))
-                print("Trial Episode * {} * Episodic Reward is ==> {}".format(ep, reward_mean))
-                print("Trial Episode * {} * Avg Reward is ==> {}".format(ep, reward_std))
+                #reward_std = np.array(trial_rewards).std()
+                tf.summary.scalar('Trial Reward', data=reward_mean, step=int(ntests))
+                #tf.summary.scalar('Reward std', data=reward_std, step=int(ntests))
+                print("\nTrial Episode * {} * Episodic Reward is ==> {}".format(ep, reward_mean))
+                #print("Trial Episode * {} * Avg Reward is ==> {}".format(ep, reward_std))
 
         ep_reward_list.append(episodic_reward)
         tf.summary.scalar('Reward', data=episodic_reward, step=int(ep))
 
         # Mean of last 40 episodes
-        nepisode_mod = 10
-        avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
-        time_end = time.process_time()
-        print("Episode Elapsed Time {}".format((time_end - time_start)))
-        print("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
-        print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
-        avg_reward_list.append(avg_reward)
+        # nepisode_mod = 10
+        # avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
+        # time_end = time.process_time()
+        # print("Episode Elapsed Time {}".format((time_end - time_start)))
+        # print("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
+        # print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
+        # avg_reward_list.append(avg_reward)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--index", help="Index for tracking", type=int, default=0)
-    parser.add_argument("--ntrials", help="Number of trials", type=int, default=10)
+    parser.add_argument("--ntrials", help="Number of trials", type=int, default=1)
     parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=10)
     parser.add_argument("--nsteps", help="Number of steps", type=int, default=1000)
     parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')

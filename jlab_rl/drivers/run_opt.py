@@ -5,7 +5,6 @@ import sys
 import time
 from datetime import datetime
 
-import gym
 import numpy as np
 import tensorflow as tf
 import torch
@@ -22,6 +21,10 @@ tf.random.set_seed(seed_value)
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
+    if env_id == 'ProxyApp-v0':
+        import jlab_rl.envs as gym
+    else:
+        import gym
     #
     # Environment
     print('Running env: {}'.format(env_id))
@@ -90,6 +93,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             if env_id != 'Pendulum-v1':
                 action = np.squeeze(action)
             state, reward, done_old, done, info = env.step(action)
+            print('main loop - reward: {}'.format(reward))
             nsteps += 1
             agent.memory((prev_state, action, reward, state))
             episodic_reward += reward
@@ -123,11 +127,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--index", help="Index for tracking", type=int, default=0)
-    parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=10)
-    parser.add_argument("--nsteps", help="Number of steps", type=int, default=1000)
+    parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=100)
+    parser.add_argument("--nsteps", help="Number of steps", type=int, default=200)
     parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
     parser.add_argument("--nwarmup", help="Agent warm-up size", type=int, default=0)
-    parser.add_argument("--env", help="Environment used for RL", type=str, default='HalfCheetah-v4')
+    parser.add_argument("--env", help="Environment used for RL", type=str, default='Pendulum-v1')#HalfCheetah-v4')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
 
     # Get input arguments
