@@ -12,6 +12,13 @@ import jlab_rl.agents
 from jlab_rl.utils.git_utilts import get_git_revision_short_hash
 from tqdm import tqdm
 
+# import mujoco_py
+# import os
+# mj_path = mujoco_py.utils.discover_mujoco()
+# print('mj_path:{}'.format(mj_path))
+# xml_path = os.path.join(mj_path, 'model', 'humanoid.xml')
+
+
 # Seed value
 seed_value = 0
 os.environ['PYTHONHASHSEED'] = str(seed_value)
@@ -93,7 +100,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             if env_id != 'Pendulum-v1':
                 action = np.squeeze(action)
             state, reward, done_old, done, info = env.step(action)
-            print('main loop - reward: {}'.format(reward))
+            #print('main loop - reward: {}'.format(reward))
             nsteps += 1
             agent.memory((prev_state, action, reward, state))
             episodic_reward += reward

@@ -70,11 +70,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         time_start = time.process_time()
         prev_state, _ = env.reset()
-        nsteps = 0
+        #nsteps = 0
         episodic_reward = 0
 
         # Loop to train dynamic model and policy
-        for _ in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
+        for nsteps in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
             total_nsteps += 1
             action = env.action_space.sample()
 
@@ -83,13 +83,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 action = np.squeeze(action)
             state, reward, done_old, done, info = env.step(action)
             #print('main loop - reward: {}'.format(reward))
-            nsteps += 1
+            #nsteps += 1
             agent.memory((prev_state, action, reward, state))
             episodic_reward += reward
             agent.train()
 
             # Evaluate the dynamic model using the current policy
-            if agent.policy_training_started:
+            if agent.policy_training_started and nsteps==0:
 
                 # Test using dynamical model
                 mb_episodic_reward = agent.run_dynamic_model_episode(env, max_nsteps)
@@ -101,6 +101,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                 # Increment
                 mb_neps += 1
+
                 # Print
                 print("Model-Based Dynamic Model Reward #{} ==> {}".format(mb_neps, mb_episodic_reward))
                 print("Model-Based Env Reward #{} ==> {}".format(mb_neps, mb_env_episodic_reward))
