@@ -204,5 +204,4 @@ class proxy_app(gym.Env):
     def reset(self):
         # Randomize the parameters
         self.states = np.ones(self.nParameters)*0.5
-        #self.observation_space.sample()
         return self.states, ''

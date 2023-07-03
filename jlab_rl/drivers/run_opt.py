@@ -28,7 +28,7 @@ tf.random.set_seed(seed_value)
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
-    if env_id == 'ProxyApp-v0':
+    if env_id == 'ProxyApp-v0' or 'Circle2DEnv-v0':
         import jlab_rl.envs as gym
     else:
         import gym
@@ -110,6 +110,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             # Save information
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_nsteps))
 
+            #
+            if env_id == 'Circle2DEnv-v0':
+                radius = np.sqrt(state[0]*state[0]+state[1]*state[1])
+                tf.summary.scalar('Radial Distribution', data=radius, step=int(total_nsteps))
 
             # End this episode when `done` is True
             if done_old:
