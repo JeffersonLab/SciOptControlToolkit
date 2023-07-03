@@ -18,16 +18,7 @@ class circle_constraint_env(gym.Env):
         self.states = action
         radius = np.sqrt(self.states[0]*self.states[0]+self.states[1]*self.states[1])
         radius_sqrt = np.square(radius - self.target_radius)
-        reward = np.exp( -10 * radius_sqrt )
-
-        #
-        # print('New r:', r)
-        # reward = 0
-        # if r<self.delta_r_max and r>(self.delta_r_max-self.delta_r):
-        #     reward = 100
-        # else:
-        #     reward = -1
-        #print('Reward:', reward)
+        reward = - radius_sqrt
 
         return self.states, reward, False, False, {}
 
