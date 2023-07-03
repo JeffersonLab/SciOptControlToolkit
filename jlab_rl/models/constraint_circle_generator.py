@@ -17,11 +17,11 @@ class ConstraintCircleGenerator(tf.keras.Model):
     self.lower_bound = lower_bound
 
   def call(self, inputs):
-    norm_dim = inputs
+    rdm_gaussians = inputs
     # Create some sample
-    norm = tf.math.sqrt(tf.math.reduce_sum(tf.math.square(norm_dim), axis=1))
-    rnorm = tf.repeat(tf.expand_dims(norm, axis=1), self.ndims+2, axis=1)
-    rdm_circle_all = tf.math.divide(norm_dim[:], rnorm)
+    normalization = tf.math.sqrt(tf.math.reduce_sum(tf.math.square(rdm_gaussians), axis=1))
+    repeat_normalization = tf.repeat(tf.expand_dims(normalization, axis=1), self.ndims+2, axis=1)
+    rdm_circle_all = tf.math.divide(rdm_gaussians[:], repeat_normalization)
     rdm_circle = rdm_circle_all[:,:-2]
 
     # Push through the dense layers

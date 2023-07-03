@@ -158,7 +158,7 @@ class KerasTD3(jlab_rl.Agent):
 
     def get_actor(self):
 
-        model = ConstraintCircleGenerator(ndims=2, nlayers=5,
+        model = ConstraintCircleGenerator(ndims=2, nlayers=9,
                                           lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
