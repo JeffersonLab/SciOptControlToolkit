@@ -201,10 +201,28 @@ class KerasTD3(jlab_rl.Agent):
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         state = np.expand_dims(state, 0)
+        #print(state.shape)
+        nrepeats = 100
+        states = np.repeat(state, nrepeats, axis=0)
+        #states = np.reshape(states, (state.shape[0],nrepeats))
+        #print(states)
+        rdm_norms = np.random.normal(0, 1, (nrepeats, self.num_actions + 2))
+        print('states:', states.shape)
+        print('rdm gauss', rdm_norms.shape)
+        sampled_actions = self.actor_model([states, rdm_norms])
+        print('gen actions:', sampled_actions.shape)
+        # rewards1 = self.target_critic1([states, sampled_actions])
+        # rewards2 = self.target_critic2([states, sampled_actions])
+        #rewards = (rewards1 + rewards2)/2.0
+        rewards = self.critic_model1([states, sampled_actions])
+        print('gen rewards:', rewards.shape)
+        ireward = np.argmax(rewards)
+        print('max reward:', rewards[ireward])
+        sampled_action =sampled_actions[ireward]
 
-        rdm_norms = np.random.normal(0, 1, self.num_actions + 2)
-        rdm_norms = np.expand_dims(rdm_norms, 0)
-        sampled_action = self.actor_model([state, rdm_norms])
+        # rdm_norms = rdm_norms[:,0]
+        # rdm_norms = np.expand_dims(rdm_norms, 0)
+        # sampled_action = self.actor_model([state, rdm_norms ])
         #sampled_action = self.actor_model(rdm_norms)
         noise = tf.zeros(sampled_action.shape)
         self.nactions.assign(self.nactions + 1)
