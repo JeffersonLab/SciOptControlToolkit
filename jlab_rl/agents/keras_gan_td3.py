@@ -28,10 +28,11 @@
 
 import jlab_rl as jlab_rl
 import tensorflow as tf
-from jlab_rl.models.constraint_circle_generator import ConstraintCircleGenerator
-from tensorflow.keras.initializers import RandomUniform
-from tensorflow.keras.optimizers import Adam
-#from tensorflow.keras.optimizers.legacy import Adam
+#from jlab_rl.models.constraint_circle_generator import ConstraintCircleGenerator
+from jlab_rl.models.constraint_circle_state_generator import ConstraintCircleGenerator
+#from tensorflow.keras.initializers import RandomUniform
+#from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers.legacy import Adam
 import numpy as np
 import os
 from os.path import join
@@ -60,7 +61,7 @@ class KerasTD3(jlab_rl.Agent):
         self.min_buffer_counter = warmup_size
         self.buffer_counter = 0
         self.buffer_capacity = 5000000
-        self.batch_size = 512 #1024
+        self.batch_size = 1024
         self.state_buffer = np.zeros((self.buffer_capacity, self.num_states))
         self.action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
@@ -103,7 +104,8 @@ class KerasTD3(jlab_rl.Agent):
     # @tf.function
     def train_critic(self, states, actions, rewards, next_states):
         next_rdm_gaus = np.array([np.random.normal(0, 1, self.num_actions + 2) for state in states])
-        next_actions = self.target_actor(next_rdm_gaus, training=False)
+        next_actions = self.target_actor([states, next_rdm_gaus], training=False)
+        #next_actions = self.target_actor(next_rdm_gaus, training=False)
         # next_actions = self.target_actor(next_states, training=False)
         # # Add a little noise
         # noise = np.random.normal(0, 0.2, self.num_actions)
@@ -135,7 +137,8 @@ class KerasTD3(jlab_rl.Agent):
         # Use Critic 1
         next_rdm_gaus = np.array([np.random.normal(0, 1, self.num_actions + 2) for state in states])
         with tf.GradientTape() as tape:
-            actions = self.actor_model(next_rdm_gaus, training=True)
+            actions = self.actor_model([states, next_rdm_gaus], training=True)
+            #actions = self.actor_model(next_rdm_gaus, training=True)
             q_value = self.critic_model1([states, actions], training=False)
             loss = -tf.math.reduce_mean(q_value)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
@@ -157,7 +160,6 @@ class KerasTD3(jlab_rl.Agent):
         return model
 
     def get_actor(self):
-
         model = ConstraintCircleGenerator(ndims=2, nlayers=9,
                                           lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
@@ -202,7 +204,8 @@ class KerasTD3(jlab_rl.Agent):
 
         rdm_norms = np.random.normal(0, 1, self.num_actions + 2)
         rdm_norms = np.expand_dims(rdm_norms, 0)
-        sampled_action = self.actor_model(rdm_norms)
+        sampled_action = self.actor_model([state, rdm_norms])
+        #sampled_action = self.actor_model(rdm_norms)
         noise = tf.zeros(sampled_action.shape)
         self.nactions.assign(self.nactions + 1)
         # if train==False:
@@ -231,7 +234,8 @@ class KerasTD3(jlab_rl.Agent):
         #     sampled_action = sampled_action + noise
 
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-        return [np.squeeze(legal_action)], [np.squeeze(noise)]
+        return [np.squeeze(sampled_action)], [np.squeeze(noise)]
+#        return [np.squeeze(legal_action)], [np.squeeze(noise)]
 
     def memory(self, obs_tuple):
         # Set index to zero if buffer_capacity is exceeded,
@@ -266,14 +270,14 @@ class KerasTD3(jlab_rl.Agent):
         self.target_actor.set_weights(self.actor_model.get_weights())
 
         seed1 = time.time_ns()
-        print('seed1:',seed1)
+        print('seed1:', seed1)
         tf.random.set_seed(seed1)
         self.critic_model1 = self.get_critic()
         self.target_critic1 = self.get_critic()
         self.target_critic1.set_weights(self.critic_model1.get_weights())
 
         seed2 = time.time_ns()
-        print('seed2:',seed2)
+        print('seed2:', seed2)
         tf.random.set_seed(seed2)
         self.critic_model2 = self.get_critic()
         self.target_critic2 = self.get_critic()

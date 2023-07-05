@@ -4,3 +4,8 @@ env = gym.make('Circle2DEnv-v0')
 print(env.reset())
 empty_action = np.array([0,0])
 env.step(empty_action)
+
+env = gym.make('Circle2DEnv-v1')
+print(env.reset())
+empty_action = np.array([0.1,-0.1])
+env.step(empty_action)
