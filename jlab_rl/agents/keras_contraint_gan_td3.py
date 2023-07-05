@@ -217,7 +217,7 @@ class KerasTD3(jlab_rl.Agent):
         rewards = self.critic_model1([states, sampled_actions])
         print('gen rewards:', rewards.shape)
         ireward = np.argmax(rewards)
-        print('max reward:', rewards[ireward].numpy)
+        print('max reward:', rewards[ireward])
         sampled_action = sampled_actions[ireward]
 
         # rdm_norms = rdm_norms[:,0]

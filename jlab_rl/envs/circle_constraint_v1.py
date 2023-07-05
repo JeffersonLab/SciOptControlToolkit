@@ -21,7 +21,7 @@ class circle_constraint_env(gym.Env):
         print('Post-states:', self.states)
         radius = np.sqrt(self.states[0]*self.states[0]+self.states[1]*self.states[1])
         print('Post-radius:', radius)
-        radius_sqrt = np.square(radius - self.target_radius)
+        #radius_sqrt = np.square(radius - self.target_radius)
         reward = - np.log(np.abs(radius - self.target_radius)) - 100 * np.square(radius - self.target_radius)
         #reward = - radius_sqrt# -np.log(np.abs(radius-self.target_radius)) # Log-Linear reward
         if self.states.any() > 1:
@@ -31,7 +31,7 @@ class circle_constraint_env(gym.Env):
         # if radius > 1:
         #     reward = -99
 
-        print('reward:', reward)
+        print('Reward:', reward)
 
         # radius_sqrt = np.square(radius - self.target_radius)
         # reward = np.exp(-100 * np.square(test_state - ideal_r))
