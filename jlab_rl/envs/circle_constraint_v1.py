@@ -15,12 +15,16 @@ class circle_constraint_env(gym.Env):
         self.target_radius = 0.95
 
     def step(self, action):
-        print('Pre-states:', self.states)
-        print('Actions:', action)
+        #print('Pre-states:', self.states)
+        #print('Actions:', action)
         self.states = self.states + action
-        print('Post-states:', self.states)
-        radius = np.sqrt(self.states[0]*self.states[0]+self.states[1]*self.states[1])
-        print('Post-radius:', radius)
+        #print('Post-states:', self.states)
+        sqrt_states = np.square(self.states)
+        #print('Sqrt-states:', sqrt_states)
+        radius = np.sqrt(np.sum(sqrt_states))
+        #radius = np.sqrt(self.states[0]*self.states[0]+self.states[1]*self.states[1])
+        #print('Post-radius:', radius)
+        #print('Post-radius (np):', np_radius)
         #radius_sqrt = np.square(radius - self.target_radius)
         reward = - np.log(np.abs(radius - self.target_radius)) - 100 * np.square(radius - self.target_radius)
         #reward = - radius_sqrt# -np.log(np.abs(radius-self.target_radius)) # Log-Linear reward
@@ -31,7 +35,7 @@ class circle_constraint_env(gym.Env):
         # if radius > 1:
         #     reward = -99
 
-        print('Reward:', reward)
+        #print('Reward:', reward)
 
         # radius_sqrt = np.square(radius - self.target_radius)
         # reward = np.exp(-100 * np.square(test_state - ideal_r))
@@ -41,6 +45,6 @@ class circle_constraint_env(gym.Env):
 
     def reset(self):
         self.states, _, _ = circle_rdm_samples(self.ndim, 1, 1.0, 0.75, give_all=True)
-        self.states = np.abs(self.states)
+        #self.states = np.abs(self.states)
         return self.states, ''
 

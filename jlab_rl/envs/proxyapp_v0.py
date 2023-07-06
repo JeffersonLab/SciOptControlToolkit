@@ -37,8 +37,8 @@ class proxy_app(gym.Env):
         self.x_full_range = torch.arange(self.xmin, self.xmax, self.dx, device=self.devices)
 
         # Define action space
-        self.np_parmin = -0.51*np.ones(self.nParameters)
-        self.np_parmax = +0.51*np.ones(self.nParameters)
+        self.np_parmin = np.zeros(self.nParameters)
+        self.np_parmax = np.ones(self.nParameters)
 
         self.action_space = spaces.Box(low=self.np_parmin, high=self.np_parmax, dtype=np.float32)
         print('action_space:{}'.format(self.action_space))
@@ -169,6 +169,7 @@ class proxy_app(gym.Env):
         # print('state:{}'.format(self.states))
         # print('action:{}'.format(action))
         self.states = self.states + action
+        self.states = action#self.states + action
         nout=0
         for i in range(self.states.shape[0]):
             if self.states[i] < 0. or self.states[i] > 1:
@@ -192,9 +193,9 @@ class proxy_app(gym.Env):
         ref_data = self.data[torch.randint(self.data.shape[0], (self.nevents,))]
         # print('real_data:{}'.format(real_data.shape))
         # print('ref_data:{}'.format(ref_data.shape))
-        loss = self.compute_loss(real_data, policy_data, ref_data)
+        loss = np.abs(self.compute_loss(real_data, policy_data, ref_data))
         # Find a cleaver reward
-        reward = -np.log(loss)
+        reward = 1/loss#-np.log(loss)
         for i in range(self.nParameters):
             tf.summary.scalar('Parameter #{}'.format(i), data=self.states[i], step=int(self.nsteps))
         self.nsteps += 1

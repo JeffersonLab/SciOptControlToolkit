@@ -11,6 +11,8 @@ import torch
 import jlab_rl.agents
 from jlab_rl.utils.git_utilts import get_git_revision_short_hash
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from matplotlib import cm
 
 # import mujoco_py
 # import os
@@ -75,6 +77,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     avg_reward_list = []
 
     total_nsteps = 0
+    nsavefig = 1000
 
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         time_start = time.process_time()

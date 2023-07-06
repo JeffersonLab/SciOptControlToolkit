@@ -28,8 +28,7 @@
 
 import jlab_rl as jlab_rl
 import tensorflow as tf
-#from jlab_rl.models.constraint_circle_generator import ConstraintCircleGenerator
-from jlab_rl.models.constraint_circle_state_generator import ConstraintCircleGenerator
+from jlab_rl.models.state_generator import Generator
 #from tensorflow.keras.initializers import RandomUniform
 #from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.legacy import Adam
@@ -103,19 +102,15 @@ class KerasTD3(jlab_rl.Agent):
 
     # @tf.function
     def train_critic(self, states, actions, rewards, next_states):
-        next_rdm_gaus = np.array([np.random.normal(0, 1, self.num_actions + 2) for state in states])
+        #
+        next_rdm_gaus = np.array([np.random.normal(0, 1, (self.num_actions + self.num_states)) for state in states])
         next_actions = self.target_actor([states, next_rdm_gaus], training=False)
-        #next_actions = self.target_actor(next_rdm_gaus, training=False)
-        # next_actions = self.target_actor(next_states, training=False)
-        # # Add a little noise
-        # noise = np.random.normal(0, 0.2, self.num_actions)
-        # noise = np.clip(noise, -0.5, 0.5)
-        # next_actions = next_actions+noise
+        #
         new_q1 = self.target_critic1([next_states, next_actions], training=False)
         new_q2 = self.target_critic2([next_states, next_actions], training=False)
         new_q = tf.math.minimum(new_q1, new_q2)
         # Bellman equation for the q value
-        q_targets = rewards + self.gamma * new_q
+        q_targets = rewards # + self.gamma * new_q
         # Critic 1
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
@@ -135,7 +130,7 @@ class KerasTD3(jlab_rl.Agent):
     #@tf.function
     def train_actor(self, states):
         # Use Critic 1
-        next_rdm_gaus = np.array([np.random.normal(0, 1, self.num_actions + 2) for state in states])
+        next_rdm_gaus = np.array([np.random.normal(0, 1, (self.num_actions + self.num_states))for state in states])
         with tf.GradientTape() as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             #actions = self.actor_model(next_rdm_gaus, training=True)
@@ -160,8 +155,7 @@ class KerasTD3(jlab_rl.Agent):
         return model
 
     def get_actor(self):
-        model = ConstraintCircleGenerator(ndims=2, nlayers=4,
-                                          lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+        model = Generator(ndims=self.num_states, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
     @tf.function
@@ -201,24 +195,28 @@ class KerasTD3(jlab_rl.Agent):
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         state = np.expand_dims(state, 0)
+        rdm_norms = np.random.normal(0, 1, (self.num_actions + self.num_states))
+        rdm_norms = np.expand_dims(rdm_norms, 0)
+        sampled_action = self.actor_model([state, rdm_norms])
+
         #print(state.shape)
-        nrepeats = 100
-        states = np.repeat(state, nrepeats, axis=0)
+        #nrepeats = 100
+        #states = np.repeat(state, nrepeats, axis=0)
         #states = np.reshape(states, (state.shape[0],nrepeats))
         #print(states)
-        rdm_norms = np.random.normal(0, 1, (nrepeats, self.num_actions + 2))
-        print('states:', states.shape)
-        print('rdm gauss', rdm_norms.shape)
-        sampled_actions = self.actor_model([states, rdm_norms])
-        print('gen actions:', sampled_actions.shape)
-        # rewards1 = self.target_critic1([states, sampled_actions])
-        # rewards2 = self.target_critic2([states, sampled_actions])
-        #rewards = (rewards1 + rewards2)/2.0
-        rewards = self.critic_model1([states, sampled_actions])
-        print('gen rewards:', rewards.shape)
-        ireward = np.argmax(rewards)
-        print('max reward:', rewards[ireward].numpy)
-        sampled_action = sampled_actions[ireward]
+        # rdm_norms = np.random.normal(0, 1, (nrepeats, self.num_actions + 2))
+        # print('states:', states.shape)
+        # print('rdm gauss', rdm_norms.shape)
+        # sampled_actions = self.actor_model([states, rdm_norms])
+        # print('gen actions:', sampled_actions.shape)
+        # # rewards1 = self.target_critic1([states, sampled_actions])
+        # # rewards2 = self.target_critic2([states, sampled_actions])
+        # #rewards = (rewards1 + rewards2)/2.0
+        # rewards = self.critic_model1([states, sampled_actions])
+        # print('gen rewards:', rewards.shape)
+        # ireward = np.argmax(rewards)
+        # print('max reward:', rewards[ireward].numpy)
+        # sampled_action = sampled_actions[ireward]
 
         # rdm_norms = rdm_norms[:,0]
         # rdm_norms = np.expand_dims(rdm_norms, 0)

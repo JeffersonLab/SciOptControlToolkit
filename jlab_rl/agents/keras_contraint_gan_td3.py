@@ -30,6 +30,7 @@ import jlab_rl as jlab_rl
 import tensorflow as tf
 #from jlab_rl.models.constraint_circle_generator import ConstraintCircleGenerator
 from jlab_rl.models.constraint_circle_state_generator import ConstraintCircleGenerator
+from jlab_rl.utils.circle_rdm import circle_rdm_samples
 #from tensorflow.keras.initializers import RandomUniform
 #from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.legacy import Adam
@@ -53,12 +54,13 @@ class KerasTD3(jlab_rl.Agent):
         self.num_actions = env.action_space.shape[0]
         self.upper_bound = env.action_space.high
         self.lower_bound = env.action_space.low
-        print('upper_bound: ', self.upper_bound)
-        print('lower_bound: ', self.lower_bound)
+        print('Upper_bound: ', self.upper_bound)
+        print('Lower_bound: ', self.lower_bound)
         self.action_width = (self.upper_bound+self.lower_bound)/2.0
 
         # Buffer
         self.min_buffer_counter = warmup_size
+        print('Warmup Limit: ', self.min_buffer_counter)
         self.buffer_counter = 0
         self.buffer_capacity = 5000000
         self.batch_size = 1024
@@ -103,19 +105,19 @@ class KerasTD3(jlab_rl.Agent):
 
     # @tf.function
     def train_critic(self, states, actions, rewards, next_states):
-        next_rdm_gaus = np.array([np.random.normal(0, 1, self.num_actions + 2) for state in states])
-        next_actions = self.target_actor([states, next_rdm_gaus], training=False)
+        # next_rdm_gaus = np.array([np.random.normal(0, 1, self.num_actions + 2) for state in states])
+        # next_actions = self.target_actor([states, next_rdm_gaus], training=False)
         #next_actions = self.target_actor(next_rdm_gaus, training=False)
         # next_actions = self.target_actor(next_states, training=False)
         # # Add a little noise
         # noise = np.random.normal(0, 0.2, self.num_actions)
         # noise = np.clip(noise, -0.5, 0.5)
         # next_actions = next_actions+noise
-        new_q1 = self.target_critic1([next_states, next_actions], training=False)
-        new_q2 = self.target_critic2([next_states, next_actions], training=False)
-        new_q = tf.math.minimum(new_q1, new_q2)
+        # new_q1 = self.target_critic1([next_states, next_actions], training=False)
+        # new_q2 = self.target_critic2([next_states, next_actions], training=False)
+        # new_q = tf.math.minimum(new_q1, new_q2)
         # Bellman equation for the q value
-        q_targets = rewards + self.gamma * new_q
+        q_targets = rewards #+ self.gamma * new_q
         # Critic 1
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
@@ -200,32 +202,48 @@ class KerasTD3(jlab_rl.Agent):
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
+
+        # Update the action counter
+        self.nactions.assign(self.nactions + 1)
+        # print('Buffer counter: ', self.buffer_counter)
+        #
+        # # Check if finished with warmup
+        if self.min_buffer_counter > self.buffer_counter:
+            sampled_action, _ = circle_rdm_samples(self.num_actions, 1, 1.0, 0.0, give_all=False)
+            noise = tf.zeros(sampled_action.shape)
+            print('Rdm action')
+            return [np.squeeze(sampled_action)], [np.squeeze(noise)]
+
         state = np.expand_dims(state, 0)
         #print(state.shape)
-        nrepeats = 100
+        nrepeats = 200
         states = np.repeat(state, nrepeats, axis=0)
         #states = np.reshape(states, (state.shape[0],nrepeats))
         #print(states)
         rdm_norms = np.random.normal(0, 1, (nrepeats, self.num_actions + 2))
-        print('states:', states.shape)
-        print('rdm gauss', rdm_norms.shape)
+        #print('states:', states.shape)
+        #print('rdm gauss', rdm_norms.shape)
         sampled_actions = self.actor_model([states, rdm_norms])
-        print('gen actions:', sampled_actions.shape)
-        # rewards1 = self.target_critic1([states, sampled_actions])
-        # rewards2 = self.target_critic2([states, sampled_actions])
-        #rewards = (rewards1 + rewards2)/2.0
-        rewards = self.critic_model1([states, sampled_actions])
-        print('gen rewards:', rewards.shape)
+        #print('gen actions:', sampled_actions.shape)
+        rewards1 = self.target_critic1([states, sampled_actions])
+        rewards2 = self.target_critic2([states, sampled_actions])
+        rewards = tf.math.minimum(rewards1, rewards2)
+        # rewards = self.critic_model1([states, sampled_actions])
+        # new_q1 = self.target_critic1([next_states, next_actions], training=False)
+        # new_q2 = self.target_critic2([next_states, next_actions], training=False)
+        # new_q = tf.math.minimum(new_q1, new_q2)
+
+        #print('gen rewards:', rewards.shape)
         ireward = np.argmax(rewards)
-        print('max reward:', rewards[ireward])
+        #print('max reward:', rewards[ireward])
         sampled_action = sampled_actions[ireward]
+        noise = tf.zeros(sampled_action.shape)
 
         # rdm_norms = rdm_norms[:,0]
         # rdm_norms = np.expand_dims(rdm_norms, 0)
         # sampled_action = self.actor_model([state, rdm_norms ])
         #sampled_action = self.actor_model(rdm_norms)
-        noise = tf.zeros(sampled_action.shape)
-        self.nactions.assign(self.nactions + 1)
+        #self.nactions.assign(self.nactions + 1)
         # if train==False:
         #     noise = tf.zeros(sampled_action.shape)
         #     legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
@@ -266,6 +284,28 @@ class KerasTD3(jlab_rl.Agent):
         self.next_state_buffer[index] = obs_tuple[3]
 
         self.buffer_counter += 1
+
+        # Plot
+        import matplotlib.pyplot as plt
+        from matplotlib import cm
+        import numpy as np
+        nsavefig = self.batch_size
+        if self.buffer_counter % nsavefig == 0 and self.buffer_counter > 0:
+            fig = plt.figure(figsize=(6, 6))
+            ax = fig.add_subplot(111)
+            ax.set_title("X vs Y", fontsize=14)
+            ax.set_xlabel("X", fontsize=12)
+            ax.set_ylabel("Y", fontsize=12)
+            ax.grid(True, linestyle='-', color='0.75')
+            x = self.next_state_buffer[self.buffer_counter-nsavefig:self.buffer_counter,0]
+            y = self.next_state_buffer[self.buffer_counter-nsavefig:self.buffer_counter,1]
+            z = self.reward_buffer[self.buffer_counter-nsavefig:self.buffer_counter]
+            # scatter with colormap mapping to z value
+            cb =  ax.scatter(x, y, s=20, c=z, marker='o', cmap=cm.jet);
+            plt.xlim(-1.5,1.5)
+            plt.ylim(-1.5,1.5)
+            plt.colorbar(cb)
+            plt.savefig('results/scatter_reward_{}.png'.format(self.buffer_counter/nsavefig))
 
     def load(self):
         """ Load the ML models """

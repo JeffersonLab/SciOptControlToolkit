@@ -11,22 +11,18 @@ class ConstraintCircleGenerator(tf.keras.Model):
     self.denses1 = []
     self.bn1 = []
     self.act1 = []
-    #self.mc_drops1 = []
     for i in range(self.nlayers):
       self.denses1.append(tf.keras.layers.Dense(nmul*32, kernel_initializer=init))
       self.bn1.append(tf.keras.layers.BatchNormalization())
       self.act1.append(tf.keras.layers.LeakyReLU(0.2))
-      #self.mc_drops1.append(tf.keras.layers.Dropout(0.15))
 
     self.denses2 = []
     self.bn2 = []
     self.act2 = []
-    #self.mc_drops2 = []
     for i in range(self.nlayers):
       self.denses2.append(tf.keras.layers.Dense(nmul*32, kernel_initializer=init))
       self.bn2.append(tf.keras.layers.BatchNormalization())
       self.act2.append(tf.keras.layers.LeakyReLU(0.2))
-      #self.mc_drops2.append(tf.keras.layers.Dropout(0.15))
 
     self.out1 = tf.keras.layers.Dense(self.ndims, kernel_initializer=init,
                                       activation=tf.nn.leaky_relu)
@@ -52,7 +48,6 @@ class ConstraintCircleGenerator(tf.keras.Model):
       x1 = self.denses1[i](x1)
       x1 = self.bn1[i](x1)
       x1 = self.act1[i](x1)
-      #x1 = self.mc_drops1[i](x1)
     x1 = self.out1(x1)
 
     # Add the rdm circle variables and state plots the generative prediction
@@ -61,7 +56,6 @@ class ConstraintCircleGenerator(tf.keras.Model):
       x2 = self.denses2[i](x2)
       x2 = self.bn2[i](x2)
       x2 = self.act2[i](x2)
-      #x2 = self.mc_drops2[i](x2)
     x2 = self.out2(x2)
 
     x = tf.keras.layers.concatenate([x1, x2])
