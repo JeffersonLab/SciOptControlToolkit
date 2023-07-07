@@ -19,5 +19,12 @@ register(
 # This environment is stateless: meaning the action overides the state
 register(
     id='Circle2DEnv-v1',
-    entry_point='jlab_rl.envs:circle_constraint_statefull_env'
+    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+)
+
+# This environment is stateless: meaning the action overides the state
+register(
+    id='UniformCircle2DEnv-v1',
+    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+    kwargs={'ndim': 2, 'rdm_reset_mode': 'uniform'},
 )
