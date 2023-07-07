@@ -4,9 +4,9 @@ from jlab_rl.utils.circle_rdm import circle_rdm_samples
 
 import numpy as np
 
+
 class circle_constraint_env(gym.Env):
     def __init__(self, ndim=2, rdm_reset_mode='circle'):
-        #super(circle_constraint_env, self).__init__()
         self.ndim = ndim
         self.rdm_reset_mode = rdm_reset_mode
         self.action_space = spaces.Box(low=-np.ones(self.ndim), high=np.ones(self.ndim), dtype=np.float64)
@@ -28,9 +28,9 @@ class circle_constraint_env(gym.Env):
         return self.states, reward, False, False, {}
 
     def reset(self):
-        if self.rdm_reset_mode=='circle':
+        if self.rdm_reset_mode == 'circle':
             self.states, _, _ = circle_rdm_samples(self.ndim, 1, 1.0, 0.75, give_all=True)
-        if self.rdm_reset_mode=='uniform':
+        if self.rdm_reset_mode == 'uniform':
             self.states = self.observation_space.sample()
         return self.states, ''
 
