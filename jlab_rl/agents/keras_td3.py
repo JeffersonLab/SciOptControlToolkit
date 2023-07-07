@@ -298,27 +298,6 @@ class KerasTD3(jlab_rl.Agent):
 
         self.buffer_counter += 1
 
-        # Plot
-        import matplotlib.pyplot as plt
-        from matplotlib import cm
-        nsavefig = self.batch_size
-        if self.buffer_counter % nsavefig == 0 and self.buffer_counter > 0:
-            fig = plt.figure(figsize=(6, 6))
-            ax = fig.add_subplot(111)
-            ax.set_title("X vs Y", fontsize=14)
-            ax.set_xlabel("X", fontsize=12)
-            ax.set_ylabel("Y", fontsize=12)
-            ax.grid(True, linestyle='-', color='0.75')
-            x = self.next_state_buffer[self.buffer_counter-nsavefig:self.buffer_counter,0]
-            y = self.next_state_buffer[self.buffer_counter-nsavefig:self.buffer_counter,1]
-            z = self.reward_buffer[self.buffer_counter-nsavefig:self.buffer_counter]
-            # scatter with colormap mapping to z value
-            cb =  ax.scatter(x, y, s=20, c=z, marker='o', cmap=cm.jet);
-            plt.xlim(-1.5,1.5)
-            plt.ylim(-1.5,1.5)
-            plt.colorbar(cb)
-            plt.savefig('results/scatter_reward_{}.png'.format(self.buffer_counter/nsavefig))
-
     def load(self):
         """ Load the ML models """
         try:

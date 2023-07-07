@@ -77,7 +77,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     avg_reward_list = []
 
     total_nsteps = 0
-    nsavefig = 1000
+    nsavefig = agent.batch_size
 
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         time_start = time.process_time()
@@ -108,6 +108,28 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             episodic_reward += reward
             agent.train()
             prev_state = state
+
+            # Plot the
+            if env_id == 'Circle2DEnv-v1' or 'UniformCircle2DEnv-v1':
+                # Plot
+                import matplotlib.pyplot as plt
+                from matplotlib import cm
+                if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
+                    fig = plt.figure(figsize=(6, 6))
+                    ax = fig.add_subplot(111)
+                    ax.set_title('{}/{}'.format(agent_id,env_id), fontsize=14)
+                    ax.set_xlabel("X", fontsize=12)
+                    ax.set_ylabel("Y", fontsize=12)
+                    ax.grid(True, linestyle='-', color='0.75')
+                    x = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
+                    y = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
+                    z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    # scatter with colormap mapping to z value
+                    cb = ax.scatter(x, y, s=20, c=z, marker='o', cmap=cm.jet);
+                    plt.xlim(-1.5, 1.5)
+                    plt.ylim(-1.5, 1.5)
+                    plt.colorbar(cb)
+                    plt.savefig(logdir+'/scatter_reward_{}.png'.format(agent.buffer_counter / nsavefig))
 
             # Save information
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_nsteps))
