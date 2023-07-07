@@ -152,6 +152,23 @@ class proxy_app(gym.Env):
     def forward(self, params, nevents=1):
         return self.paramsToEventsMap(params, nevents)
 
+    def score_es(self, YPred, YObs):
+        obs_event, obs_size = YObs.shape
+        pred_event, pred_size = YPred.shape
+        assert obs_event == pred_event, "Observations and events have different sizes"
+
+        es1 = np.zeros((obs_size,))
+        for iObs in range(obs_size):
+            es = np.mean(np.linalg.norm(YPred - YObs[:, iObs, np.newaxis], ord=2, axis=0))
+            es1[iObs] = es
+
+        score1 = np.mean(es1)
+
+        pairwise_distances = np.linalg.norm(YPred[:, :, np.newaxis] - YPred[:, np.newaxis, :], ord=2, axis=0)
+        score2 = np.sum(pairwise_distances) / (2 * pred_size * (pred_size - 1))
+
+        return score1 - score2
+
     def compute_loss(self, x, x_pred, x_ref):
 
         x = torch.Tensor(x)
