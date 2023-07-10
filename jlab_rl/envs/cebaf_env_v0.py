@@ -9,7 +9,7 @@ from gym import spaces
 import gym
 import os
 
-from cebaf_opt.envs.rl_envs.cebaf_surrogate_v0 import digitalTwin
+from jlab_rl.envs.cebaf_surrogate_v0 import digitalTwin
 
 
 class cebaf_env(gym.Env):

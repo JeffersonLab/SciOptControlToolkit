@@ -29,6 +29,8 @@
 import jlab_rl as jlab_rl
 import tensorflow as tf
 from jlab_rl.models.state_generator import Generator
+from jlab_rl.agents.keras_td3 import KerasTD3
+
 #from tensorflow.keras.initializers import RandomUniform
 #from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.legacy import Adam
@@ -37,71 +39,10 @@ import os
 from os.path import join
 import time
 
-class KerasTD3(jlab_rl.Agent):
+class KerasGenerativeTD3(KerasTD3):
 
-    def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, **kwargs):
-        """ Define all key variables required for all agent """
-
-        # Get env info
-        super().__init__(**kwargs)
-        print('Running KerasTD3 __init__')
-        self.env = env
-        self.model_load_path = model_load_path
-        self.model_save_path = model_save_path
-        self.num_states = env.observation_space.shape[0]
-        self.num_actions = env.action_space.shape[0]
-        self.upper_bound = env.action_space.high
-        self.lower_bound = env.action_space.low
-        print('upper_bound: ', self.upper_bound)
-        print('lower_bound: ', self.lower_bound)
-        self.action_width = (self.upper_bound+self.lower_bound)/2.0
-
-        # Buffer
-        self.min_buffer_counter = warmup_size
-        self.buffer_counter = 0
-        self.buffer_capacity = 5000000
-        self.batch_size = 1024
-        self.state_buffer = np.zeros((self.buffer_capacity, self.num_states))
-        self.action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
-        self.reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.next_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
-        self.done_buffer = np.zeros((self.buffer_capacity, 1))
-        self.per_buffer = np.ones((self.buffer_capacity, 1))
-
-        # Used to update target networks
-        self.tau = 0.005
-        self.gamma = 0.99
-
-        # Setup Optimizers
-        critic_lr = 3e-4
-        actor_lr = 3e-4
-        self.critic_optimizer1 = Adam(critic_lr, epsilon=1e-08)
-        self.critic_optimizer2 = Adam(critic_lr, epsilon=1e-08)
-        self.actor_optimizer = Adam(actor_lr, epsilon=1e-08)
-
-        self.hidden_size = 256
-        self.layer_std = 1.0 / np.sqrt(self.num_actions)
-
-        self.initialize_new_models()
-        # Load models for retraining
-        if model_load_path is not None:
-            self.load()
-
-        # update counting
-        self.ntrain_calls = 0
-        self.actor_update_freq=2
-        self.critic_update_freq=2
-
-        try:
-            os.mkdir(logdir)
-        except OSError as error:
-            print(error)
-        file_writer = tf.summary.create_file_writer(logdir + '/metrics')
-        file_writer.set_as_default()
-        self.nactions = tf.Variable(0)
-
-    # @tf.function
-    def train_critic(self, states, actions, rewards, next_states):
+    @tf.function
+    def train_critic(self, states, actions, rewards, next_states, dones):
         #
         next_rdm_gaus = np.array([np.random.normal(0, 1, (self.num_actions + self.num_states)) for state in states])
         next_actions = self.target_actor([states, next_rdm_gaus], training=False)
@@ -110,7 +51,7 @@ class KerasTD3(jlab_rl.Agent):
         new_q2 = self.target_critic2([next_states, next_actions], training=False)
         new_q = tf.math.minimum(new_q1, new_q2)
         # Bellman equation for the q value
-        q_targets = rewards # + self.gamma * new_q
+        q_targets = rewards + self.gamma * new_q * (1.0-dones)
         # Critic 1
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
@@ -133,64 +74,14 @@ class KerasTD3(jlab_rl.Agent):
         next_rdm_gaus = np.array([np.random.normal(0, 1, (self.num_actions + self.num_states))for state in states])
         with tf.GradientTape() as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
-            #actions = self.actor_model(next_rdm_gaus, training=True)
             q_value = self.critic_model1([states, actions], training=False)
             loss = -tf.math.reduce_mean(q_value)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
-    def get_critic(self):
-
-        # State as input
-        state_input = tf.keras.layers.Input(shape=(self.num_states))
-        # Action as input
-        action_input = tf.keras.layers.Input(shape=(self.num_actions))
-        state_action = tf.keras.layers.Concatenate()([state_input, action_input])
-        state_action1 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
-        state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
-        outputs = tf.keras.layers.Dense(1)(state_action2)
-        # Outputs single value for give state-action
-        model = tf.keras.Model([state_input, action_input], outputs)
-        #print('Critic model:', model.summary())
-        return model
-
     def get_actor(self):
-        model = Generator(ndims=self.num_states, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+        model = Generator(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
-
-    @tf.function
-    def soft_update(self, target_weights, weights):
-        for (target_weight, weight) in zip(target_weights, weights):
-            target_weight.assign(weight * self.tau + target_weight * (1.0 - self.tau))
-
-    def update(self, state_batch, action_batch, reward_batch, next_state_batch):
-        self.train_critic(state_batch, action_batch, reward_batch, next_state_batch)
-        self.train_actor(state_batch)
-
-
-    def train(self):
-        """ Method used to train """
-        self.ntrain_calls += 1
-
-        # Get sampling range
-        record_range = min(self.buffer_counter, self.buffer_capacity)
-
-        # Randomly sample indices
-        batch_indices = np.random.choice(record_range, self.batch_size)
-
-        # Convert to tensors
-        state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
-        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
-        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
-        reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
-        #
-        self.update(state_batch, action_batch, reward_batch, next_state_batch)
-        if self.ntrain_calls%self.actor_update_freq == 0:
-            self.soft_update(self.target_actor.variables, self.actor_model.variables)
-        if self.ntrain_calls%self.critic_update_freq == 0:
-            self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
-            self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
@@ -252,62 +143,4 @@ class KerasTD3(jlab_rl.Agent):
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         return [np.squeeze(sampled_action)], [np.squeeze(noise)]
 #        return [np.squeeze(legal_action)], [np.squeeze(noise)]
-
-    def memory(self, obs_tuple):
-        # Set index to zero if buffer_capacity is exceeded,
-        # replacing old records
-        index = self.buffer_counter % self.buffer_capacity
-
-        self.state_buffer[index] = obs_tuple[0]
-        self.action_buffer[index] = obs_tuple[1]
-        self.reward_buffer[index] = obs_tuple[2]
-        self.next_state_buffer[index] = obs_tuple[3]
-
-        self.buffer_counter += 1
-
-    def load(self):
-        """ Load the ML models """
-        try:
-            self.actor_model.load_weights(join(self.model_load_path, "actor_model.h5"))
-            self.target_actor.load_weights(join(self.model_load_path, "target_actor.h5"))
-            self.critic_model1.load_weights(join(self.model_load_path, "critic_model1.h5"))
-            self.target_critic1.load_weights(join(self.model_load_path, "target_critic1.h5"))
-            self.critic_model2.load_weights(join(self.model_load_path, "critic_model2.h5"))
-            self.target_critic2.load_weights(join(self.model_load_path, "target_critic2.h5"))
-        except:
-            print("Error while loading models, initializing new models...")
-
-    def initialize_new_models(self):
-        """ Initialize new models from scratch """
-        print('Running KerasTD3 initialize_new_models()')
-
-        self.actor_model = self.get_actor()
-        self.target_actor = self.get_actor()
-        self.target_actor.set_weights(self.actor_model.get_weights())
-
-        seed1 = time.time_ns()
-        print('seed1:', seed1)
-        tf.random.set_seed(seed1)
-        self.critic_model1 = self.get_critic()
-        self.target_critic1 = self.get_critic()
-        self.target_critic1.set_weights(self.critic_model1.get_weights())
-
-        seed2 = time.time_ns()
-        print('seed2:', seed2)
-        tf.random.set_seed(seed2)
-        self.critic_model2 = self.get_critic()
-        self.target_critic2 = self.get_critic()
-        self.target_critic2.set_weights(self.critic_model2.get_weights())
-
-    def save(self):
-        """ Save the ML models """
-        try:
-            self.actor_model.save_weights(join(self.model_save_path, "actor_model.h5"))
-            self.target_actor.save_weights(join(self.model_save_path, "target_actor.h5"))
-            self.critic_model1.save_weights(join(self.model_save_path, "critic_model1.h5"))
-            self.target_critic1.save_weights(join(self.model_save_path, "target_critic1.h5"))
-            self.critic_model2.save_weights(join(self.model_save_path, "critic_model2.h5"))
-            self.target_critic2.save_weights(join(self.model_save_path, "target_critic2.h5"))
-        except:
-            print("Error in saving the models...")
 

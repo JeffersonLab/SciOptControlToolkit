@@ -20,7 +20,7 @@ class circle_constraint_env(gym.Env):
         radius_sqrt = np.square(radius - self.target_radius)
         reward = - radius_sqrt
 
-        return self.states, reward, False, False, {}
+        return self.states, reward, True, True, {}
 
     def reset(self):
         self.states, _, _ = circle_rdm_samples(self.ndim, 1, 1.0, 0.75, give_all=True)

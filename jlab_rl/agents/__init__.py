@@ -3,7 +3,7 @@ from jlab_rl.agents.registration import register, make, list_registered_modules
 # Import agents
 from jlab_rl.agents.keras_td3 import KerasTD3
 from jlab_rl.agents.keras_cebaf_td3 import KerasTD3 as KerasCEBAFTD3
-from jlab_rl.agents.keras_gan_td3 import KerasTD3 as KerasGenerativeTD3
+from jlab_rl.agents.keras_gan_td3 import KerasGenerativeTD3
 from jlab_rl.agents.keras_contraint_gan_td3 import KerasTD3 as KerasConstraintGenerativeTD3
 # from jlab_rl.agents.keras_td3_critic_dgpa import KerasTD3CriticDGPA
 from jlab_rl.agents.keras_td3_action_dgpa_v1 import KerasTD3ActorDGPA as KerasTD3ActorDGPA_v1

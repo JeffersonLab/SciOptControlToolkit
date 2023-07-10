@@ -30,7 +30,7 @@ tf.random.set_seed(seed_value)
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
-    if env_id == 'ProxyApp-v0' or 'Circle2DEnv-v0' or 'Circle2DEnv-v1':
+    if env_id == 'ProxyApp-v0' or env_id == 'Circle2DEnv-v0' or env_id == 'Circle2DEnv-v1':
         import jlab_rl.envs as gym
     else:
         import gym
@@ -84,7 +84,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         prev_state, _ = env.reset()
         nsteps = 0
         episodic_reward = 0
-        for _ in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
+        for estep in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
             total_nsteps += 1
             if 'Torch' in agent_id:
                 tf_prev_state = torch.Tensor([prev_state])
@@ -102,9 +102,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             # Receive state and reward from environment.
             if env_id != 'Pendulum-v1':
                 action = np.squeeze(action)
+            # if agent_id == 'KerasGenerativeTD3-v0':
+            #     action = np.squeeze(action)
+            # print('action: ', action.shape)
             state, reward, done_old, done, info = env.step(action)
-            nsteps += 1
-            agent.memory((prev_state, action, reward, state))
+            # done_old = float(done_old)
+            # done = float(done)
+            # nsteps += 1
+            # if done:
+            #     print('old/new done: {}/{}({})'.format(done_old, done, estep))
+            agent.memory((prev_state, action, reward, state, done))
             episodic_reward += reward
             agent.train()
             prev_state = state

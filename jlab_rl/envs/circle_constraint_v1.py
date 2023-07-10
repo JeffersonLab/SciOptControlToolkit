@@ -25,7 +25,7 @@ class circle_constraint_env(gym.Env):
             reward = -99
         if self.states.any() < -1:
             reward = -99
-        return self.states, reward, False, False, {}
+        return self.states, reward, True, True, {}
 
     def reset(self):
         if self.rdm_reset_mode == 'circle':

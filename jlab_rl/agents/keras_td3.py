@@ -30,7 +30,6 @@ import jlab_rl as jlab_rl
 import tensorflow as tf
 from tensorflow.keras.initializers import RandomUniform
 from tensorflow.keras.optimizers import Adam
-#from tensorflow.keras.optimizers.legacy import Adam
 import numpy as np
 import os
 from os.path import join
@@ -81,25 +80,6 @@ class KerasTD3(jlab_rl.Agent):
         self.hidden_size = 256
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
 
-        # RFF
-        # self.nrff = nrff
-        # if self.nrff > 0:
-        #     self.rff_scale = tf.Variable(0.01, constraint=lambda z: tf.clip_by_value(z, 0.001, 0.1))
-        #     self.rff_map = tf.keras.layers.Dense(self.nrff,
-        #         trainable=False,
-        #         kernel_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
-        #         bias_initializer=tf.keras.initializers.RandomUniform(0, 2 * np.pi),
-        #         name='rff_map'
-        #     )
-
-        # build and initialize the models
-        # self.actor_model = None
-        # self.train_actor = None
-        # self.critic_model1 = None
-        # self.critic_model2 = None
-        # self.target_critic1 = None
-        # self.target_critic2 = None
-
         self.initialize_new_models()
         # Load models for retraining
         if model_load_path is not None:
@@ -119,7 +99,7 @@ class KerasTD3(jlab_rl.Agent):
         self.nactions = tf.Variable(0)
 
     @tf.function
-    def train_critic(self, states, actions, rewards, next_states):
+    def train_critic(self, states, actions, rewards, next_states, dones):
         next_actions = self.target_actor(next_states, training=False)
         # Add a little noise
         noise = np.random.normal(0, 0.2, self.num_actions)
@@ -129,7 +109,7 @@ class KerasTD3(jlab_rl.Agent):
         new_q2 = self.target_critic2([next_states, next_actions], training=False)
         new_q = tf.math.minimum(new_q1, new_q2)
         # Bellman equation for the q value
-        q_targets = rewards #+ self.gamma * new_q
+        q_targets = rewards + self.gamma * new_q * (1.0-dones)
         # Critic 1
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
@@ -165,15 +145,6 @@ class KerasTD3(jlab_rl.Agent):
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
         state_action1 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
         state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
-        # if (self.nrff>0):
-        #     out = self.rff_scale*state_action2
-        #     y = self.rff_map(out)
-        #     y1 = tf.math.cos(y)
-        #     y2 = tf.math.sin(y)
-        #     out = tf.keras.layers.concatenate([y1, y2])
-        #     outputs = tf.keras.layers.Dense(1)(out)
-        # else:
-        #     outputs = tf.keras.layers.Dense(1)(state_action2)
         outputs = tf.keras.layers.Dense(1)(state_action2)
 
         # Outputs single value for give state-action
@@ -204,16 +175,6 @@ class KerasTD3(jlab_rl.Agent):
                                         kernel_initializer=last_init,
                                         use_bias=True)(out)
 
-        # if (self.nrff>0):
-        #     out = self.rff_scale*state_action2
-        #     y = self.rff_map(out)
-        #     y1 = tf.math.cos(y)
-        #     y2 = tf.math.sin(y)
-        #     out = tf.keras.layers.concatenate([y1, y2])
-        #     outputs = tf.keras.layers.Dense(1)(out)
-        # else:
-        #     outputs = tf.keras.layers.Dense(1)(state_action2)
-
         # Rescale for tanh [-1,1]
         outputs = tf.keras.layers.Lambda(
             lambda x: ((x + 1.0) * (self.upper_bound - self.lower_bound)) / 2.0 + self.lower_bound)(outputs)
@@ -226,8 +187,8 @@ class KerasTD3(jlab_rl.Agent):
         for (target_weight, weight) in zip(target_weights, weights):
             target_weight.assign(weight * self.tau + target_weight * (1.0 - self.tau))
 
-    def update(self, state_batch, action_batch, reward_batch, next_state_batch):
-        self.train_critic(state_batch, action_batch, reward_batch, next_state_batch)
+    def update(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
+        self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
         self.train_actor(state_batch)
 
 
@@ -247,8 +208,11 @@ class KerasTD3(jlab_rl.Agent):
         reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
         reward_batch = tf.cast(reward_batch, dtype=tf.float32)
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
+        done_batch = tf.convert_to_tensor(self.done_buffer[batch_indices])
+        done_batch = tf.cast(done_batch, dtype=tf.float32)
+
         #
-        self.update(state_batch, action_batch, reward_batch, next_state_batch)
+        self.update(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
         if self.ntrain_calls%self.actor_update_freq == 0:
             self.soft_update(self.target_actor.variables, self.actor_model.variables)
         if self.ntrain_calls%self.critic_update_freq == 0:
@@ -295,6 +259,7 @@ class KerasTD3(jlab_rl.Agent):
         self.action_buffer[index] = obs_tuple[1]
         self.reward_buffer[index] = obs_tuple[2]
         self.next_state_buffer[index] = obs_tuple[3]
+        self.done_buffer[index] = obs_tuple[4]
 
         self.buffer_counter += 1
 
