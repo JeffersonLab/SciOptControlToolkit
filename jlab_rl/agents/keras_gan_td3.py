@@ -44,7 +44,8 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
-        next_rdm_gaus = np.array([np.random.normal(0, 1, (self.num_actions + self.num_states)) for state in states])
+        #next_rdm_gaus = np.array([np.random.normal(0, 1, (self.num_actions + self.num_states)) for state in states])
+        next_rdm_gaus = tf.random.normal([states.shape[0], self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
         next_actions = self.target_actor([states, next_rdm_gaus], training=False)
         #
         new_q1 = self.target_critic1([next_states, next_actions], training=False)
@@ -68,10 +69,10 @@ class KerasGenerativeTD3(KerasTD3):
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
 
-    #@tf.function
+    @tf.function
     def train_actor(self, states):
         # Use Critic 1
-        next_rdm_gaus = np.array([np.random.normal(0, 1, (self.num_actions + self.num_states))for state in states])
+        next_rdm_gaus = tf.random.normal([states.shape[0], self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
         with tf.GradientTape() as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             q_value = self.critic_model1([states, actions], training=False)
@@ -83,11 +84,11 @@ class KerasGenerativeTD3(KerasTD3):
         model = Generator(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
+#    @tf.function
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         state = np.expand_dims(state, 0)
-        rdm_norms = np.random.normal(0, 1, (self.num_actions + self.num_states))
-        rdm_norms = np.expand_dims(rdm_norms, 0)
+        rdm_norms = tf.random.normal([1, self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
         sampled_action = self.actor_model([state, rdm_norms])
 
         #print(state.shape)
