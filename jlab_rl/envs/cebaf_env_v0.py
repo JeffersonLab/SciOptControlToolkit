@@ -98,10 +98,21 @@ class cebaf_env(gym.Env):
         # Need to normalize for the RL agent
         normalized_states = self.normalize_state(self.states)
 
-        # Simple reward for now
+        # Trip
+        trips = self.linac.getTripRates()
+        reward = -trips
+
+        # Energy boundary
         self.energy = self.linac.getEnergyGain()
         print('New energy: {}({})'.format(self.energy, self.target_energy))
-        reward = - np.log(np.abs(self.energy - self.target_energy)) #- 100 * np.square(self.energy - self.target_energy)
+
+        if self.energy<self.min_energy and self.energy>self.max_energy:
+            reward -= 1e5
+
+        # # Simple reward for now
+        # self.energy = self.linac.getEnergyGain()
+        # print('New energy: {}({})'.format(self.energy, self.target_energy))
+        # reward = - np.log(np.abs(self.energy - self.target_energy)) #- 100 * np.square(self.energy - self.target_energy)
 
         # Extra information
         info = {'heat': self.linac.getRFHeat(), 'trip': self.linac.getTripRates(), 'energy': self.energy}
