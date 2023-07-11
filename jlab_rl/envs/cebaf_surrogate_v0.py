@@ -355,7 +355,7 @@ class digitalTwin():
     def getEnergyMargin(self):
         return self.energyMargin
 
-    def updateGradients(self, delta):
+    def update_gradients(self, delta):
         """
 
         """

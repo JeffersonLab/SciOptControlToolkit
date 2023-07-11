@@ -62,7 +62,7 @@ class ConstraintCircleGenerator(tf.keras.Model):
     x = self.out(x)
 
     # Rescale using tanh [-1,1] to ensure it's within the parameter space
-    #if self.lower_bound.all() != None:
+    # if self.lower_bound.all() != None:
     # x = tf.keras.layers.Lambda(
     #   lambda xi: ((xi + 1.0) * (self.upper_bound - self.lower_bound)) / 2.0 + self.lower_bound)(x+states)
 

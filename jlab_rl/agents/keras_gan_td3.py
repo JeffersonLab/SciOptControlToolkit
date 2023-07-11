@@ -44,9 +44,8 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
-        #next_rdm_gaus = np.array([np.random.normal(0, 1, (self.num_actions + self.num_states)) for state in states])
-        next_rdm_gaus = tf.random.normal([states.shape[0], self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
-        next_actions = self.target_actor([states, next_rdm_gaus], training=False)
+        next_rdm_gaus = tf.random.normal([next_states.shape[0], self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
+        next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
         #
         new_q1 = self.target_critic1([next_states, next_actions], training=False)
         new_q2 = self.target_critic2([next_states, next_actions], training=False)
@@ -87,14 +86,26 @@ class KerasGenerativeTD3(KerasTD3):
 #    @tf.function
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
+
+        # Single try
         state = np.expand_dims(state, 0)
         rdm_norms = tf.random.normal([1, self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
         sampled_action = self.actor_model([state, rdm_norms])
 
-        #print(state.shape)
-        #nrepeats = 100
-        #states = np.repeat(state, nrepeats, axis=0)
-        #states = np.reshape(states, (state.shape[0],nrepeats))
+        # Try multiple times
+        # nrepeats = 100
+        # states = tf.repeat(state, nrepeats, axis=0)
+        # print('states:', states.shape)
+        # # states = np.reshape(states, (state.shape[0], nrepeats))
+        # # print('states:', states.shape)
+        # rdm_norms = tf.random.normal([nrepeats, self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
+        # sampled_actions = self.actor_model([states, rdm_norms])
+        # new_q1 = self.target_critic1([states, sampled_actions])
+        # new_q2 = self.target_critic2([states, sampled_actions])
+        # rewards = tf.math.minimum(new_q1, new_q2)
+        # ireward = np.argmax(rewards)
+        # sampled_action = sampled_actions[ireward]
+
         #print(states)
         # rdm_norms = np.random.normal(0, 1, (nrepeats, self.num_actions + 2))
         # print('states:', states.shape)
