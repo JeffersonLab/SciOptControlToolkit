@@ -108,7 +108,7 @@ class cebaf_env(gym.Env):
         # Heat
         heat = self.linac.getRFHeat()
 
-        reward = -1.0*(alpha*trips + (1-alpha)*heat)
+        reward = -1.0*(self.alpha*trips + (1-self.alpha)*heat)
 
         # Energy boundary
         self.energy = self.linac.getEnergyGain()
@@ -117,13 +117,16 @@ class cebaf_env(gym.Env):
                                                 self.max_energy,
                                                 self.target_energy))
 
-        if self.energy < self.min_energy or self.energy > self.max_energy:
-            reward -= 100 * np.log(np.abs(self.energy - self.target_energy))
+
 
         # # Simple reward for now
         if self.opt=='energy':
             print('New energy: {}({})'.format(self.energy, self.target_energy))
             reward = - np.log(np.abs(self.energy - self.target_energy)) #- 100 * np.square(self.energy - self.target_energy)
+
+        # Apply to all optimization scenarios
+        if self.energy < self.min_energy or self.energy > self.max_energy:
+            reward -= 100 * np.log(np.abs(self.energy - self.target_energy))
 
         print('Reward: {}'.format(reward))
 
