@@ -15,18 +15,22 @@ def plot_states(env_id, states):
     plt.ylim(np.min(states[:,1]), np.max(states[:,1]))
     plt.savefig('./utest_scatter_reset_{}.png'.format(env_id))
 
-end_id = 'CEBAF2DEnv-v0'
-env = gym.make(end_id)
+env_id = 'CEBAFNorthEnv-v0'
+env = gym.make(env_id)
+print(env.reset())
+
+env_id = 'CEBAF2DEnv-v0'
+env = gym.make(env_id)
 print(env.reset())
 reset_states = np.array([env.reset()[1] for _ in range(2)])
 print('reset states:\n', reset_states)
 
 reset_states = np.array([env.reset()[0] for _ in range(10000)])
-plot_states(end_id+'-Normalized', reset_states)
+plot_states(env_id+'-Normalized', reset_states)
 
 reset_states = np.array([env.reset()[1] for _ in range(10000)])
 print(reset_states.shape)
-plot_states(end_id+'-Actual', reset_states)
+plot_states(env_id+'-Actual', reset_states)
 sqrt_states = np.square(reset_states)
 print(sqrt_states.shape)
 radius = np.sqrt(np.sum(sqrt_states, axis=1))

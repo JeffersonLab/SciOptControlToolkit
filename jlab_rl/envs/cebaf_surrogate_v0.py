@@ -79,15 +79,16 @@ class cavity():
         :param gradArray:
         :return:
         """
-        if type(grad) in [int, float, np.float32, np.float64]:
-            if grad < self.min_gset:
-                self.gradient = self.min_gset
-            elif grad > self.max_gset_to_use:
-                self.gradient = self.max_gset_to_use
-            else:
-                self.gradient = float(grad)
-        else:
-            print("Error: ", self.cavity_id, " gradient must be a float or integer and not ", type(grad))
+        self.gradient = float(grad)
+        # if type(grad) in [int, float, np.float32, np.float64]:
+        #     if grad < self.min_gset:
+        #         self.gradient = self.min_gset
+        #     elif grad > self.max_gset_to_use:
+        #         self.gradient = self.max_gset_to_use
+        #     else:
+        #         self.gradient = float(grad)
+        # else:
+        #     print("Error: ", self.cavity_id, " gradient must be a float or integer and not ", type(grad))
 
 
     def getRFHeat(self):

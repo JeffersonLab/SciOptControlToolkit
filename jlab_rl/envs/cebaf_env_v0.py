@@ -7,7 +7,7 @@ import pandas as pd
 import math
 from gym import spaces
 import gym
-import os
+import os, sys
 
 from jlab_rl.envs.cebaf_surrogate_v0 import digitalTwin
 from jlab_rl.utils.circle_rdm import circle_rdm_samples
@@ -38,12 +38,15 @@ class cebaf_env(gym.Env):
         self.min_grads = self.linac.getMinGradients()
         self.max_grads = self.linac.getMaxGradients()
 
+        # Define action range
+
         # Assume everything fits on unit circle
         self.action_space = spaces.Box(low=-np.ones(self.ncavities), high=np.ones(self.ncavities), dtype=np.float64)
         self.observation_space = spaces.Box(low=-np.ones(self.ncavities), high=np.ones(self.ncavities), dtype=np.float64)
 
         # Resent
         self.states, _ = self.reset()
+        self.energy = self.linac.getEnergyGain()
 
     def normalize_energy(self, energy):
         return (energy-self.min_energy)/(self.max_energy-self.min_energy)
@@ -56,29 +59,52 @@ class cebaf_env(gym.Env):
         return normalized_state
 
     def denormalize_state(self, normalized_state):
+        diff = self.max_grads-self.min_grads
+#        print('diff:', diff)
+        if np.all(diff) == False:
+            sys.exit('Problem with the gradients')
         normalized_state = ((normalized_state + 1) / 2) * (self.max_grads - self.min_grads) + self.min_grads
         return normalized_state
 
     def step(self, action):
 
         # Scale unit action to proper action space
+        print('action', action)
         denorm_action = self.denormalize_state(action)
+        print('denorm_action', denorm_action)
 
-        # Update gradients
-        self.linac.update_gradients(denorm_action)
+        self.linac.setGradients(denorm_action)
+
+        # Stateful workflow
+        # print('denorm_action', denorm_action)
+        #
+        # # Get new gradients
+        # current_states = self.linac.getGradients()
+        # print('current_states', current_states)
+        # print('step new state', current_states + denorm_action)
+        #
+        # # Update gradients
+        # self.linac.update_gradients(denorm_action)
 
         # Get new gradients
         self.states = self.linac.getGradients()
+        print('linac new state', self.states)
+
+        # calc_action = self.states - current_states
+        #
+        # print('denorm_action', denorm_action)
+        # print('calc_action', calc_action)
 
         # Need to normalize for the RL agent
         normalized_states = self.normalize_state(self.states)
 
         # Simple reward for now
-        energy = self.linac.getEnergyGain()
-        reward = - np.log(np.abs(energy - self.target_energy)) - 100 * np.square(energy - self.target_energy)
+        self.energy = self.linac.getEnergyGain()
+        print('New energy: {}({})'.format(self.energy, self.target_energy))
+        reward = - np.log(np.abs(self.energy - self.target_energy)) #- 100 * np.square(self.energy - self.target_energy)
 
         # Extra information
-        info = {'heat': self.linac.getRFHeat(), 'trip': self.linac.getTripRates(), 'energy': energy}
+        info = {'heat': self.linac.getRFHeat(), 'trip': self.linac.getTripRates(), 'energy': self.energy}
 
         # Return
         return normalized_states, reward, True, True, info
