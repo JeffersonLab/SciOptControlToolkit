@@ -30,7 +30,7 @@ tf.random.set_seed(seed_value)
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
-    if env_id == 'ProxyApp-v0' or env_id == 'Circle2DEnv-v0' or env_id == 'Circle2DEnv-v1':
+    if env_id == 'ProxyApp-v0' or env_id == 'Circle2DEnv-v0' or env_id == 'Circle2DEnv-v1' or env_id == 'CEBAF2DEnv-v0':
         import jlab_rl.envs as gym
     else:
         import gym
@@ -116,8 +116,73 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             agent.train()
             prev_state = state
 
+            if env_id == 'CEBAF2DEnv-v0':
+                # Plot
+                import matplotlib.pyplot as plt
+                from matplotlib import cm
+                if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
+                    fig = plt.figure(figsize=(6, 6))
+                    ax = fig.add_subplot(111)
+                    ax.set_title('Action - {}/{}'.format(agent_id, env_id), fontsize=14)
+                    ax.set_xlabel("X", fontsize=12)
+                    ax.set_ylabel("Y", fontsize=12)
+                    ax.grid(True, linestyle='-', color='0.75')
+                    this_actions = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    this_actions = env.denormalize_state(this_actions)
+                    x = this_actions[:, 0]
+                    y = this_actions[:, 1]
+                    # scatter with colormap mapping to z value
+                    cb = ax.scatter(x, y, s=20, marker='o');
+                    plt.xlim(np.min(x), np.max(x))
+                    plt.ylim(np.min(y), np.max(y))
+                    plt.colorbar(cb)
+                    plt.savefig(logdir + '/denormalized_action_{}.png'.format(agent.buffer_counter / nsavefig))
+
+                # Plot
+                import matplotlib.pyplot as plt
+                from matplotlib import cm
+                if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
+                    fig = plt.figure(figsize=(6, 6))
+                    ax = fig.add_subplot(111)
+                    ax.set_title('States - {}/{}'.format(agent_id, env_id), fontsize=14)
+                    ax.set_xlabel("X", fontsize=12)
+                    ax.set_ylabel("Y", fontsize=12)
+                    ax.grid(True, linestyle='-', color='0.75')
+                    this_states = agent.state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    this_states = env.denormalize_state(this_states)
+                    x = this_states[:, 0]
+                    y = this_states[:, 1]
+                    # scatter with colormap mapping to z value
+                    cb = ax.scatter(x, y, s=20, marker='o');
+                    plt.xlim(np.min(x), np.max(x))
+                    plt.ylim(np.min(y), np.max(y))
+                    plt.colorbar(cb)
+                    plt.savefig(logdir + '/denormalized_state_{}.png'.format(agent.buffer_counter / nsavefig))
+
+                # Plot
+                import matplotlib.pyplot as plt
+                from matplotlib import cm
+                if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
+                    fig = plt.figure(figsize=(6, 6))
+                    ax = fig.add_subplot(111)
+                    ax.set_title('Next States - {}/{}'.format(agent_id, env_id), fontsize=14)
+                    ax.set_xlabel("X", fontsize=12)
+                    ax.set_ylabel("Y", fontsize=12)
+                    ax.grid(True, linestyle='-', color='0.75')
+                    this_next_states = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    this_next_states = env.denormalize_state(this_next_states)
+                    x = this_next_states[:, 0]
+                    y = this_next_states[:, 1]
+                    z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    # scatter with colormap mapping to z value
+                    cb = ax.scatter(x, y, s=20, c=z, marker='o', cmap=cm.jet);
+                    plt.xlim(np.min(x), np.max(x))
+                    plt.ylim(np.min(y), np.max(y))
+                    plt.colorbar(cb)
+                    plt.savefig(logdir+'/denormalized_nextstate_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+
             # Plot the
-            if env_id == 'Circle2DEnv-v1' or 'UniformCircle2DEnv-v1':
+            if env_id == 'Circle2DEnv-v1' or env_id == 'UniformCircle2DEnv-v1' or env_id == 'CEBAF2DEnv-v0':
                 # Plot
                 import matplotlib.pyplot as plt
                 from matplotlib import cm
@@ -136,7 +201,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.xlim(-1.5, 1.5)
                     plt.ylim(-1.5, 1.5)
                     plt.colorbar(cb)
-                    plt.savefig(logdir+'/scatter_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+                    plt.savefig(logdir+'/normalized_nextstate_reward_{}.png'.format(agent.buffer_counter / nsavefig))
 
             # Save information
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_nsteps))

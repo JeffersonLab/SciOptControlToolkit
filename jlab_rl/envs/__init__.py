@@ -32,7 +32,7 @@ register(
 
 # This environment is stateless: meaning the action overides the state
 register(
-    id='CEBAF2D-v0',
+    id='CEBAF2DEnv-v0',
     entry_point='jlab_rl.envs:cebaf2d',
     kwargs={'linac': '1l06_test2'},
 )

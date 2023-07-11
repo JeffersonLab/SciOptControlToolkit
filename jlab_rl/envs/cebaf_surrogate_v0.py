@@ -275,6 +275,16 @@ class digitalTwin():
         for i in range(len(self.cavities)):
             self.cavities[i].setGradient(grad_array[i])
 
+    def getEnergies(self):
+        """
+        :return:
+        """
+        energies = []
+        for cavity in self.cavities:
+            energies.append(cavity.getEnergy())
+        return np.array(energies)
+
+
     def getGradients(self):
         """
         :return:

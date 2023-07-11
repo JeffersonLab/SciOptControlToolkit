@@ -11,15 +11,27 @@ def plot_states(env_id, states):
     ax.set_ylabel("X2", fontsize=12)
     # scatter with colormap mapping to z value
     ax.scatter(states[:,0], states[:,1], s=20, marker='o')
-    plt.xlim(-1.5, 1.5)
-    plt.ylim(-1.5, 1.5)
+    plt.xlim(np.min(states[:,0]), np.max(states[:,0]))
+    plt.ylim(np.min(states[:,1]), np.max(states[:,1]))
     plt.savefig('./utest_scatter_reset_{}.png'.format(env_id))
 
-env = gym.make('CEBAF2D-v0')
+end_id = 'CEBAF2DEnv-v0'
+env = gym.make(end_id)
 print(env.reset())
-reset_states = np.array([env.reset() for _ in range(2)])
+reset_states = np.array([env.reset()[1] for _ in range(2)])
 print('reset states:\n', reset_states)
 
+reset_states = np.array([env.reset()[0] for _ in range(10000)])
+plot_states(end_id+'-Normalized', reset_states)
+
+reset_states = np.array([env.reset()[1] for _ in range(10000)])
+print(reset_states.shape)
+plot_states(end_id+'-Actual', reset_states)
+sqrt_states = np.square(reset_states)
+print(sqrt_states.shape)
+radius = np.sqrt(np.sum(sqrt_states, axis=1))
+print(radius.shape)
+print('Energy min/max: {}/{}'.format(np.min(radius), np.max(radius)))
 # empty_action = np.array([0,0])
 # env.step(empty_action)
 #
