@@ -214,6 +214,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
             if "CEBAF" in env_id:
                 tf.summary.scalar('Energy Distribution', data=env.energy, step=int(total_nsteps))
+                tf.summary.scalar('Trip Rate', data=info['trip'], step=int(total_nsteps))
+                tf.summary.scalar('Heat Load', data=info['heat'], step=int(total_nsteps))
 
             # End this episode when `done` is True
             if done_old:

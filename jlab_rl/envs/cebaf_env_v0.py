@@ -14,12 +14,14 @@ from jlab_rl.utils.circle_rdm import circle_rdm_samples
 
 
 class cebaf_env(gym.Env):
-    def __init__(self, path_cavity_data=os.path.join(os.path.dirname(__file__), 'cavity_table.pkl'),
+    def __init__(self, path_cavity_data=os.path.join(os.path.dirname(__file__), 'updated_cavity_table.pkl'),
                  linac="North", trackTime=False, max_steps=100, reward_weights=0.5, seed=22, termination_reward=-1000,
                  action_range=[-0.05, 0.05]):
         np.random.seed(seed=seed)
 
         self.rdm_reset_mode = 'uniform'
+        self.opt = 'energy'
+        self.alpha = 1.0
 
         # Build linac
         self.linac = digitalTwin(path_cavity_data, linac)
@@ -69,9 +71,9 @@ class cebaf_env(gym.Env):
     def step(self, action):
 
         # Scale unit action to proper action space
-        print('action', action)
+        #print('action', action)
         denorm_action = self.denormalize_state(action)
-        print('denorm_action', denorm_action)
+        #print('denorm_action', denorm_action)
 
         self.linac.setGradients(denorm_action)
 
@@ -88,7 +90,7 @@ class cebaf_env(gym.Env):
 
         # Get new gradients
         self.states = self.linac.getGradients()
-        print('linac new state', self.states)
+        #print('linac new state', self.states)
 
         # calc_action = self.states - current_states
         #
@@ -100,19 +102,30 @@ class cebaf_env(gym.Env):
 
         # Trip
         trips = self.linac.getTripRates()
+        print('Trip rate: {}'.format(trips))
         reward = -trips
+
+        # Heat
+        heat = self.linac.getRFHeat()
+
+        reward = -1.0*(alpha*trips + (1-alpha)*heat)
 
         # Energy boundary
         self.energy = self.linac.getEnergyGain()
-        print('New energy: {}({})'.format(self.energy, self.target_energy))
+        print('New energy: {}({}/{}/{})'.format(self.energy,
+                                                self.min_energy,
+                                                self.max_energy,
+                                                self.target_energy))
 
-        if self.energy<self.min_energy and self.energy>self.max_energy:
-            reward -= 1e5
+        if self.energy < self.min_energy or self.energy > self.max_energy:
+            reward -= 100 * np.log(np.abs(self.energy - self.target_energy))
 
         # # Simple reward for now
-        # self.energy = self.linac.getEnergyGain()
-        # print('New energy: {}({})'.format(self.energy, self.target_energy))
-        # reward = - np.log(np.abs(self.energy - self.target_energy)) #- 100 * np.square(self.energy - self.target_energy)
+        if self.opt=='energy':
+            print('New energy: {}({})'.format(self.energy, self.target_energy))
+            reward = - np.log(np.abs(self.energy - self.target_energy)) #- 100 * np.square(self.energy - self.target_energy)
+
+        print('Reward: {}'.format(reward))
 
         # Extra information
         info = {'heat': self.linac.getRFHeat(), 'trip': self.linac.getTripRates(), 'energy': self.energy}
@@ -122,6 +135,7 @@ class cebaf_env(gym.Env):
 
     def reset(self):
         #
+        self.alpha = np.random.uniform(0,1)
         if self.rdm_reset_mode == 'circle':
             normalized_states, _, _ = circle_rdm_samples(self.ncavities, 1, 1.0, 0.75, give_all=True)
         if self.rdm_reset_mode == 'uniform':
