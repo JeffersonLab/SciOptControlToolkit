@@ -30,7 +30,7 @@ tf.random.set_seed(seed_value)
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
-    if env_id == 'ProxyApp-v0' or env_id == 'Circle2DEnv-v0' or env_id == 'Circle2DEnv-v1' \
+    if env_id == 'ProxyApp-v0' or env_id == 'ProxyApp-v1' or env_id == 'Circle2DEnv-v0' or env_id == 'Circle2DEnv-v1' \
             or "CEBAF" in env_id:
         import jlab_rl.envs as gym
     else:

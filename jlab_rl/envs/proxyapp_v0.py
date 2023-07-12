@@ -11,7 +11,7 @@ from numpy import ndarray
 
 
 class proxy_app(gym.Env):
-    def __init__(self):
+    def __init__(self,loss_type='default'):
 
         self.nsteps = 0
         self.devices = 'cpu'
@@ -19,8 +19,10 @@ class proxy_app(gym.Env):
         self.parmin = 0
         self.parmax = 1
         self.nevents = 1000
+        self.loss_type = loss_type
 
-        data = np.load('/Users/schram/repositories/jlab_datascience_optimization/jlab_rl/envs/proxyapp_data.pkl.npy', allow_pickle=True)
+      #  data = np.load('/Users/schram/repositories/jlab_datascience_optimization/jlab_rl/envs/proxyapp_data.pkl.npy', allow_pickle=True)
+        data = np.load('/Users/daniellersch/Desktop/RL/jlab_datascience_optimization/jlab_rl/envs/proxyapp_data.pkl.npy', allow_pickle=True)
         self.data = np.transpose(data[0], (1, 0))
 
         if isinstance(self.parmin, int):
@@ -47,6 +49,8 @@ class proxy_app(gym.Env):
         #self.inital_states = self.observation_space.sample()
         self.states, _ = self.reset()
         print('reset state:{}'.format(self.states))
+        
+        self.pdist = torch.nn.PairwiseDistance(p=2.0, eps=1e-06, keepdim=False)
 
     def get_ud(self, p):
         u = p[0] * torch.pow(self.x_full_range, p[1]) * torch.pow((1 - self.x_full_range), p[2])
@@ -152,24 +156,24 @@ class proxy_app(gym.Env):
     def forward(self, params, nevents=1):
         return self.paramsToEventsMap(params, nevents)
 
-    def score_es(self, YPred, YObs):
-        obs_event, obs_size = YObs.shape
-        pred_event, pred_size = YPred.shape
-        assert obs_event == pred_event, "Observations and events have different sizes"
+#    def score_es(self, YPred, YObs):
+#        obs_event, obs_size = YObs.shape
+#        pred_event, pred_size = YPred.shape
+#        assert obs_event == pred_event, "Observations and events have different sizes"
+#
+#        es1 = np.zeros((obs_size,))
+#        for iObs in range(obs_size):
+#            es = np.mean(np.linalg.norm(YPred - YObs[:, iObs, np.newaxis], ord=2, axis=0))
+#            es1[iObs] = es
+#
+#        score1 = np.mean(es1)
+#
+#        pairwise_distances = np.linalg.norm(YPred[:, :, np.newaxis] - YPred[:, np.newaxis, :], ord=2, axis=0)
+#        score2 = np.sum(pairwise_distances) / (2 * pred_size * (pred_size - 1))
+#
+#        return score1 - score2
 
-        es1 = np.zeros((obs_size,))
-        for iObs in range(obs_size):
-            es = np.mean(np.linalg.norm(YPred - YObs[:, iObs, np.newaxis], ord=2, axis=0))
-            es1[iObs] = es
-
-        score1 = np.mean(es1)
-
-        pairwise_distances = np.linalg.norm(YPred[:, :, np.newaxis] - YPred[:, np.newaxis, :], ord=2, axis=0)
-        score2 = np.sum(pairwise_distances) / (2 * pred_size * (pred_size - 1))
-
-        return score1 - score2
-
-    def compute_loss(self, x, x_pred, x_ref):
+    def compute_default_loss(self, x, x_pred, x_ref):
 
         x = torch.Tensor(x)
         x_pred = torch.Tensor(x_pred)
@@ -179,6 +183,16 @@ class proxy_app(gym.Env):
 
         loss = torch.abs(act_loss - ref_loss)
         return torch.mean(loss)
+
+    def compute_emil_loss(self,y,y_pred):
+        # Determine score 1, i.e. compare the predictions and true values:
+        score_1 = torch.mean(torch.cdist(y_pred,y))
+
+        # Determine score 2, i.e. compare predictions amongst each other and take care of
+        # 'false' combinations:
+        score_2 = torch.sum(self.pdist(y_pred,y_pred)) / float(y_pred.size()[0] * (y_pred.size()[0] -1 ))
+
+        return score_1 - score_2
 
     def step(self, action):
 
@@ -206,11 +220,18 @@ class proxy_app(gym.Env):
 
         # print('policy_data:{}'.format(policy_data.shape))
         # print('data:{}'.format(self.data.shape))
-        real_data = self.data[torch.randint(self.data.shape[0], (self.nevents,))]
+        real_data = torch.as_tensor(self.data[torch.randint(self.data.shape[0], (self.nevents,))],device=self.devices)
         ref_data = self.data[torch.randint(self.data.shape[0], (self.nevents,))]
         # print('real_data:{}'.format(real_data.shape))
         # print('ref_data:{}'.format(ref_data.shape))
-        loss = np.abs(self.compute_loss(real_data, policy_data, ref_data))
+       # loss = np.abs(self.compute_loss(real_data, policy_data, ref_data))
+       
+        loss = None
+        if self.loss_type.lower() == 'default':
+           loss = np.abs(self.compute_default_loss(real_data, policy_data, ref_data))
+           
+        if self.loss_type.lower() == 'emil':
+            loss = np.abs(self.compute_emil_loss(real_data,torch.as_tensor(policy_data,device=self.devices)))
         # Find a cleaver reward
         reward = 1/loss#-np.log(loss)
         for i in range(self.nParameters):
