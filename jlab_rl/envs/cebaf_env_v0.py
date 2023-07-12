@@ -106,9 +106,9 @@ class cebaf_env(gym.Env):
         # Heat
         heat = self.linac.getRFHeat()
         heat_reward = (np.exp(heat / 5) - np.exp(20 / 5))
-        #print('heat:', heat)
+
+        # Combined reward
         reward = -1.0*(self.alpha*trips + (1-self.alpha)*heat_reward)
-        #print('reward:', reward)
 
         # Energy boundary
         self.energy = self.linac.getEnergyGain()
@@ -126,7 +126,9 @@ class cebaf_env(gym.Env):
         # Apply to all optimization scenarios
         if self.energy < self.min_energy or self.energy > self.max_energy:
             #reward -= 100 * np.log(np.abs(self.energy - self.target_energy))
-            reward -= 350 + 10*np.abs(self.energy - self.target_energy)
+            # Currently running but the steep edge might be causing problems
+            # reward -= 350 + 10*np.abs(self.energy - self.target_energy)
+            reward -= 100*np.abs(self.energy - self.target_energy)
 
         #print('reward:', reward)
         # Extra information

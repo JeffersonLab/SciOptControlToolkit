@@ -103,7 +103,8 @@ class KerasGenerativeTD3(KerasTD3):
         sampled_actions = self.actor_model([states, rdm_norms])
         new_q1 = self.target_critic1([states, sampled_actions])
         new_q2 = self.target_critic2([states, sampled_actions])
-        rewards = tf.math.minimum(new_q1, new_q2)
+        rewards = tf.math.maximum(new_q1, new_q2)
+        #rewards = tf.math.minimum(new_q1, new_q2)
         ireward = np.argmax(rewards)
         sampled_action = sampled_actions[ireward]
 
