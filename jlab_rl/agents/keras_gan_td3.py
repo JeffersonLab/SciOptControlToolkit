@@ -89,22 +89,23 @@ class KerasGenerativeTD3(KerasTD3):
 
         # Single try
         state = np.expand_dims(state, 0)
-        rdm_norms = tf.random.normal([1, self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
-        sampled_action = self.actor_model([state, rdm_norms])
+        # rdm_norms = tf.random.normal([1, self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
+        # sampled_action = self.actor_model([state, rdm_norms])
 
         # Try multiple times
-        # nrepeats = 100
-        # states = tf.repeat(state, nrepeats, axis=0)
+        nrepeats = 100
+        #print('state:', state.shape)
+        states = tf.repeat(state, nrepeats, axis=0)
+        #print('states:', states.shape)
+        # states = np.reshape(states, (state.shape[0], state.shape[1], nrepeats))
         # print('states:', states.shape)
-        # # states = np.reshape(states, (state.shape[0], nrepeats))
-        # # print('states:', states.shape)
-        # rdm_norms = tf.random.normal([nrepeats, self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
-        # sampled_actions = self.actor_model([states, rdm_norms])
-        # new_q1 = self.target_critic1([states, sampled_actions])
-        # new_q2 = self.target_critic2([states, sampled_actions])
-        # rewards = tf.math.minimum(new_q1, new_q2)
-        # ireward = np.argmax(rewards)
-        # sampled_action = sampled_actions[ireward]
+        rdm_norms = tf.random.normal([nrepeats, self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
+        sampled_actions = self.actor_model([states, rdm_norms])
+        new_q1 = self.target_critic1([states, sampled_actions])
+        new_q2 = self.target_critic2([states, sampled_actions])
+        rewards = tf.math.minimum(new_q1, new_q2)
+        ireward = np.argmax(rewards)
+        sampled_action = sampled_actions[ireward]
 
         #print(states)
         # rdm_norms = np.random.normal(0, 1, (nrepeats, self.num_actions + 2))

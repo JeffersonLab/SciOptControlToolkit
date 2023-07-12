@@ -34,19 +34,19 @@ register(
 register(
     id='CEBAF2DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
-    kwargs={'linac': '1l06_test2'},
+    kwargs={'linac': '1l10_test2'},
 )
 
 register(
     id='CEBAF4DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
-    kwargs={'linac': '1l06_test4'},
+    kwargs={'linac': '1l10_test4'},
 )
 
 register(
     id='CEBAF8DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
-    kwargs={'linac': '1l06_test8'},
+    kwargs={'linac': '1l10_test8'},
 )
 
 register(
