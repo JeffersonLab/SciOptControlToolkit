@@ -21,8 +21,8 @@ class proxy_app(gym.Env):
         self.nevents = 1000
         self.loss_type = loss_type
 
-      #  data = np.load('/Users/schram/repositories/jlab_datascience_optimization/jlab_rl/envs/proxyapp_data.pkl.npy', allow_pickle=True)
-        data = np.load('/Users/daniellersch/Desktop/RL/jlab_datascience_optimization/jlab_rl/envs/proxyapp_data.pkl.npy', allow_pickle=True)
+        data = np.load('/Users/schram/repositories/jlab_datascience_optimization/jlab_rl/envs/proxyapp_data.pkl.npy', allow_pickle=True)
+       # data = np.load('/Users/daniellersch/Desktop/RL/jlab_datascience_optimization/jlab_rl/envs/proxyapp_data.pkl.npy', allow_pickle=True)
         self.data = np.transpose(data[0], (1, 0))
 
         if isinstance(self.parmin, int):
