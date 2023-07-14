@@ -28,7 +28,7 @@
 
 import jlab_rl as jlab_rl
 import tensorflow as tf
-from jlab_rl.models.state_generator import Generator
+from jlab_rl.models.state_generator import Generator_v2
 from jlab_rl.agents.keras_td3 import KerasTD3
 
 #from tensorflow.keras.initializers import RandomUniform
@@ -80,7 +80,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
     def get_actor(self):
-        model = Generator(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+        model = Generator_v2(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
 #    @tf.function
@@ -157,4 +157,3 @@ class KerasGenerativeTD3(KerasTD3):
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         return [np.squeeze(sampled_action)], [np.squeeze(noise)]
 #        return [np.squeeze(legal_action)], [np.squeeze(noise)]
-
