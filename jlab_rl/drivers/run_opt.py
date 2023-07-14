@@ -31,7 +31,7 @@ tf.random.set_seed(seed_value)
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
     if env_id == 'ProxyApp-v0' or env_id == 'Circle2DEnv-v0' or env_id == 'Circle2DEnv-v1' \
-            or "CEBAF" in env_id:
+            or "CEBAF" in env_id or 'Gaussian' in env_id:
         import jlab_rl.envs as gym
     else:
         import gym
@@ -119,8 +119,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
             if env_id == 'CEBAF2DEnv-v0':
                 # Plot
-                import matplotlib.pyplot as plt
-                from matplotlib import cm
                 if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
@@ -140,8 +138,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.savefig(logdir + '/denormalized_action_{}.png'.format(agent.buffer_counter / nsavefig))
 
                 # Plot
-                import matplotlib.pyplot as plt
-                from matplotlib import cm
                 if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
@@ -161,8 +157,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.savefig(logdir + '/denormalized_state_{}.png'.format(agent.buffer_counter / nsavefig))
 
                 # Plot
-                import matplotlib.pyplot as plt
-                from matplotlib import cm
                 if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
@@ -185,8 +179,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             # Plot the
             if env_id == 'Circle2DEnv-v1' or env_id == 'UniformCircle2DEnv-v1' or env_id == 'CEBAF2DEnv-v0':
                 # Plot
-                import matplotlib.pyplot as plt
-                from matplotlib import cm
                 if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
@@ -224,6 +216,24 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             # End this episode when `done` is True
             if done:
                 break
+
+        if 'Gaussian' in env_id and ep % 1000 == 0 and ep > 0:
+            predictions = []
+            for t in range(env.true_params.shape[0]):
+                st, _ = env.reset()
+                prediction, _ = agent.action(tf.convert_to_tensor(st), train=False)
+                predictions.append(np.squeeze(prediction))
+            predictions = np.squeeze(predictions)
+            # tf.summary.histogram('predictions', data=predictions, step=int(total_nsteps))
+            # tf.summary.histogram('real_data', data=env.data, step=int(total_nsteps))
+            plt.clf()
+            plt.figure(figsize=(8,5))
+            plt.hist(predictions, bins=100, range=(0, 1), histtype='step', color = 'red', label="GAN")
+            plt.title('param_at_epoch'+str(ep).zfill(6))
+            plt.hist(env.true_params, bins=100, range=(0, 1), histtype='step', color='green', label="True")
+            plt.savefig(os.path.join("Params_"+str(ep).zfill(6)+".png"))
+            plt.legend()
+            plt.show()
 
         ep_reward_list.append(episodic_reward)
         tf.summary.scalar('Reward', data=episodic_reward, step=int(ep))
