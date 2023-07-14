@@ -8,7 +8,14 @@ from jlab_rl.envs.gaussian_gan_env_v0 import ProxyGaussian
 # Register the proxy app
 register(
     id='ProxyApp-v0',
-    entry_point='jlab_rl.envs:proxy_app'
+    entry_point='jlab_rl.envs:proxy_app',
+    kwargs={'loss_type': 'default'},
+)
+
+register(
+    id='ProxyApp-v1',
+    entry_point='jlab_rl.envs:proxy_app',
+    kwargs={'loss_type':'emil'},
 )
 
 # Register the circle constraint app
@@ -61,6 +68,7 @@ register(
     entry_point='jlab_rl.envs:cebaf_env',
     kwargs={'linac': 'north'},
 )
+
 
 register(
     id='GaussianEnv-v0',

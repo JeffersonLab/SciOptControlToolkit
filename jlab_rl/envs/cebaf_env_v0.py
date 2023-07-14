@@ -125,12 +125,8 @@ class cebaf_env(gym.Env):
 
         # Apply to all optimization scenarios
         if self.energy < self.min_energy or self.energy > self.max_energy:
-            #reward -= 100 * np.log(np.abs(self.energy - self.target_energy))
-            # Currently running but the steep edge might be causing problems
-            # reward -= 350 + 10*np.abs(self.energy - self.target_energy)
             reward -= 100*np.abs(self.energy - self.target_energy)
 
-        #print('reward:', reward)
         # Extra information
         info = {'heat': self.linac.getRFHeat(), 'trip': self.linac.getTripRates(), 'energy': self.energy}
 
@@ -139,7 +135,7 @@ class cebaf_env(gym.Env):
 
     def reset(self):
         #
-        self.alpha = 0#np.random.uniform(0,1)
+        self.alpha = np.random.uniform(0,1)
         if self.rdm_reset_mode == 'circle':
             normalized_states, _, _ = circle_rdm_samples(self.ncavities, 1, 1.0, 0.75, give_all=True)
         if self.rdm_reset_mode == 'uniform':
