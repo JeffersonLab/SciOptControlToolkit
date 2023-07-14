@@ -3,6 +3,7 @@ from jlab_rl.envs.proxyapp_v0 import proxy_app
 from jlab_rl.envs.circle_constraint_v0 import circle_constraint_env as circle_constraint_stateless_env
 from jlab_rl.envs.circle_constraint_v1 import circle_constraint_env as circle_constraint_statefull_env
 from jlab_rl.envs.cebaf_env_v0 import cebaf_env
+from jlab_rl.envs.gaussian_gan_env_v0 import ProxyGaussian
 
 # Register the proxy app
 register(
@@ -59,4 +60,9 @@ register(
     id='CEBAFNorthEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
     kwargs={'linac': 'north'},
+)
+
+register(
+    id='GaussianEnv-v0',
+    entry_point='jlab_rl.envs:ProxyGaussian',
 )
