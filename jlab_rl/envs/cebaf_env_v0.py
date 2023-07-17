@@ -140,7 +140,7 @@ class cebaf_env(gym.Env):
         #
         self.alpha = 0# np.random.uniform(0,1)
         if self.rdm_reset_mode == 'circle':
-            normalized_states, _, _ = circle_rdm_samples(self.ncavities, 1, 1.0, 0.75, give_all=True)
+            normalized_states, _, _ = circle_rdm_samples(self.ncavities, 1, 1.0, 0.0, give_all=True)
         if self.rdm_reset_mode == 'uniform':
             normalized_states = self.observation_space.sample()
         self.states = self.denormalize_state(normalized_states)
