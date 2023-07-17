@@ -7,12 +7,12 @@ class Generator(tf.keras.Model):
     self.ndims = ndims
     self.nlayers = nlayers
     init = tf.keras.initializers.GlorotUniform()
-    nmul = 4
+    nodes = 256
     self.denses1 = []
     self.bn1 = []
     self.act1 = []
     for i in range(self.nlayers):
-      self.denses1.append(tf.keras.layers.Dense(nmul*32, kernel_initializer=init))
+      self.denses1.append(tf.keras.layers.Dense(nodes, kernel_initializer=init))
       self.bn1.append(tf.keras.layers.BatchNormalization())
       self.act1.append(tf.keras.layers.LeakyReLU(0.2))
 
@@ -20,7 +20,7 @@ class Generator(tf.keras.Model):
     self.bn2 = []
     self.act2 = []
     for i in range(self.nlayers):
-      self.denses2.append(tf.keras.layers.Dense(nmul*32, kernel_initializer=init))
+      self.denses2.append(tf.keras.layers.Dense(nodes, kernel_initializer=init))
       self.bn2.append(tf.keras.layers.BatchNormalization())
       self.act2.append(tf.keras.layers.LeakyReLU(0.2))
 
