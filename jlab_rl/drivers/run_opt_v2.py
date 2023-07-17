@@ -32,7 +32,7 @@ tf.random.set_seed(seed_value)
         # with warnings.catch_warnings():
         #     warnings.filterwarnings("ignore",category=DeprecationWarning)
 import gym
-import jlab_rl
+import jlab_rl.envs as jlab_envs
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
@@ -42,7 +42,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         env = gym.make(env_id)
     except:
         print('Non-standard Gym Environment. Trying JLab Environments...')
-        env = jlab_rl.envs.make(env_id)
+        try:
+            env = jlab_envs.make(env_id)
+        except:
+            raise Exception(f'Failed to load environment {env_id}')
     #
     # Environment
     env._max_episode_steps = max_nsteps
