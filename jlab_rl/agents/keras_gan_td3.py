@@ -28,7 +28,7 @@
 
 import jlab_rl as jlab_rl
 import tensorflow as tf
-from jlab_rl.models.state_generator import Generator_v2
+from jlab_rl.models.state_generator import Generator
 from jlab_rl.agents.keras_td3 import KerasTD3
 
 #from tensorflow.keras.initializers import RandomUniform
@@ -44,7 +44,7 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
-        next_rdm_gaus = tf.random.normal([next_states.shape[0], self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
+        next_rdm_gaus = tf.random.normal([next_states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
         #
         new_q1 = self.target_critic1([next_states, next_actions], training=False)
@@ -71,7 +71,7 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_actor(self, states):
         # Use Critic 1
-        next_rdm_gaus = tf.random.normal([states.shape[0], self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
+        next_rdm_gaus = tf.random.normal([states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
         with tf.GradientTape() as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             q_value = self.critic_model1([states, actions], training=False)
@@ -80,7 +80,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
     def get_actor(self):
-        model = Generator_v2(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+        model = Generator(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
 #    @tf.function
@@ -99,7 +99,7 @@ class KerasGenerativeTD3(KerasTD3):
         #print('states:', states.shape)
         # states = np.reshape(states, (state.shape[0], state.shape[1], nrepeats))
         # print('states:', states.shape)
-        rdm_norms = tf.random.normal([nrepeats, self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
+        rdm_norms = tf.random.normal([nrepeats, self.num_actions], 0, 1, tf.float32, seed=1)
         sampled_actions = self.actor_model([states, rdm_norms])
         new_q1 = self.target_critic1([states, sampled_actions])
         new_q2 = self.target_critic2([states, sampled_actions])
