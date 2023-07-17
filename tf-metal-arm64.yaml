@@ -8,10 +8,15 @@ dependencies:
   - tensorflow-deps
 
   ## uncomment for use with Jupyter
-  ## - ipykernel
+  - ipykernel
 
   ## PyPI packages
   - pip:
     - tensorflow-macos
-    - tensorflow-metal  ## optional, but recommended
-
+    #- tensorflow-metal  ## optional, but recommended
+    - gym
+    - matplotlib
+    - torch
+    - scipy
+    - tqdm
+    - pandas

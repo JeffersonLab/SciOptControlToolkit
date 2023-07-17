@@ -159,13 +159,13 @@ class KerasTD3(jlab_rl.Agent):
         inputs = tf.keras.layers.Input(shape=(self.num_states,))
 
         # Layer 1
-        out = tf.keras.layers.Dense(self.hidden_size,
+        out = tf.keras.layers.Dense(400,#self.hidden_size,
                                     kernel_initializer=RandomUniform(-self.layer_std, +self.layer_std),
                                     bias_initializer=RandomUniform(-self.layer_std, +self.layer_std))(inputs)
         out = tf.keras.layers.Activation(tf.nn.leaky_relu)(out)
 
         # Layer 2
-        out = tf.keras.layers.Dense(self.hidden_size,
+        out = tf.keras.layers.Dense(300,#self.hidden_size,
                                     kernel_initializer=RandomUniform(-self.layer_std, +self.layer_std),
                                     bias_initializer=RandomUniform(-self.layer_std, +self.layer_std))(out)
         out = tf.keras.layers.Activation(tf.nn.leaky_relu)(out)
