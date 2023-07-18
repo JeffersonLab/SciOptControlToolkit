@@ -19,7 +19,7 @@ class cebaf_env(gym.Env):
         np.random.seed(seed=seed)
 
         self.rdm_reset_mode = rdm_reset_mode
-        self.opt = 'other'
+        self.opt = 'multi-obj'
         self.alpha = 1.0
 
         # Build linac
@@ -70,31 +70,13 @@ class cebaf_env(gym.Env):
     def step(self, action):
 
         # Scale unit action to proper action space
-        #print('action', action)
         denorm_action = self.denormalize_state(action)
-        #print('denorm_action', denorm_action)
 
         self.linac.setGradients(denorm_action)
 
-        # Stateful workflow
-        # print('denorm_action', denorm_action)
-        #
-        # # Get new gradients
-        # current_states = self.linac.getGradients()
-        # print('current_states', current_states)
-        # print('step new state', current_states + denorm_action)
-        #
-        # # Update gradients
-        # self.linac.update_gradients(denorm_action)
-
         # Get new gradients
         self.states = self.linac.getGradients()
-        #print('linac new state', self.states)
 
-        # calc_action = self.states - current_states
-        #
-        # print('denorm_action', denorm_action)
-        # print('calc_action', calc_action)
 
         # Need to normalize for the RL agent
         normalized_states = self.normalize_state(self.states)
@@ -112,10 +94,6 @@ class cebaf_env(gym.Env):
 
         # Energy boundary
         self.energy = self.linac.getEnergyGain()
-        # print('New energy: {}({}/{}/{})'.format(self.energy,
-        #                                         self.min_energy,
-        #                                         self.max_energy,
-        #                                         self.target_energy))
 
         # Apply to all optimization scenarios
         if self.energy < self.min_energy or self.energy > self.max_energy:
@@ -132,7 +110,7 @@ class cebaf_env(gym.Env):
                 'alpha': self.alpha}
 
         #
-        #normalized_states = np.append(normalized_states,self.alpha)
+        normalized_states = np.append(normalized_states, self.alpha)
         # Return
         return normalized_states, reward, True, True, info
 
@@ -146,8 +124,6 @@ class cebaf_env(gym.Env):
         self.states = self.denormalize_state(normalized_states)
         self.linac.setGradients(self.states)
 
-        #print(normalized_states.shape)
-        #normalized_states = np.append(normalized_states, self.alpha)
-        #print(normalized_states.shape)
+        normalized_states = np.append(normalized_states, self.alpha)
 
         return normalized_states, self.states
