@@ -1,4 +1,4 @@
-# Author: Kishansingh Rajput
+# Author: Kishansingh Rajput, Malachi Schram
 # Script: CEBAF cavities digital twin
 # Org: Thomas Jefferson National Accelerator Facility
 
@@ -15,11 +15,11 @@ from jlab_rl.utils.circle_rdm import circle_rdm_samples
 
 class cebaf_env(gym.Env):
     def __init__(self, path_cavity_data=os.path.join(os.path.dirname(__file__), 'updated_cavity_table.pkl'),
-                 linac="North", rdm_reset_mode='circle', seed=22):
+                 linac="North", rdm_reset_mode='circle', objective='single', seed=22):
         np.random.seed(seed=seed)
 
         self.rdm_reset_mode = rdm_reset_mode
-        self.opt = 'multi-obj'
+        self.objective = objective
         self.alpha = 1.0
 
         # Build linac
@@ -67,6 +67,15 @@ class cebaf_env(gym.Env):
         normalized_state = ((normalized_state + 1) / 2) * (self.max_grads - self.min_grads) + self.min_grads
         return normalized_state
 
+    def get_objective(self):
+        if self.objective == 'heat':
+            self.alpha = 0
+        elif self.objective == 'trip':
+            self.alpha = 1
+        else:
+            self.alpha = np.random.uniform(0,1)
+
+
     def step(self, action):
 
         # Scale unit action to proper action space
@@ -89,6 +98,8 @@ class cebaf_env(gym.Env):
         heat = self.linac.getRFHeat()
         heat_reward = (np.exp(heat / 5) - np.exp(20 / 5))
 
+
+
         # Combined reward
         reward = -1.0*(self.alpha*trip_reward + (1-self.alpha)*heat_reward)
 
@@ -100,7 +111,7 @@ class cebaf_env(gym.Env):
             reward -= 100*np.abs(self.energy - self.target_energy)
 
         # Simple energy reward
-        if self.opt == 'energy':
+        if self.objective == 'energy':
             reward = - np.log(np.abs(self.energy - self.target_energy)) #- 100 * np.square(self.energy - self.target_energy)
 
         # Extra information
@@ -116,7 +127,7 @@ class cebaf_env(gym.Env):
 
     def reset(self):
         #
-        self.alpha = 0# np.random.uniform(0,1)
+        self.get_objective()
         if self.rdm_reset_mode == 'circle':
             normalized_states, _, _ = circle_rdm_samples(self.ncavities, 1, 1.0, 0.0, give_all=True)
         if self.rdm_reset_mode == 'uniform':

@@ -10,7 +10,7 @@ from jlab_rl.agents.keras_td3_action_dgpa_v1 import KerasTD3ActorDGPA as KerasTD
 from jlab_rl.agents.keras_td3_action_dgpa_v2 import KerasTD3ActorDGPA as KerasTD3ActorDGPA_v2
 from jlab_rl.agents.keras_td3_critic_dgpa_v2 import KerasTD3CriticDGPA as KerasTD3CriticDGPA_v2
 from jlab_rl.agents.keras_modelbased_agent import KerasGenericModelBasedAgent
-from jlab_rl.agents.keras_mo_gan_td3 import KerasMultiObjectiveGenerativeTD3
+#from jlab_rl.agents.keras_mo_gan_td3 import KerasMultiObjectiveGenerativeTD3
 
 # Register TD3 agent
 register(
@@ -23,15 +23,15 @@ register(
     entry_point='jlab_rl.agents:KerasGenerativeTD3'
 )
 
-register(
-    id='KerasMultiObjectiveGenerativeTD3-v0',
-    entry_point='jlab_rl.agents:KerasMultiObjectiveGenerativeTD3'
-)
-
-register(
-    id='KerasConstraintGenerativeTD3-v0',
-    entry_point='jlab_rl.agents:KerasConstraintGenerativeTD3'
-)
+# register(
+#     id='KerasMultiObjectiveGenerativeTD3-v0',
+#     entry_point='jlab_rl.agents:KerasMultiObjectiveGenerativeTD3'
+# )
+#
+# register(
+#     id='KerasConstraintGenerativeTD3-v0',
+#     entry_point='jlab_rl.agents:KerasConstraintGenerativeTD3'
+# )
 
 register(
     id='KerasCEBAFTD3-v0',

@@ -58,6 +58,12 @@ register(
 )
 
 register(
+    id='MultObj-CEBAF8DEnv-v0',
+    entry_point='jlab_rl.envs:cebaf_env',
+    kwargs={'linac': '1l10_test8', 'objective': 'multi-obj'},
+)
+
+register(
     id='CEBAFSouthEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
     kwargs={'linac': 'south'},
