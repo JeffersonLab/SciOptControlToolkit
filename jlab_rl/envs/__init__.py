@@ -58,6 +58,24 @@ register(
 )
 
 register(
+    id='HeatObj-CEBAF8DEnv-v0',
+    entry_point='jlab_rl.envs:cebaf_env',
+    kwargs={'linac': '1l10_test8', 'objective': 'heat'},
+)
+
+register(
+    id='TripObj-CEBAF8DEnv-v0',
+    entry_point='jlab_rl.envs:cebaf_env',
+    kwargs={'linac': '1l10_test8', 'objective': 'trip'},
+)
+
+register(
+    id='MixedObj-CEBAF8DEnv-v0',
+    entry_point='jlab_rl.envs:cebaf_env',
+    kwargs={'linac': '1l10_test8', 'objective': 'mixed'},
+)
+
+register(
     id='MultObj-CEBAF8DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
     kwargs={'linac': '1l10_test8', 'objective': 'multi-obj'},

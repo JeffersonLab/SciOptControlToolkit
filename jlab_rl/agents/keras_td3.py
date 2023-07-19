@@ -79,6 +79,7 @@ class KerasTD3(jlab_rl.Agent):
 
         self.hidden_size = 256
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
+        self.ncritic_layers = 5
 
         self.initialize_new_models()
         # Load models for retraining
@@ -143,9 +144,10 @@ class KerasTD3(jlab_rl.Agent):
         # Action as input
         action_input = tf.keras.layers.Input(shape=(self.num_actions))
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
-        state_action1 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
-        state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
-        outputs = tf.keras.layers.Dense(1)(state_action2)
+        for _ in range(self.ncritic_layers):
+            state_action = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
+        #state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
+        outputs = tf.keras.layers.Dense(1)(state_action)
 
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)

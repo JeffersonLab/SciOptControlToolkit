@@ -34,18 +34,23 @@ tf.random.set_seed(seed_value)
 import gym
 import jlab_rl.envs as jlab_envs
 
-
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
-    print('Running env: {}'.format(env_id))
-
+def get_env(env_id):
     try:
         env = gym.make(env_id)
+        return env
     except:
         print('Non-standard Gym Environment. Trying JLab Environments...')
         try:
             env = jlab_envs.make(env_id)
+            return env
         except:
             raise Exception(f'Failed to load environment {env_id}')
+
+
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
+    print('Running env: {}'.format(env_id))
+
+    env = get_env(env_id)
     #
     # Environment
     env._max_episode_steps = max_nsteps
@@ -91,7 +96,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
     outer_pbar = tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index))
     inner_pbar = tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index), leave=False)
-    
+    heats, trips = [], []
+
     for ep in outer_pbar:
 
         time_start = time.process_time()
@@ -120,6 +126,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             #     action = np.squeeze(action)
             # print('action: ', action.shape)
             state, reward, done_old, done, info = env.step(action)
+            heats.append(info['heat'])
+            trips.append(info['trip'])
+            if agent.buffer_counter % 100 == 0:
+                plt.plot(heats, trips, 'o')
+                plt.savefig(logdir + '/heat_trip_{}.png'.format(agent.buffer_counter / nsavefig))
+
             # done_old = float(done_old)
             # done = float(done)
             # nsteps += 1
@@ -221,7 +233,30 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 tf.summary.scalar('Energy Distribution', data=env.energy, step=int(total_nsteps))
                 tf.summary.scalar('Trip Rate', data=info['trip'], step=int(total_nsteps))
                 tf.summary.scalar('Heat Load', data=info['heat'], step=int(total_nsteps))
-
+                # Plot Pareto front
+                if agent.buffer_counter%100==0:
+                    print('Testing Optimal Solution...')
+                    fig = plt.figure(figsize=(12, 12))
+                    test_env = get_env(env_id)
+                    test_heats, test_trips, test_rewards = [], [], []
+                    for _ in range(100):
+                        test_prev_state, _ = test_env.reset()
+                        test_action, _ = agent.action(tf.convert_to_tensor(test_prev_state))
+                        test_action = np.squeeze(test_action)
+                        state, reward, done_old, done, info = test_env.step(test_action)
+                        test_heat = info['heat']
+                        test_trip = info['trip']
+                        if test_env.energy > test_env.min_energy and test_env.energy < test_env.max_energy:
+                            test_heats.append(test_heat)
+                            test_trips.append(test_trip)
+                            #test_rewards.append(np.abs(-1/reward))
+                    #plt.scatter(test_heats, test_trips, s=test_rewards)
+                    plt.plot(test_heats, test_trips, 'o')
+                    plt.xlim(21.15,22.75)
+                    plt.ylim(0.01,0.05)
+                    plt.grid()
+                    plt.savefig(logdir + '/pareto_{}.png'.format(agent.buffer_counter/100))
+                    print('Valid rewards:', len(test_heats))
             # End this episode when `done` is True
             if done_old:
                 break

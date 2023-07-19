@@ -89,8 +89,9 @@ class KerasGenerativeTD3(KerasTD3):
 
         # Single try
         state = np.expand_dims(state, 0)
-        # rdm_norms = tf.random.normal([1, self.num_actions + self.num_states], 0, 1, tf.float32, seed=1)
+        # rdm_norms = tf.random.normal([1, self.num_actions], 0, 1, tf.float32, seed=1)
         # sampled_action = self.actor_model([state, rdm_norms])
+        # sampled_action = np.expand_dims(sampled_action, 0)
 
         # Try multiple times
         nrepeats = 100

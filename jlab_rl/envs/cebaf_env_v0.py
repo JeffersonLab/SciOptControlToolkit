@@ -15,12 +15,12 @@ from jlab_rl.utils.circle_rdm import circle_rdm_samples
 
 class cebaf_env(gym.Env):
     def __init__(self, path_cavity_data=os.path.join(os.path.dirname(__file__), 'updated_cavity_table.pkl'),
-                 linac="North", rdm_reset_mode='circle', objective='single', seed=22):
+                 linac="North", rdm_reset_mode='circle', objective='heat', seed=22):
         np.random.seed(seed=seed)
 
         self.rdm_reset_mode = rdm_reset_mode
         self.objective = objective
-        self.alpha = 1.0
+        self.alpha = None
 
         # Build linac
         self.linac = digitalTwin(path_cavity_data, linac)
@@ -72,9 +72,10 @@ class cebaf_env(gym.Env):
             self.alpha = 0
         elif self.objective == 'trip':
             self.alpha = 1
+        elif self.objective == 'mixed':
+            self.alpha = 0.5
         else:
             self.alpha = np.random.uniform(0,1)
-
 
     def step(self, action):
 
@@ -98,8 +99,6 @@ class cebaf_env(gym.Env):
         heat = self.linac.getRFHeat()
         heat_reward = (np.exp(heat / 5) - np.exp(20 / 5))
 
-
-
         # Combined reward
         reward = -1.0*(self.alpha*trip_reward + (1-self.alpha)*heat_reward)
 
@@ -112,7 +111,7 @@ class cebaf_env(gym.Env):
 
         # Simple energy reward
         if self.objective == 'energy':
-            reward = - np.log(np.abs(self.energy - self.target_energy)) #- 100 * np.square(self.energy - self.target_energy)
+            reward = - np.log(np.abs(self.energy - self.target_energy))
 
         # Extra information
         info = {'heat': self.linac.getRFHeat(),
@@ -120,14 +119,13 @@ class cebaf_env(gym.Env):
                 'energy': self.energy,
                 'alpha': self.alpha}
 
-        #
-        normalized_states = np.append(normalized_states, self.alpha)
         # Return
         return normalized_states, reward, True, True, info
 
     def reset(self):
         #
         self.get_objective()
+        #self.alpha = 0.5
         if self.rdm_reset_mode == 'circle':
             normalized_states, _, _ = circle_rdm_samples(self.ncavities, 1, 1.0, 0.0, give_all=True)
         if self.rdm_reset_mode == 'uniform':
@@ -135,6 +133,4 @@ class cebaf_env(gym.Env):
         self.states = self.denormalize_state(normalized_states)
         self.linac.setGradients(self.states)
 
-        normalized_states = np.append(normalized_states, self.alpha)
-
-        return normalized_states, self.states
+        return normalized_states, self.alpha
