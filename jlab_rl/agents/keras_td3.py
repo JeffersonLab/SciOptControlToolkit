@@ -137,9 +137,7 @@ class KerasTD3(jlab_rl.Agent):
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
 
-        average_priority_buffer = (priority_buffer1 + priority_buffer2) / 2
-        max_average_priority_buffer = np.max(average_priority_buffer)
-        self.priority_buffer[self.batch_indices] = average_priority_buffer/max_average_priority_buffer
+        self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
 
     @tf.function
     def train_actor(self, states):
@@ -214,16 +212,25 @@ class KerasTD3(jlab_rl.Agent):
         # Get sampling range
         record_range = min(self.buffer_counter, self.buffer_capacity)
 
-        # Normalize priority
+
+
         #print('np.max(self.priority_buffer): ',np.max(self.priority_buffer))
         #self.priority_buffer = self.priority_buffer/np.max(self.priority_buffer)
         # print('record_range:{}\n'.format(range(record_range)))
         # print('range(len(self.priority_buffer):{}\n'.format(range(len(self.priority_buffer))))
         if self.use_priority == 1:
+            # Normalize priority
+            sum_priority_buffer = np.sum(self.priority_buffer)
+            current_prob = self.priority_buffer / sum_priority_buffer
+            current_weights = 1.0/current_prob
+            max_weight = np.max(current_weights)
+            current_is = (1.0/current_prob)/max_weight
             # Sample based on loss contribution
             self.batch_indices = random.choices(range(record_range),
                                                 k=self.batch_size,
-                                                weights=self.priority_buffer[range(record_range)])
+                                                weights=current_is[range(record_range)])
+#                                                weights=current_priority_buffer[range(record_range)])
+            #self.priority_buffer[range(record_range)])
         else:
             # Randomly sample indices (priority = 0)
             self.batch_indices = np.random.choice(record_range, self.batch_size)
