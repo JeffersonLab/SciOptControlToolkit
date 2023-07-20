@@ -123,6 +123,10 @@ def run_opt(
             episode_steps += 1
 
             action, noise = agent.action(tf.convert_to_tensor(prev_state))
+
+            if env_id != 'Pendulum-v1':
+                action = np.squeeze(action)
+
             state, reward, done_old, done, info = env.step(action)
             step_reward_list.append(np.array(reward))
             action_list.append(np.array(action))
