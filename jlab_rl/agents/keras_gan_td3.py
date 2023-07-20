@@ -70,8 +70,12 @@ class KerasGenerativeTD3(KerasTD3):
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
 
+        average_priority_buffer = (priority_buffer1 + priority_buffer2) / 2
+        max_average_priority_buffer = np.max(average_priority_buffer)
+        self.priority_buffer[self.batch_indices] = average_priority_buffer / max_average_priority_buffer
+
         # Update the priority buffer
-        self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
+        #self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
 
     @tf.function
     def train_actor(self, states):

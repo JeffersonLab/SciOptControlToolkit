@@ -137,7 +137,9 @@ class KerasTD3(jlab_rl.Agent):
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
 
-        self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
+        average_priority_buffer = (priority_buffer1 + priority_buffer2) / 2
+        max_average_priority_buffer = np.max(average_priority_buffer)
+        self.priority_buffer[self.batch_indices] = average_priority_buffer/max_average_priority_buffer
 
     @tf.function
     def train_actor(self, states):
@@ -229,8 +231,8 @@ class KerasTD3(jlab_rl.Agent):
         # fig = plt.figure()
         if self.ntrain_calls%100==0:
             fig = plt.figure()
-            plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)], bins=25, color='black')#,range=[0,1], bins=25)
-            plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25) #, range=[0,1],
+            plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)], bins=25, color='black',range=[0,1])
+            plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25, range=[0,1])
             plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
 
 
