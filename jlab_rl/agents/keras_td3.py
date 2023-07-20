@@ -34,6 +34,9 @@ import numpy as np
 import os
 from os.path import join
 import time
+import random
+import matplotlib.pyplot as plt
+
 
 class KerasTD3(jlab_rl.Agent):
 
@@ -43,6 +46,7 @@ class KerasTD3(jlab_rl.Agent):
         # Get env info
         super().__init__(**kwargs)
         print('Running KerasTD3 __init__')
+        self.logdir = logdir
         self.env = env
         self.model_load_path = model_load_path
         self.model_save_path = model_save_path
@@ -64,7 +68,9 @@ class KerasTD3(jlab_rl.Agent):
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
         self.next_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
         self.done_buffer = np.zeros((self.buffer_capacity, 1))
-        self.per_buffer = np.ones((self.buffer_capacity, 1))
+        self.priority_buffer = np.ones((self.buffer_capacity, 1))
+        self.batch_indices = None
+        self.use_priority = 1
 
         # Used to update target networks
         self.tau = 0.005
@@ -92,14 +98,14 @@ class KerasTD3(jlab_rl.Agent):
         self.critic_update_freq=2
 
         try:
-            os.mkdir(logdir)
+            os.mkdir(self.logdir)
         except OSError as error:
             print(error)
-        file_writer = tf.summary.create_file_writer(logdir + '/metrics')
+        file_writer = tf.summary.create_file_writer(self.logdir + '/metrics')
         file_writer.set_as_default()
         self.nactions = tf.Variable(0)
 
-    @tf.function
+    #@tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         next_actions = self.target_actor(next_states, training=False)
         # Add a little noise
@@ -112,20 +118,26 @@ class KerasTD3(jlab_rl.Agent):
         # Bellman equation for the q value
         q_targets = rewards + self.gamma * new_q * (1.0-dones)
         # Critic 1
+        priority_buffer1 = None
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
             td_errors1 = q_values1-q_targets
+            priority_buffer1 = np.abs(td_errors1.numpy()+1e-8)
             critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
         self.critic_optimizer1.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
 
         # Critic 2
+        priority_buffer2 = None
         with tf.GradientTape() as tape:
             q_values2 = self.critic_model2([states, actions], training=False)
             td_errors2 = q_values2-q_targets
+            priority_buffer2 = np.abs(td_errors2.numpy()+1e-8)
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
+
+        self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
 
     @tf.function
     def train_actor(self, states):
@@ -193,7 +205,6 @@ class KerasTD3(jlab_rl.Agent):
         self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
         self.train_actor(state_batch)
 
-
     def train(self):
         """ Method used to train """
         self.ntrain_calls += 1
@@ -201,16 +212,35 @@ class KerasTD3(jlab_rl.Agent):
         # Get sampling range
         record_range = min(self.buffer_counter, self.buffer_capacity)
 
-        # Randomly sample indices
-        batch_indices = np.random.choice(record_range, self.batch_size)
+        # Normalize priority
+        #print('np.max(self.priority_buffer): ',np.max(self.priority_buffer))
+        #self.priority_buffer = self.priority_buffer/np.max(self.priority_buffer)
+        # print('record_range:{}\n'.format(range(record_range)))
+        # print('range(len(self.priority_buffer):{}\n'.format(range(len(self.priority_buffer))))
+        if self.use_priority == 1:
+            # Sample based on loss contribution
+            self.batch_indices = random.choices(range(record_range),
+                                                k=self.batch_size,
+                                                weights=self.priority_buffer[range(record_range)])
+        else:
+            # Randomly sample indices (priority = 0)
+            self.batch_indices = np.random.choice(record_range, self.batch_size)
+
+        # fig = plt.figure()
+        if self.ntrain_calls%100==0:
+            fig = plt.figure()
+            plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)], bins=25, color='black')#,range=[0,1], bins=25)
+            plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25) #, range=[0,1],
+            plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
+
 
         # Convert to tensors
-        state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
-        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
-        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
+        state_batch = tf.convert_to_tensor(self.state_buffer[self.batch_indices])
+        action_batch = tf.convert_to_tensor(self.action_buffer[self.batch_indices])
+        reward_batch = tf.convert_to_tensor(self.reward_buffer[self.batch_indices])
         reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
-        done_batch = tf.convert_to_tensor(self.done_buffer[batch_indices])
+        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[self.batch_indices])
+        done_batch = tf.convert_to_tensor(self.done_buffer[self.batch_indices])
         done_batch = tf.cast(done_batch, dtype=tf.float32)
 
         #

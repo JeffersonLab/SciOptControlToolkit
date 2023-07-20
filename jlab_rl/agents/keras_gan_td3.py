@@ -41,7 +41,7 @@ import time
 
 class KerasGenerativeTD3(KerasTD3):
 
-    @tf.function
+    #@tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
         next_rdm_gaus = tf.random.normal([next_states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
@@ -56,6 +56,7 @@ class KerasGenerativeTD3(KerasTD3):
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
             td_errors1 = q_values1-q_targets
+            priority_buffer1 = np.abs(td_errors1.numpy()+1e-8)
             critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
         self.critic_optimizer1.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
@@ -64,9 +65,13 @@ class KerasGenerativeTD3(KerasTD3):
         with tf.GradientTape() as tape:
             q_values2 = self.critic_model2([states, actions], training=False)
             td_errors2 = q_values2-q_targets
+            priority_buffer2 = np.abs(td_errors2.numpy()+1e-8)
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
+
+        # Update the priority buffer
+        self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
 
     @tf.function
     def train_actor(self, states):

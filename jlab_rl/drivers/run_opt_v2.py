@@ -126,8 +126,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             #     action = np.squeeze(action)
             # print('action: ', action.shape)
             state, reward, done_old, done, info = env.step(action)
-            heats.append(info['heat'])
-            trips.append(info['trip'])
+            if 'CEBAF' in env_id:
+                heats.append(info['heat'])
+                trips.append(info['trip'])
             if agent.buffer_counter % 100 == 0:
                 plt.plot(heats, trips, 'o')
                 plt.savefig(logdir + '/heat_trip_{}.png'.format(agent.buffer_counter / nsavefig))
