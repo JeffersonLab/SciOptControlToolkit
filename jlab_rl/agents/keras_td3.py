@@ -29,13 +29,22 @@
 import jlab_rl as jlab_rl
 import tensorflow as tf
 from tensorflow.keras.initializers import RandomUniform
-from tensorflow.keras.optimizers import Adam
 import numpy as np
 import os
 from os.path import join
 import time
 import random
 import matplotlib.pyplot as plt
+
+import platform
+processor = platform.processor()
+# if processor == 'arm':
+#     import tensorflow.keras.optimizers.legacy.Adam as Adam
+#     print('Using legacy Adam')
+# else:
+#from tensorflow.keras.optimizers import Adam
+#import tf.keras.optimizers.legacy.Adam
+
 import copy
 
 class KerasTD3(jlab_rl.Agent):
@@ -79,9 +88,16 @@ class KerasTD3(jlab_rl.Agent):
         # Setup Optimizers
         critic_lr = 5e-3
         actor_lr = 1e-3
-        self.critic_optimizer1 = Adam(critic_lr, epsilon=1e-08)
-        self.critic_optimizer2 = Adam(critic_lr, epsilon=1e-08)
-        self.actor_optimizer = Adam(actor_lr, epsilon=1e-08)
+
+        if processor == 'arm':
+            print('Using legacy Adam')
+            self.critic_optimizer1 = tf.keras.optimizers.legacy.Adam(critic_lr, epsilon=1e-08)
+            self.critic_optimizer2 = tf.keras.optimizers.legacy.Adam(critic_lr, epsilon=1e-08)
+            self.actor_optimizer = tf.keras.optimizers.legacy.Adam(actor_lr, epsilon=1e-08)
+        else:
+            self.critic_optimizer1 = Adam(critic_lr, epsilon=1e-08)
+            self.critic_optimizer2 = Adam(critic_lr, epsilon=1e-08)
+            self.actor_optimizer = Adam(actor_lr, epsilon=1e-08)
 
         self.hidden_size = 256
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
