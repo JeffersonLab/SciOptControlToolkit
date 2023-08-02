@@ -38,7 +38,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     #
     # Environment
     print('Running env: {}'.format(env_id))
-    if 'HalfCheetah' in env_id:
+    if ('HalfCheetah' or 'Hopper') in env_id:
         env = gym.make(env_id, exclude_current_positions_from_observation=False)
     else:
         env = gym.make(env_id)
@@ -105,7 +105,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     # noise = noise[0]
 
             # Receive state and reward from environment.
-            if env_id != 'Pendulum-v1':
+            if 'Pendulum' not in env_id:# != 'Pendulum-v1' or :
                 action = np.squeeze(action)
             # if agent_id == 'KerasGenerativeTD3-v0':
             #     action = np.squeeze(action)
