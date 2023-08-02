@@ -82,7 +82,8 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         self.hidden_size = 256
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
 
-        self.initialize_new_models()
+        self.initialize_new_models\
+            ()
         self.nsamples = 5
         dynamic_lr = 3e-4
         self.dynamic_opt = Adam(dynamic_lr, epsilon=1e-08)

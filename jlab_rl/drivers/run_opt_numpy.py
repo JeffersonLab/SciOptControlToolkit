@@ -111,7 +111,7 @@ def run_opt(
     ## Reusing max_nepisodes for total steps
     total_episodes = 0
     
-    while total_steps < max_steps and total_episodes < max_episodes:
+    while total_steps < max_steps:# and total_episodes < max_episodes:
         total_episodes += 1
 
         prev_state, _ = env.reset()
@@ -122,11 +122,16 @@ def run_opt(
             total_steps += 1
             episode_steps += 1
 
+            print('action input state', prev_state)
+
             action, noise = agent.action(tf.convert_to_tensor(prev_state))
 
-            if env_id != 'Pendulum-v1':
-                action = np.squeeze(action)
+            print('action pre-squeeze', action.shape)
+            # if env_id != 'Pendulum-v1':
+            #     action = np.squeeze(action)
 
+            print('action post-squeeze', action.shape)
+            #print('reward', reward.shape)
             state, reward, done_old, done, info = env.step(action)
             step_reward_list.append(np.array(reward))
             action_list.append(np.array(action))
@@ -137,7 +142,6 @@ def run_opt(
             prev_state = state
 
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_steps))
-
 
             # End this episode when `done` is True
             if done_old:

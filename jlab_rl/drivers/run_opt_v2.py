@@ -120,12 +120,21 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     # noise = noise[0]
 
             # Receive state and reward from environment.
-            if env_id != 'Pendulum-v1':
-                action = np.squeeze(action)
+            # if env_id != 'Pendulum-v1':
+            #     action = np.squeeze(action)
             # if agent_id == 'KerasGenerativeTD3-v0':
             #     action = np.squeeze(action)
             # print('action: ', action.shape)
+            action = action.flatten()
             state, reward, done_old, done, info = env.step(action)
+            state = state.flatten()
+            done_old = float(done_old)
+            done = float(done)
+            # print('prev_state', prev_state)
+            # print('action', action)
+            # print('reward', reward)
+            # print('state', state)
+            #prev_state = prev_state.flatten()
             if 'CEBAF' in env_id:
                 heats.append(info['heat'])
                 trips.append(info['trip'])
@@ -133,11 +142,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 plt.plot(heats, trips, 'o')
                 plt.savefig(logdir + '/heat_trip_{}.png'.format(agent.buffer_counter / nsavefig))
 
-            # done_old = float(done_old)
-            # done = float(done)
+
             # nsteps += 1
             # if done:
             #     print('old/new done: {}/{}({})'.format(done_old, done, estep))
+
             agent.memory((prev_state, action, reward, state, done))
             episodic_reward += reward
             agent.train()
@@ -305,7 +314,7 @@ if __name__ == "__main__":
     parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=1000)
     parser.add_argument("--nsteps", help="Number of steps", type=int, default=200)
     parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
-    parser.add_argument("--nwarmup", help="Agent warm-up size", type=int, default=1000)
+    parser.add_argument("--nwarmup", help="Agent warm-up size", type=int, default=1)
     parser.add_argument("--env", help="Environment used for RL", type=str, default='Pendulum-v1')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
 

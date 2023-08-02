@@ -36,7 +36,7 @@ from os.path import join
 import time
 import random
 import matplotlib.pyplot as plt
-
+import copy
 
 class KerasTD3(jlab_rl.Agent):
 
@@ -70,15 +70,15 @@ class KerasTD3(jlab_rl.Agent):
         self.done_buffer = np.zeros((self.buffer_capacity, 1))
         self.priority_buffer = np.ones((self.buffer_capacity, 1))
         self.batch_indices = None
-        self.use_priority = 1
+        self.use_priority = 0
 
         # Used to update target networks
-        self.tau = 0.005
+        self.tau = 0.01
         self.gamma = 0.99
 
         # Setup Optimizers
-        critic_lr = 3e-4
-        actor_lr = 3e-4
+        critic_lr = 5e-3
+        actor_lr = 1e-3
         self.critic_optimizer1 = Adam(critic_lr, epsilon=1e-08)
         self.critic_optimizer2 = Adam(critic_lr, epsilon=1e-08)
         self.actor_optimizer = Adam(actor_lr, epsilon=1e-08)
@@ -105,13 +105,23 @@ class KerasTD3(jlab_rl.Agent):
         file_writer.set_as_default()
         self.nactions = tf.Variable(0)
 
-    #@tf.function
+    @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         next_actions = self.target_actor(next_states, training=False)
+        # print('states:',states[0])
+        # print('rewards:',rewards[0])
+        # print('next_states:',next_states[0])
+        # print('dones:',dones[0])
+        # print('next_actions:',next_actions[0])
+        # print('next_actions 1:',next_actions.shape)
         # Add a little noise
-        noise = np.random.normal(0, 0.2, self.num_actions)
-        noise = np.clip(noise, -0.5, 0.5)
-        next_actions = next_actions+noise
+        noises = tf.random.normal(next_actions.shape, 0, 0.2)
+        # print('noise:',noises[0])
+        # print('noise 2:',noises.shape)
+        #noise = np.random.normal(0, 0.2, self.num_actions)
+        noises = np.clip(noises, -0.5, 0.5)
+        next_actions = next_actions+noises
+        # print('next_actions 2:',next_actions[0])
         new_q1 = self.target_critic1([next_states, next_actions], training=False)
         new_q2 = self.target_critic2([next_states, next_actions], training=False)
         new_q = tf.math.minimum(new_q1, new_q2)
@@ -122,6 +132,7 @@ class KerasTD3(jlab_rl.Agent):
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
             td_errors1 = q_values1-q_targets
+            #self.priority_buffer1 = tf.math.abs(td_errors1)
             priority_buffer1 = np.abs(td_errors1.numpy()+1e-8)
             critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
@@ -132,6 +143,7 @@ class KerasTD3(jlab_rl.Agent):
         with tf.GradientTape() as tape:
             q_values2 = self.critic_model2([states, actions], training=False)
             td_errors2 = q_values2-q_targets
+            #self.priority_buffer2 = tf.math.abs(td_errors2)
             priority_buffer2 = np.abs(td_errors2.numpy()+1e-8)
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
@@ -163,31 +175,44 @@ class KerasTD3(jlab_rl.Agent):
 
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)
-        print('Critic model:',model.summary())
+        #print('Critic model:',model.summary())
         return model
 
     def get_actor(self):
 
-        last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
+        inputs = tf.keras.layers.Input(shape=(self.num_states))
+        #
+        out = tf.keras.layers.Dense(self.hidden_size)(inputs)
+        out = tf.keras.layers.Activation(tf.nn.relu)(out)
+        #
+        out = tf.keras.layers.Dense(self.hidden_size)(out)
+        out = tf.keras.layers.Activation(tf.nn.relu)(out)
+        #
+        out = tf.keras.layers.Dense(self.num_actions)(out)
+        out = tf.keras.layers.Activation(tf.nn.tanh)(out)
+        #
+        outputs = out
+
+        # last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
         # Input
-        inputs = tf.keras.layers.Input(shape=(self.num_states,))
-
-        # Layer 1
-        out = tf.keras.layers.Dense(400,#self.hidden_size,
-                                    kernel_initializer=RandomUniform(-self.layer_std, +self.layer_std),
-                                    bias_initializer=RandomUniform(-self.layer_std, +self.layer_std))(inputs)
-        out = tf.keras.layers.Activation(tf.nn.leaky_relu)(out)
-
-        # Layer 2
-        out = tf.keras.layers.Dense(300,#self.hidden_size,
-                                    kernel_initializer=RandomUniform(-self.layer_std, +self.layer_std),
-                                    bias_initializer=RandomUniform(-self.layer_std, +self.layer_std))(out)
-        out = tf.keras.layers.Activation(tf.nn.leaky_relu)(out)
+        # inputs = tf.keras.layers.Input(shape=(self.num_states,))
+        #
+        # # Layer 1
+        # out = tf.keras.layers.Dense(self.hidden_size,
+        #                             kernel_initializer=RandomUniform(-self.layer_std, +self.layer_std),
+        #                             bias_initializer=RandomUniform(-self.layer_std, +self.layer_std))(inputs)
+        # out = tf.keras.layers.Activation(tf.nn.leaky_relu)(out)
+        #
+        # # Layer 2
+        # out = tf.keras.layers.Dense(self.hidden_size,
+        #                             kernel_initializer=RandomUniform(-self.layer_std, +self.layer_std),
+        #                             bias_initializer=RandomUniform(-self.layer_std, +self.layer_std))(out)
+        # out = tf.keras.layers.Activation(tf.nn.leaky_relu)(out)
 
         # Output
-        outputs = tf.keras.layers.Dense(self.num_actions, activation="tanh",
-                                        kernel_initializer=last_init,
-                                        use_bias=True)(out)
+        # outputs = tf.keras.layers.Dense(self.num_actions, activation="tanh",
+        #                                 kernel_initializer=last_init,
+        #                                 use_bias=True)(out)
 
         # Rescale for tanh [-1,1]
         outputs = tf.keras.layers.Lambda(
@@ -209,77 +234,88 @@ class KerasTD3(jlab_rl.Agent):
         """ Method used to train """
         self.ntrain_calls += 1
 
-        # Get sampling range
-        record_range = min(self.buffer_counter, self.buffer_capacity)
+        if self.buffer_counter>self.batch_size:
+            # Get sampling range
+            record_range = min(self.buffer_counter, self.buffer_capacity)
 
+            #print('np.max(self.priority_buffer): ',np.max(self.priority_buffer))
+            #self.priority_buffer = self.priority_buffer/np.max(self.priority_buffer)
+            # print('record_range:{}\n'.format(range(record_range)))
+            # print('range(len(self.priority_buffer):{}\n'.format(range(len(self.priority_buffer))))
+            if self.use_priority == 1:
+                # Normalize priority
+                sum_priority_buffer = np.sum(self.priority_buffer)
+                current_prob = self.priority_buffer / sum_priority_buffer
+                current_weights = 1.0/current_prob
+                max_weight = np.max(current_weights)
+                current_is = (1.0/current_prob)/max_weight
+                # Sample based on loss contribution
+                self.batch_indices = random.choices(range(record_range),
+                                                    k=self.batch_size,
+                                                    weights=current_is[range(record_range)])
+    #                                                weights=current_priority_buffer[range(record_range)])
+                #self.priority_buffer[range(record_range)])
+            else:
+                # Randomly sample indices (priority = 0)
+                self.batch_indices = np.random.choice(record_range, self.batch_size)
 
+            # fig = plt.figure()
+            if self.ntrain_calls%100==0:
+                fig = plt.figure()
+                plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)], bins=25, color='black',range=[0,1])
+                plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25, range=[0,1])
+                plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
 
-        #print('np.max(self.priority_buffer): ',np.max(self.priority_buffer))
-        #self.priority_buffer = self.priority_buffer/np.max(self.priority_buffer)
-        # print('record_range:{}\n'.format(range(record_range)))
-        # print('range(len(self.priority_buffer):{}\n'.format(range(len(self.priority_buffer))))
-        if self.use_priority == 1:
-            # Normalize priority
-            sum_priority_buffer = np.sum(self.priority_buffer)
-            current_prob = self.priority_buffer / sum_priority_buffer
-            current_weights = 1.0/current_prob
-            max_weight = np.max(current_weights)
-            current_is = (1.0/current_prob)/max_weight
-            # Sample based on loss contribution
-            self.batch_indices = random.choices(range(record_range),
-                                                k=self.batch_size,
-                                                weights=current_is[range(record_range)])
-#                                                weights=current_priority_buffer[range(record_range)])
-            #self.priority_buffer[range(record_range)])
-        else:
-            # Randomly sample indices (priority = 0)
-            self.batch_indices = np.random.choice(record_range, self.batch_size)
+            # Convert to tensors
+            state_batch = tf.convert_to_tensor(self.state_buffer[self.batch_indices])
+            action_batch = tf.convert_to_tensor(self.action_buffer[self.batch_indices])
+            reward_batch = tf.convert_to_tensor(self.reward_buffer[self.batch_indices])
+            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[self.batch_indices])
+            done_batch = tf.convert_to_tensor(self.done_buffer[self.batch_indices])
+            done_batch = tf.cast(done_batch, dtype=tf.float32)
 
-        # fig = plt.figure()
-        if self.ntrain_calls%100==0:
-            fig = plt.figure()
-            plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)], bins=25, color='black',range=[0,1])
-            plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25, range=[0,1])
-            plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
+            # print('### agent.train() ####')
+            # print('state_batch', state_batch.shape)
+            # print('action_batch', action_batch.shape)
+            # print('reward_batch', reward_batch.shape)
+            # print('next_state_batch', next_state_batch.shape)
+            # print('done_batch', done_batch.shape)
+            #
+            self.update(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
+            if self.ntrain_calls%self.actor_update_freq == 0:
+                self.soft_update(self.target_actor.variables, self.actor_model.variables)
+            if self.ntrain_calls%self.critic_update_freq == 0:
+                self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
+                self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
-
-        # Convert to tensors
-        state_batch = tf.convert_to_tensor(self.state_buffer[self.batch_indices])
-        action_batch = tf.convert_to_tensor(self.action_buffer[self.batch_indices])
-        reward_batch = tf.convert_to_tensor(self.reward_buffer[self.batch_indices])
-        reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[self.batch_indices])
-        done_batch = tf.convert_to_tensor(self.done_buffer[self.batch_indices])
-        done_batch = tf.cast(done_batch, dtype=tf.float32)
-
-        #
-        self.update(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
-        if self.ntrain_calls%self.actor_update_freq == 0:
-            self.soft_update(self.target_actor.variables, self.actor_model.variables)
-        if self.ntrain_calls%self.critic_update_freq == 0:
-            self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
-            self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
-
+    #@tf.function
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
-        state = np.expand_dims(state, 0)
+        state = tf.expand_dims(state, 0)
 
-        if train==False:
-            sampled_action = self.actor_model.predict_on_batch(state)
-            noise = tf.zeros(sampled_action.shape)
-            legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-            return [np.squeeze(legal_action)], [np.squeeze(noise)]
+        # if train==False:
+        #     sampled_action = self.actor_model.predict_on_batch(state)
+        #     noise = tf.zeros(sampled_action.shape)
+        #     legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
+        #     return [np.squeeze(legal_action)], [np.squeeze(noise)]
 
         self.nactions.assign(self.nactions + 1)
         # TD3 version
         if self.buffer_counter < self.min_buffer_counter:
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
+            #noise = tf.zeros(sampled_action.shape)
         else:
             sampled_action = self.actor_model.predict_on_batch(state)
+            #noise = tf.random.normal(sampled_action.shape, 0, 0.1)
             noise = np.random.normal(0, 0.1, self.num_actions)
 
-        sampled_action = np.squeeze(sampled_action)
+        sampled_action = sampled_action.flatten()
+        noise = noise.flatten()
+        print('sampled_action', sampled_action)
+        print('noise:', noise)
+        #sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
             if self.num_actions > 1:
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
@@ -287,9 +323,11 @@ class KerasTD3(jlab_rl.Agent):
         #tf.summary.scalar('Critic Prediction', data=np.squeeze(q_pred), step=int(self.nactions))
         if train == True:
             sampled_action = sampled_action + noise
+            print('sampled_action w/ noise', sampled_action)
 
-        legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-        return [np.squeeze(legal_action)], [np.squeeze(noise)]
+        return sampled_action, noise
+        #legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
+        #return [np.squeeze(legal_action)], [np.squeeze(noise)]
 
     def memory(self, obs_tuple):
         # Set index to zero if buffer_capacity is exceeded,

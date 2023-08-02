@@ -22,11 +22,11 @@ from matplotlib import cm
 
 
 # Seed value
-seed_value = 0
-os.environ['PYTHONHASHSEED'] = str(seed_value)
-random.seed(seed_value)
-np.random.seed(seed_value)
-tf.random.set_seed(seed_value)
+# seed_value = 0
+# os.environ['PYTHONHASHSEED'] = str(seed_value)
+# random.seed(seed_value)
+# np.random.seed(seed_value)
+# tf.random.set_seed(seed_value)
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
@@ -38,7 +38,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     #
     # Environment
     print('Running env: {}'.format(env_id))
-    env = gym.make(env_id)
+    if 'HalfCheetah' in env_id:
+        env = gym.make(env_id, exclude_current_positions_from_observation=False)
+    else:
+        env = gym.make(env_id)
+
     env._max_episode_steps = max_nsteps
 
     num_states = env.observation_space.shape[0]
@@ -242,10 +246,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         nepisode_mod = 10
         avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
         time_end = time.process_time()
-        print("\nEpisode Elapsed Time {}".format((time_end - time_start)))
-        print("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
-        print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
+        if total_nsteps%1000==0:
+            print("\nEpisode Elapsed Time {}".format((time_end - time_start)))
+            print("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
+            print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
         avg_reward_list.append(avg_reward)
+
+        with open(logdir+'/test.npy', 'wb') as f:
+            np.save(f, np.array(ep_reward_list))
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -256,6 +266,7 @@ if __name__ == "__main__":
     parser.add_argument("--nwarmup", help="Agent warm-up size", type=int, default=1000)
     parser.add_argument("--env", help="Environment used for RL", type=str, default='Pendulum-v1')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
+    parser.add_argument("--profile", help="Profiling overrides all setting", type=bool, default=False)
 
     # Get input arguments
     args = parser.parse_args()
@@ -266,6 +277,23 @@ if __name__ == "__main__":
     args_warmup_size = args.nwarmup
     args_env_id = args.env
     args_logdir = args.logdir
+    args_profile = args.profile
 
-    # Print input settings
+    profiler = None
+    if args_profile:
+        import cProfile
+        import pstats
+        print('###### Overriding setting to run profiling ###### ')
+        args_nepisodes = 10
+        args_nsteps = 25
+        args_warmup_size = 0
+        profiler = cProfile.Profile()
+        profiler.enable()
+
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id, args_warmup_size, args_env_id, args_logdir)
+
+    if args_profile:
+        profiler.disable()
+        stats = pstats.Stats(profiler).sort_stats('tottime')
+        # Print the stats report
+        stats.print_stats()
