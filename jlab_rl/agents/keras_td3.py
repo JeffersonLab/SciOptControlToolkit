@@ -121,7 +121,7 @@ class KerasTD3(jlab_rl.Agent):
         file_writer.set_as_default()
         self.nactions = tf.Variable(0)
 
-    @tf.function
+    #@tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         next_actions = self.target_actor(next_states, training=False)
         # print('states:',states[0])
@@ -329,8 +329,8 @@ class KerasTD3(jlab_rl.Agent):
 
         sampled_action = sampled_action.flatten()
         noise = noise.flatten()
-        print('sampled_action', sampled_action)
-        print('noise:', noise)
+        # print('sampled_action', sampled_action)
+        # print('noise:', noise)
         #sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
             if self.num_actions > 1:
@@ -339,7 +339,7 @@ class KerasTD3(jlab_rl.Agent):
         #tf.summary.scalar('Critic Prediction', data=np.squeeze(q_pred), step=int(self.nactions))
         if train == True:
             sampled_action = sampled_action + noise
-            print('sampled_action w/ noise', sampled_action)
+            #print('sampled_action w/ noise', sampled_action)
 
         return sampled_action, noise
         #legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
