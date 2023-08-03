@@ -172,7 +172,9 @@ class KerasTD3(jlab_rl.Agent):
         # Use Critic 1
         with tf.GradientTape() as tape:
             actions = self.actor_model(states, training=True)
-            q_value = self.critic_model1([states, actions], training=False)
+            q_value1 = self.critic_model1([states, actions], training=False)
+            q_value2 = self.critic_model2([states, actions], training=False)
+            q_value = tf.keras.layers.Average()([q_value1, q_value2])
             loss = -tf.math.reduce_mean(q_value)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
