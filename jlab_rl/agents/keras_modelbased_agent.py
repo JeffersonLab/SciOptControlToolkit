@@ -139,6 +139,7 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
                                  (ns_pred_std.numpy())[:,s], step=int(self.ntrain_calls))
         return history
 
+    #@tf.function
     def train_actor(self, states):
         self.policy_training_started = True
         # Do rollout
@@ -206,8 +207,9 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
     def update(self, state_batch, action_batch, reward_batch, next_state_batch):
         # if self.buffer_counter % self.batch_size == 0:
         self.ntrain_calls += 1
-        self.train_dynamic_model(state_batch, action_batch, reward_batch, next_state_batch)
-        if self.buffer_counter % 2 == 0:
+        if self.buffer_counter % self.batch_size == 0:
+            self.train_dynamic_model(state_batch, action_batch, reward_batch, next_state_batch)
+        if self.buffer_counter % self.min_buffer_counter == 0:
             self.train_actor(state_batch)
 
     def train(self):
@@ -245,31 +247,31 @@ class KerasGenericModelBasedAgent(jlab_rl.Agent):
         #print("MBRL Dynamic Episodic Reward is ==> {}".format(total_reward))
         return total_reward
 
-    def run_env_episode(self, env, nsteps):
-        # theta, thetadot = env.state
-        # intial_state = np.array([np.cos(theta), np.sin(theta), thetadot], dtype=np.float32)
-        # intial_state = np.expand_dims(intial_state, axis=0)
-        #print(intial_state.shape)
-        # action = env.action_space.sample()
-        # print(action.shape)
-        # state = env.state()
-        # print('Initial state: {}'.format(init_state))
-        #
-        # state = np.expand_dims(env.observation_space.sample(), axis=0)#env.state#initial_state
-        state, _ = env.reset()
-        state = np.expand_dims(state, axis=0)
-        #state = tf.convert_to_tensor(state)
-        total_reward = 0
-        for _ in range(nsteps):
-            #print('state shape {}'.format(state.shape))
-            action = self.actor_model(state)
-            action = np.reshape(action, -1)
-            next_state, reward, done_old, done, info = env.step(action)
-            next_state = np.expand_dims(next_state, axis=0)
-            state = next_state
-            total_reward += float(reward)
-        #print('Test total reward:{}'.format(total_reward))
-        return total_reward
+    # def run_env_episode(self, env, nsteps):
+    #     # theta, thetadot = env.state
+    #     # intial_state = np.array([np.cos(theta), np.sin(theta), thetadot], dtype=np.float32)
+    #     # intial_state = np.expand_dims(intial_state, axis=0)
+    #     #print(intial_state.shape)
+    #     # action = env.action_space.sample()
+    #     # print(action.shape)
+    #     # state = env.state()
+    #     # print('Initial state: {}'.format(init_state))
+    #     #
+    #     # state = np.expand_dims(env.observation_space.sample(), axis=0)#env.state#initial_state
+    #     state, _ = env.reset()
+    #     state = np.expand_dims(state, axis=0)
+    #     #state = tf.convert_to_tensor(state)
+    #     total_reward = 0
+    #     for _ in range(nsteps):
+    #         #print('state shape {}'.format(state.shape))
+    #         action = self.actor_model(state)
+    #         action = np.reshape(action, -1)
+    #         next_state, reward, done_old, done, info = env.step(action)
+    #         next_state = np.expand_dims(next_state, axis=0)
+    #         state = next_state
+    #         total_reward += float(reward)
+    #     #print('Test total reward:{}'.format(total_reward))
+    #     return total_reward
 
     def action(self, state, train=True, random_only=False):
         """ Method used to provide the next action using the target model """
