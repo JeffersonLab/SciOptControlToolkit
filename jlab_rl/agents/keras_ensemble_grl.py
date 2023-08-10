@@ -75,7 +75,7 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         model = Generator(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
-    @tf.function
+    #@tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
 
         # Take the average

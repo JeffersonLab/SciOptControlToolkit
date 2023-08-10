@@ -30,8 +30,7 @@ from matplotlib import cm
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
-    if env_id == 'ProxyApp-v0' or env_id == 'ProxyApp-v1' or env_id == 'Circle2DEnv-v0' or env_id == 'Circle2DEnv-v1' \
-            or "CEBAF" in env_id or 'Gaussian' in env_id:
+    if 'DnC2s' in env_id:
         import jlab_rl.envs as gym
     else:
         import gym
@@ -181,7 +180,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.savefig(logdir+'/denormalized_nextstate_reward_{}.png'.format(agent.buffer_counter / nsavefig))
 
             # Plot the
-            if env_id == 'Circle2DEnv-v1' or env_id == 'UniformCircle2DEnv-v1' or env_id == 'CEBAF2DEnv-v0':
+            if "Circle2D" in env_id:
                 # Plot
                 if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
@@ -204,8 +203,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_nsteps))
 
             #
-            if env_id == 'Circle2DEnv-v0' or env_id == 'Circle2DEnv-v1':
-                radius = np.sqrt(state[0]*state[0]+state[1]*state[1])
+            if 'Circle' in env_id:
+                radius = np.sqrt(np.sum(state*state))
                 tf.summary.scalar('Radial Distribution', data=radius, step=int(total_nsteps))
 
             if "CEBAF" in env_id:

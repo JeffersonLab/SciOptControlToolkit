@@ -7,13 +7,13 @@ from jlab_rl.envs.gaussian_gan_env_v0 import ProxyGaussian
 
 # Register the proxy app
 register(
-    id='ProxyApp-v0',
+    id='DnC2s-ProxyApp-v0',
     entry_point='jlab_rl.envs:proxy_app',
     kwargs={'loss_type': 'default'},
 )
 
 register(
-    id='ProxyApp-v1',
+    id='DnC2s-ProxyApp-v1',
     entry_point='jlab_rl.envs:proxy_app',
     kwargs={'loss_type':'emil'},
 )
@@ -21,80 +21,119 @@ register(
 # Register the circle constraint app
 # This environment is stateless: meaning the action overides the state
 register(
-    id='Circle2DEnv-v0',
-    entry_point='jlab_rl.envs:circle_constraint_stateless_env'
+    id='DnC2s-Circle2DEnv-v0',
+    entry_point='jlab_rl.envs:circle_constraint_stateless_env',
 )
 
-# This environment is stateless: meaning the action overides the state
 register(
-    id='Circle2DEnv-v1',
+    id='DnC2s-Circle6DEnv-v0',
+    entry_point='jlab_rl.envs:circle_constraint_stateless_env',
+    kwargs={'ndim': 6},
+)
+
+register(
+    id='DnC2s-StatelessCircle2DEnv-v1',
     entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+    kwargs={'ndim': 2, 'rdm_reset_mode': 'circle', 'statefull': False},
+)
+
+register(
+    id='DnC2s-StatelessCircle4DEnv-v1',
+    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+    kwargs={'ndim': 4, 'rdm_reset_mode': 'circle', 'statefull' : False},
+)
+
+register(
+    id='DnC2s-StatelessCircle6DEnv-v1',
+    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+    kwargs={'ndim': 6, 'rdm_reset_mode': 'circle', 'statefull' : False},
 )
 
 # This environment is stateless: meaning the action overides the state
 register(
-    id='UniformCircle2DEnv-v1',
+    id='DnC2s-StatefullCircle2DEnv-v1',
+    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+    kwargs={'ndim': 2, 'rdm_reset_mode': 'circle', 'statefull': True},
+)
+
+# This environment is stateless: meaning the action overides the state
+register(
+    id='DnC2s-StatefullCircle4DEnv-v1',
+    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+    kwargs={'ndim': 4, 'rdm_reset_mode': 'circle', 'statefull': True},
+)
+
+# This environment is stateless: meaning the action overides the state
+register(
+    id='DnC2s-StatefullCircle6DEnv-v1',
+    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+    kwargs={'ndim': 6, 'rdm_reset_mode': 'circle', 'statefull': True},
+)
+
+# This environment is stateless: meaning the action overides the state
+register(
+    id='DnC2s-UniformCircle2DEnv-v1',
     entry_point='jlab_rl.envs:circle_constraint_statefull_env',
     kwargs={'ndim': 2, 'rdm_reset_mode': 'uniform'},
 )
 
 # This environment is stateless: meaning the action overides the state
 register(
-    id='CEBAF2DEnv-v0',
+    id='DnC2s-CEBAF2DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
-    kwargs={'linac': '1l10_test2'},
+    kwargs={'linac': '1l10_test2'}
 )
 
 register(
-    id='CEBAF4DEnv-v0',
+    id='DnC2s-CEBAF4DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
-    kwargs={'linac': '1l10_test4'},
+    kwargs={'linac': '1l10_test4'}
 )
 
 register(
-    id='CEBAF8DEnv-v0',
+    id='DnC2s-CEBAF8DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
-    kwargs={'linac': '1l10_test8'},
+    kwargs={'linac': '1l10_test8'}
 )
 
 register(
-    id='HeatObj-CEBAF8DEnv-v0',
+    id='DnC2s-HeatObj-CEBAF8DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
-    kwargs={'linac': '1l10_test8', 'objective': 'heat'},
+    kwargs={'linac': '1l10_test8', 'objective': 'heat'}
 )
 
 register(
-    id='TripObj-CEBAF8DEnv-v0',
+    id='DnC2s-TripObj-CEBAF8DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
     kwargs={'linac': '1l10_test8', 'objective': 'trip'},
 )
 
 register(
-    id='MixedObj-CEBAF8DEnv-v0',
+    id='DnC2s-MixedObj-CEBAF8DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
     kwargs={'linac': '1l10_test8', 'objective': 'mixed'},
 )
 
 register(
-    id='MultObj-CEBAF8DEnv-v0',
+    id='DnC2s-MultObj-CEBAF8DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
     kwargs={'linac': '1l10_test8', 'objective': 'multi-obj'},
 )
 
 register(
-    id='CEBAFSouthEnv-v0',
+    id='DnC2s-CEBAFSouthEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
     kwargs={'linac': 'south'},
 )
 
 register(
-    id='CEBAFNorthEnv-v0',
+    id='DnC2s-CEBAFNorthEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
     kwargs={'linac': 'north'},
 )
 
 
 register(
-    id='GaussianEnv-v0',
+    id='DnC2s-GaussianEnv-v0',
     entry_point='jlab_rl.envs:ProxyGaussian',
 )
