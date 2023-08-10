@@ -69,7 +69,7 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         self.target_actors = [self.get_actor() for _ in range(self.nactors)]
         for i in range(self.nactors):
             self.target_actors[i].set_weights(self.actor_models[i].get_weights())
-        print('Actor summary:', self.actor_models[0].summary())
+        #print('Actor summary:', self.actor_models[0].summary())
 
     def get_actor(self):
         seed = time.time_ns()
