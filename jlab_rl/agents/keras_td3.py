@@ -71,7 +71,7 @@ class KerasTD3(jlab_rl.Agent):
         self.min_buffer_counter = warmup_size
         self.buffer_counter = 0
         self.buffer_capacity = 5000000
-        self.batch_size = 1024
+        self.batch_size = 1000
         self.state_buffer = np.zeros((self.buffer_capacity, self.num_states))
         self.action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))

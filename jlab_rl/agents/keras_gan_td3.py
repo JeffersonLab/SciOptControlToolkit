@@ -106,6 +106,11 @@ class KerasGenerativeTD3(KerasTD3):
 
         self.nactions.assign(self.nactions + 1)
 
+        if self.buffer_counter < self.batch_size:
+            sampled_action = self.env.action_space.sample()
+            noise = np.zeros(self.num_actions)
+            return sampled_action, noise
+
         # Single try
         state = np.expand_dims(state, 0)
 
