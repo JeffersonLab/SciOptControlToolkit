@@ -51,7 +51,7 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasGenerativeDynamicModelBased __init__')
 
-        self.nrdm_inputs = 10
+        self.nrdm_inputs = 100
         self.nactors = 7
         self.actor_models = []
         self.target_actors = []
@@ -69,11 +69,12 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         self.target_actors = [self.get_actor() for _ in range(self.nactors)]
         for i in range(self.nactors):
             self.target_actors[i].set_weights(self.actor_models[i].get_weights())
+        print('Actor summary:', self.actor_models[0].summary())
 
     def get_actor(self):
         seed = time.time_ns()
         tf.random.set_seed(seed)
-        model = Generator(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+        model = Generator(ndims=self.num_actions, nlayers=5, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
     #@tf.function

@@ -15,11 +15,12 @@ from jlab_rl.utils.circle_rdm import circle_rdm_samples
 
 class cebaf_env(gym.Env):
     def __init__(self, path_cavity_data=os.path.join(os.path.dirname(__file__), 'updated_cavity_table.pkl'),
-                 linac="North", rdm_reset_mode='circle', objective='heat', seed=22):
+                 linac="North", rdm_reset_mode='circle', objective='heat', loss_type='test_nonlinear', seed=22):
         np.random.seed(seed=seed)
 
         self.rdm_reset_mode = rdm_reset_mode
         self.objective = objective
+        self.loss_type = loss_type
         self.alpha = None
 
         # Build linac
@@ -93,14 +94,23 @@ class cebaf_env(gym.Env):
 
         # Trip
         trip = self.linac.getTripRates()
-        trip_reward = 7.5 * (np.exp(trip * 10) - np.exp(0.01 * 10))
+        if self.loss_type=='nonlinear':
+            trip_reward = -1.0*(7.5 * (np.exp(trip * 10) - np.exp(0.01 * 10)))
+        else:
+            trip_reward = 0.05-trip
+            trip_reward = -9 + trip_reward if trip_reward < 0.0 else trip_reward
 
         # Heat
         heat = self.linac.getRFHeat()
-        heat_reward = (np.exp(heat / 5) - np.exp(20 / 5))
+        if self.loss_type=='nonlinear':
+            heat_reward = -(np.exp(heat / 5) - np.exp(20 / 5))
+        else:
+            heat_reward = 25-heat
+            heat_reward = -9+heat_reward if heat_reward < 0.0 else heat_reward
 
         # Combined reward
-        reward = -1.0*(self.alpha*trip_reward + (1-self.alpha)*heat_reward)
+        #reward = -1.0*(self.alpha*trip_reward + (1-self.alpha)*heat_reward)
+        reward = (self.alpha*trip_reward + (1-self.alpha)*heat_reward)
 
         # Energy boundary
         self.energy = self.linac.getEnergyGain()
