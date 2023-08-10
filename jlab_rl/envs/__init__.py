@@ -103,6 +103,7 @@ register(
     kwargs={'linac': '1l10_test4'}
 )
 
+# For 8 cavities in 1L10, the heat was below 21.4
 register(
     id='DnC2s-CEBAF8DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
