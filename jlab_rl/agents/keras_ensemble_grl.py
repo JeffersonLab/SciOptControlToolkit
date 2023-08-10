@@ -51,6 +51,7 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasGenerativeDynamicModelBased __init__')
 
+        self.nrdm_inputs = 10
         self.nactors = 7
         self.actor_models = []
         self.target_actors = []
@@ -81,7 +82,7 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         # Take the average
         q_targets = 0
         for i in range(self.nactors):
-            next_rdm_gaus = tf.random.normal([next_states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
+            next_rdm_gaus = tf.random.normal([next_states.shape[0], self.nrdm_inputs], 0, 1, tf.float32, seed=1)
             next_actions = self.target_actors[i]([next_states, next_rdm_gaus], training=False)
             new_q1 = self.target_critic1([next_states, next_actions], training=False)
             new_q2 = self.target_critic2([next_states, next_actions], training=False)
@@ -123,7 +124,7 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
     def train_actor(self, states):
         # Use Critic 1
         for i in range(self.nactors):
-            next_rdm_gaus = tf.random.normal([states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
+            next_rdm_gaus = tf.random.normal([states.shape[0], self.nrdm_inputs], 0, 1, tf.float32, seed=1)
             with tf.GradientTape() as tape:
                 actions = self.actor_models[i]([states, next_rdm_gaus], training=True)
                 q_value = self.critic_model1([states, actions], training=False)
@@ -156,8 +157,8 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         max_reward = -999999
         max_sampled_action = None
         for i in range(self.nactors):
-            rdm_norms = tf.random.normal([nrepeats, self.num_actions], 0, 1, tf.float32, seed=1)
-            sampled_actions = self.actor_models[0]([states, rdm_norms])
+            rdm_norms = tf.random.normal([nrepeats, self.nrdm_inputs], 0, 1, tf.float32, seed=1)
+            sampled_actions = self.actor_models[i]([states, rdm_norms])
             new_q1 = self.target_critic1([states, sampled_actions])
             new_q2 = self.target_critic2([states, sampled_actions])
             rewards = tf.math.maximum(new_q1, new_q2)
