@@ -75,31 +75,23 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         model = Generator(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
-    #@tf.function
+    @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
-        #
-        next_rdm_gaus = tf.random.normal([next_states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
-        # Try randomly picking a target actor
-        #next_actions = self.target_actors[int(np.random.randint(self.nactors))]([next_states, next_rdm_gaus], training=False)
-        rdm_idx = int(random.uniform(0, self.nactors-1))
-        #print('rdm_idx',rdm_idx)
-        next_actions = self.target_actors[rdm_idx]([next_states, next_rdm_gaus], training=False)
 
-        #rdm_norms = tf.random.normal([next_states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
-        #next_actions = np.array([np.squeeze(self.target_actors[i]([next_states, rdm_norms])) for i in range(self.nactors)])
-        #next_states = tf.repeat(next_states, self.nactors, axis=0)
+        # Take the average
+        q_targets = 0
+        for i in range(self.nactors):
+            next_rdm_gaus = tf.random.normal([next_states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
+            next_actions = self.target_actors[i]([next_states, next_rdm_gaus], training=False)
+            new_q1 = self.target_critic1([next_states, next_actions], training=False)
+            new_q2 = self.target_critic2([next_states, next_actions], training=False)
+            new_q = tf.math.minimum(new_q1, new_q2)
+            # Bellman equation for the q value
+            this_q_targets = rewards + self.gamma * new_q * (1.0-dones)
+            q_targets += this_q_targets
 
-        #print(next_actions.shape)
-        # # Do we need this noise ?
-        # noises = tf.random.normal(next_actions.shape, 0, 0.2)
-        # noises = tf.clip_by_value(noises, -0.5, 0.5)
-        # next_actions = next_actions+noises
-        #
-        new_q1 = self.target_critic1([next_states, next_actions], training=False)
-        new_q2 = self.target_critic2([next_states, next_actions], training=False)
-        new_q = tf.math.minimum(new_q1, new_q2)
-        # Bellman equation for the q value
-        q_targets = rewards + self.gamma * new_q * (1.0-dones)
+        q_targets = q_targets/self.nactors
+
         # Critic 1
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
