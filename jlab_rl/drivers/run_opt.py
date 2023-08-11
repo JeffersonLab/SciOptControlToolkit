@@ -88,7 +88,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         prev_state, _ = env.reset()
         nsteps = 0
         episodic_reward = 0
-        for estep in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
+#        for estep in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
+        for estep in range(max_nsteps):
             total_nsteps += 1
             if 'Torch' in agent_id:
                 tf_prev_state = torch.Tensor([prev_state])

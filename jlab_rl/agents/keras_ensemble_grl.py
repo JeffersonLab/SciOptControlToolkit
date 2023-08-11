@@ -25,6 +25,7 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+import sys
 
 import jlab_rl as jlab_rl
 import tensorflow as tf
@@ -52,7 +53,7 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         print('Running KerasGenerativeDynamicModelBased __init__')
 
         self.nrdm_inputs = 100
-        self.nactors = 7
+        self.nactors = 5
         self.actor_models = []
         self.target_actors = []
         self.actor_optimizers = []
@@ -72,8 +73,7 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         #print('Actor summary:', self.actor_models[0].summary())
 
     def get_actor(self):
-        seed = time.time_ns()
-        tf.random.set_seed(seed)
+        tf.random.set_seed(time.time_ns())
         model = Generator(ndims=self.num_actions, nlayers=5, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
@@ -81,18 +81,40 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
     def train_critic(self, states, actions, rewards, next_states, dones):
 
         # Take the average
-        q_targets = 0
+        q_targets_list = []
+        ave_q_targets = 0
         for i in range(self.nactors):
-            next_rdm_gaus = tf.random.normal([next_states.shape[0], self.nrdm_inputs], 0, 1, tf.float32, seed=1)
+            next_rdm_gaus = tf.random.normal([next_states.shape[0], self.nrdm_inputs], 0, 1, tf.float32,
+                                             seed= time.time_ns())
+            # print('next_rdm_gaus {}: {}'.format(i,next_rdm_gaus))
             next_actions = self.target_actors[i]([next_states, next_rdm_gaus], training=False)
+            # Checked ... it's ok
+            # print('next_actions[{}]:{}'.format(i,next_actions))
             new_q1 = self.target_critic1([next_states, next_actions], training=False)
             new_q2 = self.target_critic2([next_states, next_actions], training=False)
+            # Checked ... it's ok
+            # print('new_q1',new_q1)
+            # print('new_q2',new_q2)
             new_q = tf.math.minimum(new_q1, new_q2)
+            # Checked ... it's ok
+            # print('new_q',new_q)
             # Bellman equation for the q value
             this_q_targets = rewards + self.gamma * new_q * (1.0-dones)
-            q_targets += this_q_targets
+            # print('this_q_targets[{}]:{}'.format(i,this_q_targets))
+            q_targets_list.append(this_q_targets)
+            ave_q_targets += this_q_targets
 
-        q_targets = q_targets/self.nactors
+        ave_q_targets = ave_q_targets/self.nactors
+        # print('ave q_targets shape:',ave_q_targets.shape)
+        # print('ave q_targets:',ave_q_targets)
+        q_targets_mu = np.mean(np.array(q_targets_list), axis=0)
+        q_targets_std = np.std(np.array(q_targets_list), axis=0)
+        q_targets = np.random.normal(q_targets_mu, 3*q_targets_std)
+        # print('q_targets mu:',q_targets_mu)
+        # print('q_targets std:',q_targets_std)
+        # print('q_targets np:',q_targets.shape)
+        # print('q_targets np',q_targets)
+        # sys.exit()
 
         # Critic 1
         with tf.GradientTape() as tape:
@@ -125,7 +147,8 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
     def train_actor(self, states):
         # Use Critic 1
         for i in range(self.nactors):
-            next_rdm_gaus = tf.random.normal([states.shape[0], self.nrdm_inputs], 0, 1, tf.float32, seed=1)
+            next_rdm_gaus = tf.random.normal([states.shape[0], self.nrdm_inputs], 0, 1, tf.float32,
+                                             seed=time.time_ns())
             with tf.GradientTape() as tape:
                 actions = self.actor_models[i]([states, next_rdm_gaus], training=True)
                 q_value = self.critic_model1([states, actions], training=False)
@@ -158,7 +181,8 @@ class KerasEnsembleGenerativeTD3(KerasTD3):
         max_reward = -999999
         max_sampled_action = None
         for i in range(self.nactors):
-            rdm_norms = tf.random.normal([nrepeats, self.nrdm_inputs], 0, 1, tf.float32, seed=1)
+            rdm_norms = tf.random.normal([nrepeats, self.nrdm_inputs], 0, 1, tf.float32,
+                                         seed=time.time_ns())
             sampled_actions = self.actor_models[i]([states, rdm_norms])
             new_q1 = self.target_critic1([states, sampled_actions])
             new_q2 = self.target_critic2([states, sampled_actions])

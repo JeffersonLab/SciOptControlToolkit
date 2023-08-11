@@ -382,12 +382,13 @@ class KerasTD3(jlab_rl.Agent):
         self.target_actor.set_weights(self.actor_model.get_weights())
 
         seed1 = time.time_ns()
+
         print('seed1:',seed1)
         tf.random.set_seed(seed1)
         self.critic_model1 = self.get_critic()
         self.target_critic1 = self.get_critic()
         self.target_critic1.set_weights(self.critic_model1.get_weights())
-
+        time.sleep(1/10)
         seed2 = time.time_ns()
         print('seed2:',seed2)
         tf.random.set_seed(seed2)

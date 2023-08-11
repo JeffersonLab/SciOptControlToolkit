@@ -1,12 +1,17 @@
 import tensorflow as tf
+import time
 
 class Generator(tf.keras.Model):
 
   def __init__(self, ndims=2, nlayers=5, lower_bound=None, upper_bound=None):
     super().__init__()
+    time.sleep(1/10)
+    seed = time.time_ns()
+    print('Generator seed:', seed)
+    tf.random.set_seed(seed)
     self.ndims = ndims
     self.nlayers = nlayers
-    init = tf.keras.initializers.GlorotUniform()
+    init = tf.keras.initializers.GlorotUniform(seed)
     nodes = 256
     self.denses1 = []
     self.bn1 = []
