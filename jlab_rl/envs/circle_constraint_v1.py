@@ -6,9 +6,10 @@ import numpy as np
 
 
 class circle_constraint_env(gym.Env):
-    def __init__(self, ndim=2, rdm_reset_mode='circle'):
+    def __init__(self, ndim=2, rdm_reset_mode='circle', statefull=True):
         self.ndim = ndim
         self.rdm_reset_mode = rdm_reset_mode
+        self.statefull = statefull
         self.action_space = spaces.Box(low=-np.ones(self.ndim), high=np.ones(self.ndim), dtype=np.float64)
         self.observation_space = spaces.Box(low=-np.ones(self.ndim), high=np.ones(self.ndim), dtype=np.float64)
         self.states, _ = self.reset()
@@ -18,6 +19,8 @@ class circle_constraint_env(gym.Env):
 
     def step(self, action):
         self.states = self.states + action
+        if self.statefull==False:
+            self.states = action
         sqrt_states = np.square(self.states)
         radius = np.sqrt(np.sum(sqrt_states))
         reward = - np.log(np.abs(radius - self.target_radius)) - 100 * np.square(radius - self.target_radius)

@@ -1,4 +1,4 @@
-# Author: Kishansingh Rajput
+# Author: Kishansingh Rajput, Malachi Schram
 # Script: CEBAF cavities digital twin
 # Org: Thomas Jefferson National Accelerator Facility
 
@@ -15,13 +15,13 @@ from jlab_rl.utils.circle_rdm import circle_rdm_samples
 
 class cebaf_env(gym.Env):
     def __init__(self, path_cavity_data=os.path.join(os.path.dirname(__file__), 'updated_cavity_table.pkl'),
-                 linac="North", trackTime=False, max_steps=100, reward_weights=0.5, seed=22, termination_reward=-1000,
-                 action_range=[-0.05, 0.05]):
+                 linac="North", rdm_reset_mode='circle', objective='heat', loss_type='test_nonlinear', seed=22):
         np.random.seed(seed=seed)
 
-        self.rdm_reset_mode = 'uniform'
-        self.opt = 'other'
-        self.alpha = 1.0
+        self.rdm_reset_mode = rdm_reset_mode
+        self.objective = objective
+        self.loss_type = loss_type
+        self.alpha = None
 
         # Build linac
         self.linac = digitalTwin(path_cavity_data, linac)
@@ -68,79 +68,79 @@ class cebaf_env(gym.Env):
         normalized_state = ((normalized_state + 1) / 2) * (self.max_grads - self.min_grads) + self.min_grads
         return normalized_state
 
+    def get_objective(self):
+        if self.objective == 'heat':
+            self.alpha = 0
+        elif self.objective == 'trip':
+            self.alpha = 1
+        elif self.objective == 'mixed':
+            self.alpha = 0.5
+        else:
+            self.alpha = np.random.uniform(0,1)
+
     def step(self, action):
 
         # Scale unit action to proper action space
-        #print('action', action)
         denorm_action = self.denormalize_state(action)
-        #print('denorm_action', denorm_action)
 
         self.linac.setGradients(denorm_action)
 
-        # Stateful workflow
-        # print('denorm_action', denorm_action)
-        #
-        # # Get new gradients
-        # current_states = self.linac.getGradients()
-        # print('current_states', current_states)
-        # print('step new state', current_states + denorm_action)
-        #
-        # # Update gradients
-        # self.linac.update_gradients(denorm_action)
-
         # Get new gradients
         self.states = self.linac.getGradients()
-        #print('linac new state', self.states)
 
-        # calc_action = self.states - current_states
-        #
-        # print('denorm_action', denorm_action)
-        # print('calc_action', calc_action)
 
         # Need to normalize for the RL agent
         normalized_states = self.normalize_state(self.states)
 
         # Trip
-        trips = self.linac.getTripRates()
+        trip = self.linac.getTripRates()
+        if self.loss_type=='nonlinear':
+            trip_reward = -1.0*(7.5 * (np.exp(trip * 10) - np.exp(0.01 * 10)))
+        else:
+            trip_reward = 0.05-trip
+            trip_reward = -9 + trip_reward if trip_reward < 0.0 else trip_reward
 
         # Heat
         heat = self.linac.getRFHeat()
-        heat_reward = (np.exp(heat / 5) - np.exp(20 / 5))
+        if self.loss_type=='nonlinear':
+            heat_reward = -(np.exp(heat / 5) - np.exp(20 / 5))
+        else:
+            heat_reward = 25-heat
+            heat_reward = -9+heat_reward if heat_reward < 0.0 else heat_reward
 
         # Combined reward
-        reward = -1.0*(self.alpha*trips + (1-self.alpha)*heat_reward)
+        #reward = -1.0*(self.alpha*trip_reward + (1-self.alpha)*heat_reward)
+        reward = (self.alpha*trip_reward + (1-self.alpha)*heat_reward)
 
         # Energy boundary
         self.energy = self.linac.getEnergyGain()
-        # print('New energy: {}({}/{}/{})'.format(self.energy,
-        #                                         self.min_energy,
-        #                                         self.max_energy,
-        #                                         self.target_energy))
-
-
-
-        # Simple energy reward
-        if self.opt == 'energy':
-            reward = - np.log(np.abs(self.energy - self.target_energy)) #- 100 * np.square(self.energy - self.target_energy)
 
         # Apply to all optimization scenarios
         if self.energy < self.min_energy or self.energy > self.max_energy:
             reward -= 100*np.abs(self.energy - self.target_energy)
 
+        # Simple energy reward
+        if self.objective == 'energy':
+            reward = - np.log(np.abs(self.energy - self.target_energy))
+
         # Extra information
-        info = {'heat': self.linac.getRFHeat(), 'trip': self.linac.getTripRates(), 'energy': self.energy}
+        info = {'heat': self.linac.getRFHeat(),
+                'trip': self.linac.getTripRates(),
+                'energy': self.energy,
+                'alpha': self.alpha}
 
         # Return
         return normalized_states, reward, True, True, info
 
     def reset(self):
         #
-        self.alpha = np.random.uniform(0,1)
+        self.get_objective()
+        #self.alpha = 0.5
         if self.rdm_reset_mode == 'circle':
-            normalized_states, _, _ = circle_rdm_samples(self.ncavities, 1, 1.0, 0.75, give_all=True)
+            normalized_states, _, _ = circle_rdm_samples(self.ncavities, 1, 1.0, 0.0, give_all=True)
         if self.rdm_reset_mode == 'uniform':
             normalized_states = self.observation_space.sample()
         self.states = self.denormalize_state(normalized_states)
         self.linac.setGradients(self.states)
 
-        return normalized_states, self.states
+        return normalized_states, self.alpha

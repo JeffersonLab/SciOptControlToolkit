@@ -10,7 +10,7 @@ import tensorflow as tf
 import torch
 import jlab_rl.agents
 from jlab_rl.utils.git_utilts import get_git_revision_short_hash
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
@@ -22,26 +22,37 @@ from matplotlib import cm
 
 
 # Seed value
-# seed_value = 0
-# os.environ['PYTHONHASHSEED'] = str(seed_value)
-# random.seed(seed_value)
-# np.random.seed(seed_value)
-# tf.random.set_seed(seed_value)
+seed_value = 0
+os.environ['PYTHONHASHSEED'] = str(seed_value)
+random.seed(seed_value)
+np.random.seed(seed_value)
+tf.random.set_seed(seed_value)
+
+# import warnings
+        # with warnings.catch_warnings():
+        #     warnings.filterwarnings("ignore",category=DeprecationWarning)
+import gym
+import jlab_rl.envs as jlab_envs
+
+def get_env(env_id):
+    try:
+        env = gym.make(env_id)
+        return env
+    except:
+        print('Non-standard Gym Environment. Trying JLab Environments...')
+        try:
+            env = jlab_envs.make(env_id)
+            return env
+        except:
+            raise Exception(f'Failed to load environment {env_id}')
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
-    if 'DnC2s' in env_id:
-        import jlab_rl.envs as gym
-    else:
-        import gym
+    print('Running env: {}'.format(env_id))
+
+    env = get_env(env_id)
     #
     # Environment
-    print('Running env: {}'.format(env_id))
-    if ('HalfCheetah' or 'Hopper') in env_id:
-        env = gym.make(env_id, exclude_current_positions_from_observation=False)
-    else:
-        env = gym.make(env_id)
-
     env._max_episode_steps = max_nsteps
 
     num_states = env.observation_space.shape[0]
@@ -83,13 +94,17 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     total_nsteps = 0
     nsavefig = agent.batch_size
 
-    for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
+    outer_pbar = tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index))
+    inner_pbar = tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index), leave=False)
+    heats, trips = [], []
+
+    for ep in outer_pbar:
+
         time_start = time.process_time()
         prev_state, _ = env.reset()
         nsteps = 0
         episodic_reward = 0
-#        for estep in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
-        for estep in range(max_nsteps):
+        for estep in range(int(max_nsteps)):
             total_nsteps += 1
             if 'Torch' in agent_id:
                 tf_prev_state = torch.Tensor([prev_state])
@@ -105,17 +120,33 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     # noise = noise[0]
 
             # Receive state and reward from environment.
-            if 'Pendulum' not in env_id:# != 'Pendulum-v1' or :
-                action = np.squeeze(action)
+            # if env_id != 'Pendulum-v1':
+            #     action = np.squeeze(action)
             # if agent_id == 'KerasGenerativeTD3-v0':
             #     action = np.squeeze(action)
             # print('action: ', action.shape)
+            action = action.flatten()
             state, reward, done_old, done, info = env.step(action)
-            # done_old = float(done_old)
-            # done = float(done)
+            state = state.flatten()
+            done_old = float(done_old)
+            done = float(done)
+            # print('prev_state', prev_state)
+            # print('action', action)
+            # print('reward', reward)
+            # print('state', state)
+            #prev_state = prev_state.flatten()
+            if 'CEBAF' in env_id:
+                heats.append(info['heat'])
+                trips.append(info['trip'])
+            if agent.buffer_counter % 100 == 0:
+                plt.plot(heats, trips, 'o')
+                plt.savefig(logdir + '/heat_trip_{}.png'.format(agent.buffer_counter / nsavefig))
+
+
             # nsteps += 1
             # if done:
             #     print('old/new done: {}/{}({})'.format(done_old, done, estep))
+
             agent.memory((prev_state, action, reward, state, done))
             episodic_reward += reward
             agent.train()
@@ -181,7 +212,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.savefig(logdir+'/denormalized_nextstate_reward_{}.png'.format(agent.buffer_counter / nsavefig))
 
             # Plot the
-            if "Circle2D" in env_id:
+            if env_id == 'Circle2DEnv-v1' or env_id == 'UniformCircle2DEnv-v1' or env_id == 'CEBAF2DEnv-v0':
                 # Plot
                 if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
@@ -204,15 +235,38 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_nsteps))
 
             #
-            if 'Circle' in env_id:
-                radius = np.sqrt(np.sum(state*state))
+            if env_id == 'Circle2DEnv-v0' or env_id == 'Circle2DEnv-v1':
+                radius = np.sqrt(state[0]*state[0]+state[1]*state[1])
                 tf.summary.scalar('Radial Distribution', data=radius, step=int(total_nsteps))
 
             if "CEBAF" in env_id:
                 tf.summary.scalar('Energy Distribution', data=env.energy, step=int(total_nsteps))
                 tf.summary.scalar('Trip Rate', data=info['trip'], step=int(total_nsteps))
                 tf.summary.scalar('Heat Load', data=info['heat'], step=int(total_nsteps))
-
+                # Plot Pareto front
+                if agent.buffer_counter%100==0:
+                    print('Testing Optimal Solution...')
+                    fig = plt.figure(figsize=(12, 12))
+                    test_env = get_env(env_id)
+                    test_heats, test_trips, test_rewards = [], [], []
+                    for _ in range(100):
+                        test_prev_state, _ = test_env.reset()
+                        test_action, _ = agent.action(tf.convert_to_tensor(test_prev_state))
+                        test_action = np.squeeze(test_action)
+                        state, reward, done_old, done, info = test_env.step(test_action)
+                        test_heat = info['heat']
+                        test_trip = info['trip']
+                        if test_env.energy > test_env.min_energy and test_env.energy < test_env.max_energy:
+                            test_heats.append(test_heat)
+                            test_trips.append(test_trip)
+                            #test_rewards.append(np.abs(-1/reward))
+                    #plt.scatter(test_heats, test_trips, s=test_rewards)
+                    plt.plot(test_heats, test_trips, 'o')
+                    plt.xlim(21.15,22.75)
+                    plt.ylim(0.01,0.05)
+                    plt.grid()
+                    plt.savefig(logdir + '/pareto_{}.png'.format(agent.buffer_counter/100))
+                    print('Valid rewards:', len(test_heats))
             # End this episode when `done` is True
             if done_old:
                 break
@@ -220,6 +274,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             # End this episode when `done` is True
             if done:
                 break
+
+            inner_pbar.update()
+        
+        inner_pbar.refresh()
 
         if 'Gaussian' in env_id and ep % 1000 == 0 and ep > 0:
             predictions = []
@@ -246,27 +304,19 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         nepisode_mod = 10
         avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
         time_end = time.process_time()
-        if total_nsteps%1000==0:
-            print("\nEpisode Elapsed Time {}".format((time_end - time_start)))
-            print("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
-            print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
         avg_reward_list.append(avg_reward)
-
-        with open(logdir+'/test.npy', 'wb') as f:
-            np.save(f, np.array(ep_reward_list))
-
-
-
+        inner_pbar.reset()
+        outer_pbar.set_postfix({'Avg Reward': avg_reward, 'Ep Reward': episodic_reward})
+        
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--index", help="Index for tracking", type=int, default=0)
     parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=1000)
     parser.add_argument("--nsteps", help="Number of steps", type=int, default=200)
     parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
-    parser.add_argument("--nwarmup", help="Agent warm-up size", type=int, default=1000)
+    parser.add_argument("--nwarmup", help="Agent warm-up size", type=int, default=1)
     parser.add_argument("--env", help="Environment used for RL", type=str, default='Pendulum-v1')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
-    parser.add_argument("--profile", help="Profiling overrides all setting", type=bool, default=False)
 
     # Get input arguments
     args = parser.parse_args()
@@ -277,23 +327,6 @@ if __name__ == "__main__":
     args_warmup_size = args.nwarmup
     args_env_id = args.env
     args_logdir = args.logdir
-    args_profile = args.profile
 
-    profiler = None
-    if args_profile:
-        import cProfile
-        import pstats
-        print('###### Overriding setting to run profiling ###### ')
-        args_nepisodes = 10
-        args_nsteps = 25
-        args_warmup_size = 0
-        profiler = cProfile.Profile()
-        profiler.enable()
-
+    # Print input settings
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id, args_warmup_size, args_env_id, args_logdir)
-
-    if args_profile:
-        profiler.disable()
-        stats = pstats.Stats(profiler).sort_stats('tottime')
-        # Print the stats report
-        stats.print_stats()
