@@ -62,6 +62,12 @@ register(
     kwargs={'ndim': 2, 'rdm_reset_mode': 'circle', 'statefull': True},
 )
 
+register(
+    id='DnC2s-FixedStatefullCircle2DEnv-v1',
+    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+    kwargs={'ndim': 2, 'rdm_reset_mode': 'fixed', 'statefull': True},
+)
+
 # This environment is stateless: meaning the action overides the state
 register(
     id='DnC2s-StatefullCircle4DEnv-v1',

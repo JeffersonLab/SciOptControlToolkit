@@ -344,7 +344,9 @@ class KerasTD3(jlab_rl.Agent):
             sampled_action = sampled_action + noise
             #print('sampled_action w/ noise', sampled_action)
 
-        return sampled_action, noise
+        legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
+        return [np.squeeze(legal_action)], [np.squeeze(noise)]
+        #return sampled_action, noise
         #legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         #return [np.squeeze(legal_action)], [np.squeeze(noise)]
 

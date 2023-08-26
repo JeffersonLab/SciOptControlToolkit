@@ -199,6 +199,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.ylim(-1.5, 1.5)
                     plt.colorbar(cb)
                     plt.savefig(logdir+'/normalized_nextstate_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+                    plt.close()
 
             # Save information
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_nsteps))

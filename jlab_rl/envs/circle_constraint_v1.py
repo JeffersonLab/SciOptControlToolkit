@@ -35,5 +35,7 @@ class circle_constraint_env(gym.Env):
             self.states, _, _ = circle_rdm_samples(self.ndim, 1, 1.0, 0.75, give_all=True)
         if self.rdm_reset_mode == 'uniform':
             self.states = self.observation_space.sample()
+        if self.rdm_reset_mode == 'fixed':
+            self.states = np.zeros(self.ndim)
         return self.states, ''
 

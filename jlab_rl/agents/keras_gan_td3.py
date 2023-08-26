@@ -28,7 +28,7 @@
 
 import jlab_rl as jlab_rl
 import tensorflow as tf
-from jlab_rl.models.state_generator import Generator
+from jlab_rl.models.state_generator import Generator_v3 as Generator
 from jlab_rl.agents.keras_td3 import KerasTD3
 
 #from tensorflow.keras.initializers import RandomUniform
@@ -48,7 +48,7 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
-        next_rdm_gaus = tf.random.normal([next_states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
+        next_rdm_gaus = tf.random.normal([next_states.shape[0], 100], 0, 1, tf.float32, seed=1)
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
         # # Do we need this noise ?
         # noises = tf.random.normal(next_actions.shape, 0, 0.2)
@@ -90,7 +90,7 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_actor(self, states):
         # Use Critic 1
-        next_rdm_gaus = tf.random.normal([states.shape[0], self.num_actions], 0, 1, tf.float32, seed=1)
+        next_rdm_gaus = tf.random.normal([states.shape[0], 100], 0, 1, tf.float32, seed=1)
         with tf.GradientTape() as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             q_value = self.critic_model1([states, actions], training=False)
@@ -117,8 +117,10 @@ class KerasGenerativeTD3(KerasTD3):
         # Try multiple times
         nrepeats = 100
         states = tf.repeat(state, nrepeats, axis=0)
-        rdm_norms = tf.random.normal([nrepeats, self.num_actions], 0, 1, tf.float32, seed=1)
+        rdm_norms = tf.random.normal([nrepeats, 100], 0, 1, tf.float32, seed=1)
         sampled_actions = self.actor_model([states, rdm_norms])
+        #
+        sampled_actions = np.random.normal(sampled_actions, 0.5, sampled_actions.shape)
         new_q1 = self.target_critic1([states, sampled_actions])
         new_q2 = self.target_critic2([states, sampled_actions])
         rewards = tf.math.maximum(new_q1, new_q2)
@@ -126,11 +128,14 @@ class KerasGenerativeTD3(KerasTD3):
         sampled_action = sampled_actions[ireward]
         noise = tf.zeros(sampled_action.shape)
 
+        sampled_action = np.squeeze(sampled_action)#sampled_action = sampled_action.flatten()
+        noise = np.squeeze(noise)#noise = noise.flatten()
+
         # if train:
         #     noise = np.random.normal(0, 0.1, self.num_actions)
         #     sampled_action = sampled_action + noise
 
-        sampled_action = np.squeeze(sampled_action)
+        #sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
             if self.num_actions > 1:
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
