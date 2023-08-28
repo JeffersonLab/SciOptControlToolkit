@@ -181,12 +181,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.savefig(logdir+'/denormalized_nextstate_reward_{}.png'.format(agent.buffer_counter / nsavefig))
 
             # Plot the
-            if "Circle2D" in env_id:
+            if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
+                if "Circle2D" in env_id:
                 # Plot
-                if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
-                    ax.set_title('{}/{}'.format(agent_id,env_id), fontsize=14)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id), fontsize=14)
                     ax.set_xlabel("X", fontsize=12)
                     ax.set_ylabel("Y", fontsize=12)
                     ax.grid(True, linestyle='-', color='0.75')
@@ -200,9 +200,39 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.colorbar(cb)
                     plt.savefig(logdir+'/normalized_nextstate_reward_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
+                if "Sin" in env_id:
+                    # Plot
+                    fig = plt.figure(figsize=(6, 6))
+                    ax = fig.add_subplot(111)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id), fontsize=14)
+                    ax.set_xlabel("X", fontsize=12)
+                    ax.set_ylabel("Y", fontsize=12)
+                    ax.grid(True, linestyle='-', color='0.75')
+                    x = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
+                    y = np.sin(x)
+                    z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    # scatter with colormap mapping to z value
+                    cb = ax.scatter(x, y, s=20, c=z, marker='o', cmap=cm.jet);
+                    plt.xlim(-2*np.pi*1.01, +2*np.pi*1.01)
+                    plt.ylim(-1.05, +1.05)
+                    plt.colorbar(cb)
+                    plt.savefig(logdir + '/sinx_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+                    plt.close()
+
+                    fig = plt.figure(figsize=(6, 6))
+                    ax = fig.add_subplot(111)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id), fontsize=14)
+                    ax.set_xlabel("X", fontsize=12)
+                    ax.set_ylabel("Y", fontsize=12)
+                    _ = plt.hist(x, bins=50, range=(float(-2*np.pi*1.01), float(+2*np.pi*1.01)))
+                    plt.savefig(logdir + '/hist_sinx_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+                    plt.close()
 
             # Save information
             tf.summary.scalar('Step Reward', data=episodic_reward, step=int(total_nsteps))
+
+            if 'Sin' in env_id:
+                tf.summary.scalar('Action Theta', data=action, step=int(total_nsteps))
 
             #
             if 'Circle' in env_id:

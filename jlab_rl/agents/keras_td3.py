@@ -101,7 +101,7 @@ class KerasTD3(jlab_rl.Agent):
 
         self.hidden_size = 256
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
-        self.ncritic_layers = 5
+        self.ncritic_layers = 4
 
         self.initialize_new_models()
         # Load models for retraining

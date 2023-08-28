@@ -121,6 +121,7 @@ class KerasGenerativeTD3(KerasTD3):
         sampled_actions = self.actor_model([states, rdm_norms])
         #
         sampled_actions = np.random.normal(sampled_actions, 0.5, sampled_actions.shape)
+        #sampled_actions = np.random.normal(sampled_actions, 0.1, sampled_actions.shape)
         new_q1 = self.target_critic1([states, sampled_actions])
         new_q2 = self.target_critic2([states, sampled_actions])
         rewards = tf.math.maximum(new_q1, new_q2)

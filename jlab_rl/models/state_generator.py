@@ -117,12 +117,12 @@ class Generator_v3(tf.keras.Model):
     for i in range(self.nlayers):
       self.denses1.append(tf.keras.layers.Dense(self.nodes, kernel_initializer=init))
       self.bn1.append(tf.keras.layers.BatchNormalization())
-      self.act1.append(tf.keras.layers.LeakyReLU(0.2))
+      self.act1.append(tf.keras.layers.ReLU())
+      #self.act1.append(tf.keras.layers.LeakyReLU(0.2))
       # self.denses2.append(tf.keras.layers.Dense(self.nodes, kernel_initializer=init))
       # self.act2.append(tf.keras.layers.LeakyReLU(0.2))
 
-    self.out = tf.keras.layers.Dense(self.ndims, kernel_initializer=init,
-                                     activation='tanh')
+    self.out = tf.keras.layers.Dense(self.ndims, kernel_initializer=init, activation='tanh')
     self.upper_bound = upper_bound
     self.lower_bound = lower_bound
 
