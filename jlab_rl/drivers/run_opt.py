@@ -14,6 +14,18 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
+import warnings
+warnings.filterwarnings("ignore")
+plt.rcParams['axes.titlesize'] = 20
+plt.rcParams['axes.titleweight'] = 'bold'
+plt.rcParams['axes.labelsize'] = 20
+plt.rcParams['axes.labelweight'] = 'regular'
+plt.rcParams['xtick.labelsize'] = 18
+plt.rcParams['ytick.labelsize'] = 18
+plt.rcParams['font.family'] = [u'serif']
+plt.rcParams['font.size'] = 18
+plt.rcParams['figure.figsize'] = 10, 7
+
 # import mujoco_py
 # import os
 # mj_path = mujoco_py.utils.discover_mujoco()
@@ -28,6 +40,7 @@ from matplotlib import cm
 # np.random.seed(seed_value)
 # tf.random.set_seed(seed_value)
 
+plasma = plt.get_cmap('GnBu_r')
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
     if 'DnC2s' in env_id:
@@ -41,6 +54,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         env = gym.make(env_id, exclude_current_positions_from_observation=False)
     else:
         env = gym.make(env_id)
+        test_env = gym.make(env_id)
 
     env._max_episode_steps = max_nsteps
 
@@ -83,6 +97,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     total_nsteps = 0
     nsavefig = agent.batch_size
 
+    best_heat = 9999
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         time_start = time.process_time()
         prev_state, _ = env.reset()
@@ -126,9 +141,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
-                    ax.set_title('Action - {}/{}'.format(agent_id, env_id), fontsize=14)
-                    ax.set_xlabel("X", fontsize=12)
-                    ax.set_ylabel("Y", fontsize=12)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
+                    ax.set_xlabel("X")#, fontsize=12)
+                    ax.set_ylabel("Y")#, fontsize=12)
                     ax.grid(True, linestyle='-', color='0.75')
                     this_actions = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                     this_actions = env.denormalize_state(this_actions)
@@ -145,9 +160,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
-                    ax.set_title('States - {}/{}'.format(agent_id, env_id), fontsize=14)
-                    ax.set_xlabel("X", fontsize=12)
-                    ax.set_ylabel("Y", fontsize=12)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
+                    ax.set_xlabel("X")#, fontsize=12)
+                    ax.set_ylabel("Y")#, fontsize=12)
                     ax.grid(True, linestyle='-', color='0.75')
                     this_states = agent.state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                     this_states = env.denormalize_state(this_states)
@@ -164,9 +179,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
-                    ax.set_title('Next States - {}/{}'.format(agent_id, env_id), fontsize=14)
-                    ax.set_xlabel("X", fontsize=12)
-                    ax.set_ylabel("Y", fontsize=12)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
+                    ax.set_xlabel("X")#, fontsize=12)
+                    ax.set_ylabel("Y")#, fontsize=12)
                     ax.grid(True, linestyle='-', color='0.75')
                     this_next_states = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                     this_next_states = env.denormalize_state(this_next_states)
@@ -182,13 +197,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
             # Plot the
             if agent.buffer_counter % nsavefig == 0 and agent.buffer_counter > 0:
-                if "Circle2D" in env_id:
+                if "2D" in env_id:
                 # Plot
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
-                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id), fontsize=14)
-                    ax.set_xlabel("X", fontsize=12)
-                    ax.set_ylabel("Y", fontsize=12)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
+                    ax.set_xlabel("X")#, fontsize=12)
+                    ax.set_ylabel("Y")#, fontsize=12)
                     ax.grid(True, linestyle='-', color='0.75')
                     x = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
                     y = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
@@ -198,15 +213,15 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.xlim(-1.5, 1.5)
                     plt.ylim(-1.5, 1.5)
                     plt.colorbar(cb)
-                    plt.savefig(logdir+'/normalized_nextstate_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+                    plt.savefig(logdir+'/xy_reward_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
                 if "Sin" in env_id:
                     # Plot
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
-                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id), fontsize=14)
-                    ax.set_xlabel("X", fontsize=12)
-                    ax.set_ylabel("Y", fontsize=12)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
+                    ax.set_xlabel("X")#, fontsize=12)
+                    ax.set_ylabel("Y")#, fontsize=12)
                     ax.grid(True, linestyle='-', color='0.75')
                     x = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
                     y = np.sin(x)
@@ -221,10 +236,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
-                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id), fontsize=14)
-                    ax.set_xlabel("X", fontsize=12)
-                    ax.set_ylabel("Y", fontsize=12)
-                    _ = plt.hist(x, bins=50, range=(float(-2*np.pi*1.01), float(+2*np.pi*1.01)))
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
+                    ax.set_xlabel("X")#, fontsize=12)
+                    ax.set_ylabel("Y")#, fontsize=12)
+                    _ = plt.hist(x, weights=z, bins=50, range=(float(-2*np.pi*1.01), float(+2*np.pi*1.01)))
                     plt.savefig(logdir + '/hist_sinx_reward_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
 
@@ -243,7 +258,53 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 tf.summary.scalar('Energy Distribution', data=env.energy, step=int(total_nsteps))
                 tf.summary.scalar('Trip Rate', data=info['trip'], step=int(total_nsteps))
                 tf.summary.scalar('Heat Load', data=info['heat'], step=int(total_nsteps))
+                tf.summary.scalar('Reward', data=reward, step=int(total_nsteps))
+                if info['valid']:
+                    tf.summary.scalar('Valid Energy Distribution', data=env.energy, step=int(total_nsteps))
+                    tf.summary.scalar('Valid Trip Rate', data=info['trip'], step=int(total_nsteps))
+                    tf.summary.scalar('Valid Heat Load', data=info['heat'], step=int(total_nsteps))
+                    tf.summary.scalar('Valid Reward', data=reward, step=int(total_nsteps))
+                # Ideal results
+                ideal_action, _ = agent.action(tf.convert_to_tensor(prev_state), train=False)
+                ideal_action = np.squeeze(ideal_action)
+                ideal_state, ideal_reward, _, _, ideal_info = env.step(ideal_action)
+                tf.summary.scalar('Ideal Energy Distribution', data=ideal_info['energy'], step=int(total_nsteps))
+                tf.summary.scalar('Ideal Trip Rate', data=ideal_info['trip'], step=int(total_nsteps))
+                tf.summary.scalar('Ideal Heat Load', data=ideal_info['heat'], step=int(total_nsteps))
+                tf.summary.scalar('Ideal Reward', data=ideal_reward, step=int(total_nsteps))
 
+                if best_heat > ideal_info['heat'] and ideal_info['valid']:
+                    best_heat = ideal_info['heat']
+                    print('Best heat:', best_heat)
+                # Plot Pareto front
+                if agent.buffer_counter%100==0:
+                    print('Testing Optimal Solution...')
+                    fig = plt.figure(figsize=(12, 12))
+                    ax = fig.add_subplot(111)
+                    test_heats, test_trips, test_rewards = [], [], []
+                    for _ in range(100):
+                        test_prev_state, _ = test_env.reset()
+                        test_action, _ = agent.action(tf.convert_to_tensor(test_prev_state), train=False)
+                        test_action = np.squeeze(test_action)
+                        test_state, test_reward, test_done_old, test_done, test_info = test_env.step(test_action)
+                        test_heat = test_info['heat']
+                        test_trip = test_info['trip']
+                        test_energy = test_info['energy']
+                        if test_energy > test_env.min_energy and test_energy < test_env.max_energy:
+                            test_heats.append(test_heat)
+                            test_trips.append(test_trip)
+                            test_rewards.append(float(test_reward))
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
+                    cb = plt.scatter(test_heats, test_trips, c=test_rewards, cmap=cm.jet)
+                    #'o', c=test_rewards[0], marker='o', cmap=cm.jet)
+                    plt.xlim(21.15, 22.65)
+                    plt.ylim(0.01, 0.4)
+                    ax.set_xlabel("Heat Load [W]")#, fontsize=12)
+                    ax.set_ylabel("Trip Rate [per hour]")#, fontsize=12)
+                    plt.grid()
+                    plt.colorbar(cb)
+                    plt.savefig(logdir + '/pareto_{}.png'.format(agent.buffer_counter/100))
+                    plt.close()
             # End this episode when `done` is True
             if done_old:
                 break

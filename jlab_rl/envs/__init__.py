@@ -126,7 +126,7 @@ register(
 register(
     id='DnC2s-HeatObj-CEBAF8DEnv-v0',
     entry_point='jlab_rl.envs:cebaf_env',
-    kwargs={'linac': '1l10_test8', 'objective': 'heat'}
+    kwargs={'linac': '1l10_test8', 'objective': 'heat', 'rdm_reset_mode': 'fixed'}
 )
 
 register(

@@ -26,6 +26,7 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+import sys
 import jlab_rl as jlab_rl
 import tensorflow as tf
 from jlab_rl.models.state_generator import Generator_v3 as Generator
@@ -40,20 +41,35 @@ from os.path import join
 import time
 
 class KerasGenerativeTD3(KerasTD3):
+    """ Define all key variables required for all agent """
+
+
+    def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, **kwargs):
+        """ Define all key variables required for all agent """
+
+        self.rdm_intputs = 100
+        self.nactor_layers = 4 # (was 4)
+        self.ncritic_layers = 4
+        # Get env info
+        super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
+        print('Running KerasGenerativeTD3 __init__')
+
+        # Re-init models
+        self.initialize_new_models()
 
     def get_actor(self):
-        model = Generator(ndims=self.num_actions, nlayers=4, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+        model = Generator(ndims=self.num_actions, nlayers=self.nactor_layers, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
-        next_rdm_gaus = tf.random.normal([next_states.shape[0], 100], 0, 1, tf.float32, seed=1)
+        next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
-        # # Do we need this noise ?
-        # noises = tf.random.normal(next_actions.shape, 0, 0.2)
-        # noises = tf.clip_by_value(noises, -0.5, 0.5)
-        # next_actions = next_actions+noises
+        # Do we need this noise ?
+        noises = tf.random.normal(next_actions.shape, 0, 0.2)
+        noises = tf.clip_by_value(noises, -0.5, 0.5)
+        next_actions = next_actions+noises
         #
         new_q1 = self.target_critic1([next_states, next_actions], training=False)
         new_q2 = self.target_critic2([next_states, next_actions], training=False)
@@ -90,7 +106,7 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_actor(self, states):
         # Use Critic 1
-        next_rdm_gaus = tf.random.normal([states.shape[0], 100], 0, 1, tf.float32, seed=1)
+        next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
         with tf.GradientTape() as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             q_value = self.critic_model1([states, actions], training=False)
@@ -106,7 +122,7 @@ class KerasGenerativeTD3(KerasTD3):
 
         self.nactions.assign(self.nactions + 1)
 
-        if self.buffer_counter < self.batch_size:
+        if self.buffer_counter < np.max([self.batch_size, self.min_buffer_counter]):
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
             return sampled_action, noise
@@ -117,14 +133,31 @@ class KerasGenerativeTD3(KerasTD3):
         # Try multiple times
         nrepeats = 100
         states = tf.repeat(state, nrepeats, axis=0)
-        rdm_norms = tf.random.normal([nrepeats, 100], 0, 1, tf.float32, seed=1)
+        rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
         sampled_actions = self.actor_model([states, rdm_norms])
         #
-        sampled_actions = np.random.normal(sampled_actions, 0.5, sampled_actions.shape)
+        if train:
+            sampled_actions = np.random.normal(sampled_actions, 0.1, sampled_actions.shape)
+
         #sampled_actions = np.random.normal(sampled_actions, 0.1, sampled_actions.shape)
         new_q1 = self.target_critic1([states, sampled_actions])
         new_q2 = self.target_critic2([states, sampled_actions])
         rewards = tf.math.maximum(new_q1, new_q2)
+        rewards = np.squeeze(rewards)
+        #print(rewards.shape)
+        #print(rewards)
+
+        # isort_reward = np.argsort(rewards)
+        # isort_reward_sub = isort_reward[-25:]
+        # rdm_idx = isort_reward_sub[np.random.randint(0,24)]
+        # # print(rdm_idx)
+        # # print(isort_reward_sub)
+        # # print(rewards[isort_reward_sub])
+        # # print(rewards[rdm_idx])
+        # # sys.exit()
+        # sampled_action = sampled_actions[rdm_idx]
+        # noise = tf.zeros(sampled_action.shape)
+
         ireward = np.argmax(rewards)
         sampled_action = sampled_actions[ireward]
         noise = tf.zeros(sampled_action.shape)

@@ -279,12 +279,12 @@ class KerasTD3(jlab_rl.Agent):
                 self.batch_indices = np.random.choice(record_range, self.batch_size)
 
             # fig = plt.figure()
-            if self.ntrain_calls%100==0:
-                fig = plt.figure()
-                plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)], bins=25, color='black',range=[0,1])
-                plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25, range=[0,1])
-                plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
-                plt.close()
+            # if self.ntrain_calls%100==0:
+            #     fig = plt.figure()
+            #     plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)], bins=25, color='black',range=[0,1])
+            #     plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25, range=[0,1])
+            #     plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
+            #     plt.close()
             # Convert to tensors
             state_batch = tf.convert_to_tensor(self.state_buffer[self.batch_indices])
             action_batch = tf.convert_to_tensor(self.action_buffer[self.batch_indices])

@@ -10,8 +10,8 @@ class sin_env(gym.Env):
     def __init__(self, rdm_reset=None):
         self.rdm_reset = rdm_reset
         self.ndim = 1
-        self.action_space = spaces.Box(low=-2*np.pi*np.ones(self.ndim), high=+2*np.pi*np.ones(self.ndim), dtype=np.float64)
-        self.observation_space = spaces.Box(low=-2*np.pi*np.ones(self.ndim), high=+2*np.pi*np.ones(self.ndim), dtype=np.float64)
+        self.action_space = spaces.Box(low=-1.5*np.pi*np.ones(self.ndim), high=+1.5*np.pi*np.ones(self.ndim), dtype=np.float64)
+        self.observation_space = spaces.Box(low=-1.5*np.pi*np.ones(self.ndim), high=+1.5*np.pi*np.ones(self.ndim), dtype=np.float64)
         # self.action_space = spaces.Box(low=0.0, high=1, dtype=np.float64)
         # self.observation_space = spaces.Box(low=0, high=1, dtype=np.float64)
 
@@ -25,12 +25,12 @@ class sin_env(gym.Env):
         # print('post-action:',action)
         self.states = self.states + action
         #print('post-states:', self.states)
-        reco_y = np.abs(np.sin(self.states))
-        reward = - float(reco_y)
+        y = np.square(np.sin(self.states))
+        reward = - float(y)
 
-        if self.states.any() > 2*np.pi*1.01:
+        if self.states.any() > 1.5*np.pi*1.01:
             reward = -99
-        if self.states.any() < -2 * np.pi*1.01:
+        if self.states.any() < -1.5 * np.pi*1.01:
             reward = -99
 
         return self.states, reward, True, True, {}

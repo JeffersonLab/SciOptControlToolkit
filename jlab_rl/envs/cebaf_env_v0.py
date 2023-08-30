@@ -49,6 +49,8 @@ class cebaf_env(gym.Env):
         # Resent
         self.states, _ = self.reset()
         self.energy = self.linac.getEnergyGain()
+        print('Initial state:', self.states)
+        print('Initial Energy: {}'.format(self.energy))
 
     def normalize_energy(self, energy):
         return (energy-self.min_energy)/(self.max_energy-self.min_energy)
@@ -70,7 +72,7 @@ class cebaf_env(gym.Env):
 
     def get_objective(self):
         if self.objective == 'heat':
-            self.alpha = 0
+            self.alpha = -1
         elif self.objective == 'trip':
             self.alpha = 1
         elif self.objective == 'mixed':
@@ -116,9 +118,10 @@ class cebaf_env(gym.Env):
         self.energy = self.linac.getEnergyGain()
 
         # Apply to all optimization scenarios
+        isValid = True
         if self.energy < self.min_energy or self.energy > self.max_energy:
             reward -= 100*np.abs(self.energy - self.target_energy)
-
+            isValid = False
         # Simple energy reward
         if self.objective == 'energy':
             reward = - np.log(np.abs(self.energy - self.target_energy))
@@ -127,7 +130,8 @@ class cebaf_env(gym.Env):
         info = {'heat': self.linac.getRFHeat(),
                 'trip': self.linac.getTripRates(),
                 'energy': self.energy,
-                'alpha': self.alpha}
+                'alpha': self.alpha,
+                'valid': isValid}
 
         # Return
         return normalized_states, reward, True, True, info
@@ -136,10 +140,13 @@ class cebaf_env(gym.Env):
         #
         self.get_objective()
         #self.alpha = 0.5
+        if self.rdm_reset_mode == 'fixed':
+            normalized_states = np.zeros(self.ncavities)
         if self.rdm_reset_mode == 'circle':
             normalized_states, _, _ = circle_rdm_samples(self.ncavities, 1, 1.0, 0.0, give_all=True)
         if self.rdm_reset_mode == 'uniform':
             normalized_states = self.observation_space.sample()
+        #
         self.states = self.denormalize_state(normalized_states)
         self.linac.setGradients(self.states)
 
