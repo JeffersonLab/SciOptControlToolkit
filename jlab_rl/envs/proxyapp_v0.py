@@ -8,7 +8,7 @@ import torch
 import functorch
 import tensorflow as tf
 from numpy import ndarray
-
+import sys
 
 class proxy_app(gym.Env):
     def __init__(self,loss_type='default'):
@@ -18,12 +18,8 @@ class proxy_app(gym.Env):
         self.nParameters = 6
         self.parmin = 0
         self.parmax = 1
-        self.nevents = 1000
+        self.nevents = 1
         self.loss_type = loss_type
-
-        data = np.load('/Users/schram/repositories/jlab_datascience_optimization/jlab_rl/envs/proxyapp_data.pkl.npy', allow_pickle=True)
-       # data = np.load('/Users/daniellersch/Desktop/RL/jlab_datascience_optimization/jlab_rl/envs/proxyapp_data.pkl.npy', allow_pickle=True)
-        self.data = np.transpose(data[0], (1, 0))
 
         if isinstance(self.parmin, int):
             self.parmin = [self.parmin for i in range(self.nParameters)]
@@ -49,7 +45,9 @@ class proxy_app(gym.Env):
         #self.inital_states = self.observation_space.sample()
         self.states, _ = self.reset()
         print('reset state:{}'.format(self.states))
-        
+
+        self.true_sigma1, self.true_sigma2 = self.cross_sections(np.ones(self.observation_space.shape)/2)
+
         self.pdist = torch.nn.PairwiseDistance(p=2.0, eps=1e-06, keepdim=False)
 
     def get_ud(self, p):
@@ -110,6 +108,16 @@ class proxy_app(gym.Env):
         events_out1 = self.torch_interp(u, cdf_sort1, x_sort1)
         events_out1 = torch.reshape(events_out1, (nevents,))
         return events_out1
+
+    def cross_sections(self, parameters):
+        # Denormalize the parameters
+        parameters = torch.as_tensor(parameters, device=self.devices)
+        parameters = parameters * (self.parmax - self.parmin) + self.parmin
+
+        u_full, d_full = self.get_ud(parameters)
+        sigma1 = 4 * u_full + d_full
+        sigma2 = 4 * d_full + u_full
+        return sigma1, sigma2
 
     def gen_events(self, true_params, nevents):
         # Denormalize the parameters
@@ -196,51 +204,31 @@ class proxy_app(gym.Env):
 
     def step(self, action):
 
-        # Update the model parameters
-        # print('state:{}'.format(self.states))
-        # print('action:{}'.format(action))
+
         self.states = self.states + action
-        self.states = action#self.states + action
+        # print('reset state:{}'.format(self.states.shape))
+        # sys.exit()
+
         nout=0
         for i in range(self.states.shape[0]):
             if self.states[i] < 0. or self.states[i] > 1:
                 nout +=1
-        #in_range = ((self.states >= -0.1) & (self.states <= 1.1)).all()
         if nout>0:
             return self.states, -100*nout, True, True, 'Error'
-        #
-        # print('state:{}'.format(self.states))
-        # print('in range:{}'.format(in_range))
-        # print('updated state:{}'.format(self.states))
-        # print('updated state:{}'.format(self.states.shape))
-        # print('nevents:{}'.format(self.nevents))
-        #policy_data = self.forward(self.states, self.nevents)
-        policy_data, norm1, norm2 = self.gen_events(self.states, self.nevents)
-        policy_data = np.transpose(policy_data.numpy(), (1, 0))
 
-        # print('policy_data:{}'.format(policy_data.shape))
-        # print('data:{}'.format(self.data.shape))
-        real_data = torch.as_tensor(self.data[torch.randint(self.data.shape[0], (self.nevents,))],device=self.devices)
-        ref_data = self.data[torch.randint(self.data.shape[0], (self.nevents,))]
-        # print('real_data:{}'.format(real_data.shape))
-        # print('ref_data:{}'.format(ref_data.shape))
-       # loss = np.abs(self.compute_loss(real_data, policy_data, ref_data))
-       
-        loss = None
-        if self.loss_type.lower() == 'default':
-           loss = np.abs(self.compute_default_loss(real_data, policy_data, ref_data))
-           
-        if self.loss_type.lower() == 'emil':
-            loss = np.abs(self.compute_emil_loss(real_data,torch.as_tensor(policy_data,device=self.devices)))
-        # Find a cleaver reward
-        reward = 1/loss#-np.log(loss)
+        #
+        gen_sigma1, gen_sigma2 = self.cross_sections(self.states)
+        loss1 = tf.keras.losses.mse(gen_sigma1,self.true_sigma1)
+        loss2 = tf.keras.losses.mse(gen_sigma2,self.true_sigma2)
+        reward = -(loss1+loss2)
         for i in range(self.nParameters):
             tf.summary.scalar('Parameter #{}'.format(i), data=self.states[i], step=int(self.nsteps))
         self.nsteps += 1
+
         return self.states, reward, False, False, {}
         #
 
     def reset(self):
         # Randomize the parameters
-        self.states = np.ones(self.nParameters)*0.5
+        self.states = np.zeros(self.nParameters)*0.5
         return self.states, ''

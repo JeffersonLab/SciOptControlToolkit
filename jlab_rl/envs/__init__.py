@@ -1,4 +1,4 @@
-from jlab_rl.agents.registration import register, make, list_registered_modules
+from jlab_rl.envs.registration import register, make, list_registered_modules
 from jlab_rl.envs.proxyapp_v0 import proxy_app
 from jlab_rl.envs.circle_constraint_v0 import circle_constraint_env as circle_constraint_stateless_env
 from jlab_rl.envs.circle_constraint_v1 import circle_constraint_env as circle_constraint_statefull_env
@@ -13,16 +13,15 @@ register(
 )
 
 # Register the proxy app
-register(
-    id='DnC2s-ProxyApp-v0',
-    entry_point='jlab_rl.envs:proxy_app',
-    kwargs={'loss_type': 'default'},
-)
+# register(
+#     id='DnC2s-ProxyApp-v0',
+#     entry_point='jlab_rl.envs:proxy_app',
+#     kwargs={'loss_type': 'default'},
+# )
 
 register(
-    id='DnC2s-ProxyApp-v1',
+    id='DnC2s-ProxyAppXsec-v0',
     entry_point='jlab_rl.envs:proxy_app',
-    kwargs={'loss_type':'emil'},
 )
 
 # Register the circle constraint app
