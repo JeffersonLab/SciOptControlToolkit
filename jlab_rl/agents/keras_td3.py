@@ -95,9 +95,9 @@ class KerasTD3(jlab_rl.Agent):
             self.critic_optimizer2 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
         else:
-            self.critic_optimizer1 = Adam(self.critic_lr, epsilon=1e-08)
-            self.critic_optimizer2 = Adam(self.critic_lr, epsilon=1e-08)
-            self.actor_optimizer = Adam(self.actor_lr, epsilon=1e-08)
+            self.critic_optimizer1 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer2 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
+            self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
         self.hidden_size = 256
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
