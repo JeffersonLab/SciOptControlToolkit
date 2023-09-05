@@ -123,51 +123,54 @@ class KerasGenerativeTD3(KerasTD3):
         self.nactions.assign(self.nactions + 1)
 
         if self.buffer_counter < np.max([self.batch_size, self.min_buffer_counter]):
+            #true_params = [0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
+            #sampled_action = np.random.normal(true_params, 0.25)
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
-            return sampled_action, noise
+            # return sampled_action, noise
 
-        # Single try
-        state = np.expand_dims(state, 0)
+        else:
+            # Single try
+            state = np.expand_dims(state, 0)
 
-        # Try multiple times
-        nrepeats = 100
-        states = tf.repeat(state, nrepeats, axis=0)
-        rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
-        sampled_actions = self.actor_model([states, rdm_norms])
-        #
-        if train:
-            sampled_actions = np.random.normal(sampled_actions, 0.01, sampled_actions.shape)
+            # Try multiple times
+            nrepeats = 100
+            states = tf.repeat(state, nrepeats, axis=0)
+            rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+            sampled_actions = self.actor_model([states, rdm_norms])
+            #
+            if train:
+                sampled_actions = np.random.normal(sampled_actions, 0.01, sampled_actions.shape)
 
-        #sampled_actions = np.random.normal(sampled_actions, 0.1, sampled_actions.shape)
-        new_q1 = self.target_critic1([states, sampled_actions])
-        new_q2 = self.target_critic2([states, sampled_actions])
-        rewards = tf.math.maximum(new_q1, new_q2)
-        rewards = np.squeeze(rewards)
-        #print(rewards.shape)
-        #print(rewards)
+            #sampled_actions = np.random.normal(sampled_actions, 0.1, sampled_actions.shape)
+            new_q1 = self.target_critic1([states, sampled_actions])
+            new_q2 = self.target_critic2([states, sampled_actions])
+            rewards = tf.math.maximum(new_q1, new_q2)
+            rewards = np.squeeze(rewards)
+            #print(rewards.shape)
+            #print(rewards)
 
-        # isort_reward = np.argsort(rewards)
-        # isort_reward_sub = isort_reward[-25:]
-        # rdm_idx = isort_reward_sub[np.random.randint(0,24)]
-        # # print(rdm_idx)
-        # # print(isort_reward_sub)
-        # # print(rewards[isort_reward_sub])
-        # # print(rewards[rdm_idx])
-        # # sys.exit()
-        # sampled_action = sampled_actions[rdm_idx]
-        # noise = tf.zeros(sampled_action.shape)
+            # isort_reward = np.argsort(rewards)
+            # isort_reward_sub = isort_reward[-25:]
+            # rdm_idx = isort_reward_sub[np.random.randint(0,24)]
+            # # print(rdm_idx)
+            # # print(isort_reward_sub)
+            # # print(rewards[isort_reward_sub])
+            # # print(rewards[rdm_idx])
+            # # sys.exit()
+            # sampled_action = sampled_actions[rdm_idx]
+            # noise = tf.zeros(sampled_action.shape)
 
-        ireward = np.argmax(rewards)
-        sampled_action = sampled_actions[ireward]
-        noise = tf.zeros(sampled_action.shape)
+            ireward = np.argmax(rewards)
+            sampled_action = sampled_actions[ireward]
+            noise = tf.zeros(sampled_action.shape)
 
-        sampled_action = np.squeeze(sampled_action)#sampled_action = sampled_action.flatten()
-        noise = np.squeeze(noise)#noise = noise.flatten()
+            sampled_action = np.squeeze(sampled_action)#sampled_action = sampled_action.flatten()
+            noise = np.squeeze(noise)#noise = noise.flatten()
 
-        # if train:
-        #     noise = np.random.normal(0, 0.1, self.num_actions)
-        #     sampled_action = sampled_action + noise
+            # if train:
+            #     noise = np.random.normal(0, 0.1, self.num_actions)
+            #     sampled_action = sampled_action + noise
 
         #sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):

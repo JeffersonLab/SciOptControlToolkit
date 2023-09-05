@@ -311,44 +311,35 @@ class KerasTD3(jlab_rl.Agent):
     #@tf.function
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
-        state = tf.expand_dims(state, 0)
-
-        # if train==False:
-        #     sampled_action = self.actor_model.predict_on_batch(state)
-        #     noise = tf.zeros(sampled_action.shape)
-        #     legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-        #     return [np.squeeze(legal_action)], [np.squeeze(noise)]
-
         self.nactions.assign(self.nactions + 1)
-        # TD3 version
-        if self.buffer_counter < self.min_buffer_counter:
+
+        if self.buffer_counter < np.max([self.batch_size, self.min_buffer_counter]):
+            #true_params = [0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
+            #sampled_action = np.random.normal(true_params, 0.25)
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
-            #noise = tf.zeros(sampled_action.shape)
         else:
-            sampled_action = self.actor_model.predict_on_batch(state)
-            #noise = tf.random.normal(sampled_action.shape, 0, 0.1)
-            noise = np.random.normal(0, 0.1, self.num_actions)
+            state = tf.expand_dims(state, 0)
 
-        sampled_action = sampled_action.flatten()
-        noise = noise.flatten()
-        # print('sampled_action', sampled_action)
-        # print('noise:', noise)
-        #sampled_action = np.squeeze(sampled_action)
+            # else:
+            sampled_action = self.actor_model.predict_on_batch(state)
+            if train:
+                #sampled_action = np.random.normal(sampled_action, 0.01, sampled_action.shape)
+                #noise = tf.random.normal(sampled_action.shape, 0, 0.1)
+                noise = np.random.normal(0, 0.1, self.num_actions)
+                sampled_action = sampled_action + noise
+            else:
+                noise = np.zeros(self.num_actions)
+
+            sampled_action = sampled_action.flatten()
+            noise = noise.flatten()
+
         for i in range(self.num_actions):
             if self.num_actions > 1:
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
-        #q_pred = self.critic_model1([state, np.expand_dims(sampled_action, 0)])
-        #tf.summary.scalar('Critic Prediction', data=np.squeeze(q_pred), step=int(self.nactions))
-        if train == True:
-            sampled_action = sampled_action + noise
-            #print('sampled_action w/ noise', sampled_action)
 
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         return [np.squeeze(legal_action)], [np.squeeze(noise)]
-        #return sampled_action, noise
-        #legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-        #return [np.squeeze(legal_action)], [np.squeeze(noise)]
 
     def memory(self, obs_tuple):
         # Set index to zero if buffer_capacity is exceeded,

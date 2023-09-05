@@ -43,6 +43,22 @@ plt.rcParams['figure.figsize'] = 10, 7
 plasma = plt.get_cmap('GnBu_r')
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
+
+    githash = get_git_revision_short_hash()
+    print(githash)
+    print(logdir)
+    if logdir == 'None':
+        logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_hash" \
+                 + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    else:
+        logdir = logdir + "/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_date_" \
+                 + datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    try:
+        os.mkdir(logdir)
+    except OSError as error:
+        print('Error:', error)
+
     if 'DnC2s' in env_id:
         import jlab_rl.envs as gym
     else:
@@ -52,6 +68,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     print('Running env: {}'.format(env_id))
     if ('HalfCheetah' or 'Hopper') in env_id:
         env = gym.make(env_id, exclude_current_positions_from_observation=False)
+    elif 'Proxy' in env_id:
+        env = gym.make(env_id,logdir=logdir)
+        test_env = gym.make(env_id, logdir=logdir)
     else:
         env = gym.make(env_id)
         test_env = gym.make(env_id)
@@ -69,20 +88,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     print("Max Value of Action ->  {}".format(upper_bound))
     print("Min Value of Action ->  {}".format(lower_bound))
 
-    githash = get_git_revision_short_hash()
-    print(githash)
-    print(logdir)
-    if logdir == 'None':
-        logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_hash" \
-                 + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
-    else:
-        logdir = logdir + "/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_date_" \
-                 + datetime.now().strftime("%Y%m%d-%H%M%S")
-
-    try:
-        os.mkdir(logdir)
-    except OSError as error:
-        print('Error:', error)
     file_writer = tf.summary.create_file_writer(logdir + '/metrics')
     file_writer.set_as_default()
 
@@ -253,6 +258,28 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             if 'Circle' in env_id:
                 radius = np.sqrt(np.sum(state*state))
                 tf.summary.scalar('Radial Distribution', data=radius, step=int(total_nsteps))
+
+            if 'Proxy' in env_id \
+                    and agent.buffer_counter > np.max([agent.batch_size, agent.min_buffer_counter])\
+                    and ep%100==0:
+                test_actions, test_rewards = [], []
+                for _ in range(100):
+                    test_prev_state, _ = test_env.reset()
+                    test_action, _ = agent.action(tf.convert_to_tensor(test_prev_state), train=False)
+                    test_action = np.squeeze(test_action)
+                    _, test_reward, _, _, _ = test_env.step(test_action)
+                    test_actions.append(test_action)
+                    test_rewards.append(test_reward)
+                test_actions = np.array(test_actions)
+                test_nactions = test_actions.shape[1]
+                fig, axs = plt.subplots(test_nactions, figsize=(16,20))
+                fig.suptitle(f'Parameter Episode {ep}')
+                for i in range(test_nactions):
+                    axs[i].hist(test_actions[:,i], bins=25, range=[0,1], label='GenAI Parameter')
+                    axs[i].axvline(x=env.true_params[i], color='r', label='True Parameter')
+                    axs[i].legend()
+                plt.tight_layout()
+                plt.savefig(logdir+f'/episode{ep}.png')
 
             if "CEBAF" in env_id:
                 tf.summary.scalar('Energy Distribution', data=env.energy, step=int(total_nsteps))
