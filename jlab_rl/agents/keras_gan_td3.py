@@ -137,7 +137,7 @@ class KerasGenerativeTD3(KerasTD3):
         sampled_actions = self.actor_model([states, rdm_norms])
         #
         if train:
-            sampled_actions = np.random.normal(sampled_actions, 0.1, sampled_actions.shape)
+            sampled_actions = np.random.normal(sampled_actions, 0.01, sampled_actions.shape)
 
         #sampled_actions = np.random.normal(sampled_actions, 0.1, sampled_actions.shape)
         new_q1 = self.target_critic1([states, sampled_actions])
