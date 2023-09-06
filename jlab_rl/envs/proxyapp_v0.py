@@ -38,9 +38,9 @@ class proxy_app(gym.Env):
         self.np_parmin = np.zeros(self.nParameters)
         self.np_parmax = np.ones(self.nParameters)
 
-        self.action_space = spaces.Box(low=self.np_parmin, high=self.np_parmax, dtype=np.float32)
+        self.action_space = spaces.Box(low=self.np_parmin, high=self.np_parmax, dtype=np.float64)
         print('action_space:{}'.format(self.action_space))
-        self.observation_space = spaces.Box(low=np.zeros(2*self.ndx), high=2*np.ones(2*self.ndx), dtype=np.float32)
+        self.observation_space = spaces.Box(low=np.zeros(2*self.ndx), high=2*np.ones(2*self.ndx), dtype=np.float64)
         print('observation_space:{}'.format(self.observation_space))
 
         self.true_params = [0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
@@ -92,9 +92,18 @@ class proxy_app(gym.Env):
         #
         gen_sigma1, gen_sigma2 = self.cross_sections(action)
         self.states = np.concatenate([gen_sigma1, gen_sigma2])
-        loss1 = np.sum(np.square(gen_sigma1 - self.true_sigma1))
-        loss2 = np.sum(np.square(gen_sigma2 - self.true_sigma2))
+        loss1 = tf.keras.losses.mse(self.true_sigma1, gen_sigma1)
+        loss2 = tf.keras.losses.mse(self.true_sigma2, gen_sigma2)
         loss = (loss1+loss2)
+        #loss = tf.keras.losses.mse(self.true_params, action)
+        #loss = tf.keras.losses.MeanSquaredLogarithmicError(reduction="auto")(self.true_params, action)
+        #loss = np.sum(np.square(action - self.true_params))
+        # i_loss1 = np.abs( np.sum(gen_sigma1) - np.sum(self.true_sigma1))
+        # i_loss2 = np.abs( np.sum(gen_sigma2) - np.sum(self.true_sigma2))
+        # # parameters
+        # loss = np.mean(np.abs(action - self.true_params))
+        # loss += (p_loss1 + p_loss2)
+        # loss += (i_loss1 + i_loss2)
         if self.best_loss>loss:
             self.best_loss = loss
             self.best_params = action
@@ -107,7 +116,7 @@ class proxy_app(gym.Env):
         if self.nsteps%100==0:
             fig = plt.figure(figsize=(6, 6))
             ax = fig.add_subplot(111)
-            ax.set_title(f'sigma1\nloss: {loss1}')
+            ax.set_title(f'sigma1\nloss: {loss}')
             ax.set_xlabel("X")
             ax.set_ylabel("Y")
             plt.plot(self.true_sigma1, label="Data")
@@ -117,7 +126,7 @@ class proxy_app(gym.Env):
             plt.close()
             fig = plt.figure(figsize=(6, 6))
             ax = fig.add_subplot(111)
-            ax.set_title(f'sigma2\nloss: {loss2}')
+            ax.set_title(f'sigma2\nloss: {loss}')
             ax.set_xlabel("X")
             ax.set_ylabel("Y")
             plt.plot(self.true_sigma2, label="Data")

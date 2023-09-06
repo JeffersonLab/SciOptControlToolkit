@@ -48,11 +48,12 @@ class KerasGenerativeTD3(KerasTD3):
         """ Define all key variables required for all agent """
 
         self.rdm_intputs = 100
-        self.nactor_layers = 4 # (was 4)
-        self.ncritic_layers = 4
+        self.nactor_layers = 6 # (was 4)
+        self.ncritic_layers = 6
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasGenerativeTD3 __init__')
+        self.batch_size = 1000#128
 
         # Re-init models
         self.initialize_new_models()
@@ -140,7 +141,7 @@ class KerasGenerativeTD3(KerasTD3):
             sampled_actions = self.actor_model([states, rdm_norms])
             #
             if train:
-                sampled_actions = np.random.normal(sampled_actions, 0.01, sampled_actions.shape)
+               sampled_actions = np.random.normal(sampled_actions, 0.05, sampled_actions.shape)
 
             #sampled_actions = np.random.normal(sampled_actions, 0.1, sampled_actions.shape)
             new_q1 = self.target_critic1([states, sampled_actions])

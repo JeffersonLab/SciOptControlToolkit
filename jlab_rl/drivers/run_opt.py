@@ -13,6 +13,7 @@ from jlab_rl.utils.git_utilts import get_git_revision_short_hash
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib import cm
+import seaborn as sns
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -273,10 +274,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 test_actions = np.array(test_actions)
                 test_nactions = test_actions.shape[1]
                 fig, axs = plt.subplots(test_nactions, figsize=(16,20))
-                fig.suptitle(f'Parameter Episode {ep}')
+                fig.suptitle(f'Parameter Episode {ep}\n Ave. Reward: {np.mean(test_rewards)}')
                 for i in range(test_nactions):
-                    axs[i].hist(test_actions[:,i], bins=25, range=[0,1], label='GenAI Parameter')
+                    sns.kdeplot(test_actions[:,i], ax=axs[i],  color='blue', fill=True, alpha=.3, linewidth=0
+                                , label='GenAI Parameter')
+                    #axs[i].hist(test_actions[:,i], bins=25, range=[0,1], label='GenAI Parameter')
                     axs[i].axvline(x=env.true_params[i], color='r', label='True Parameter')
+                    axs[i].set_xlim(0, 1)
                     axs[i].legend()
                 plt.tight_layout()
                 plt.savefig(logdir+f'/episode{ep}.png')

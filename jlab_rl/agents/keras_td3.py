@@ -65,7 +65,6 @@ class KerasTD3(jlab_rl.Agent):
         self.lower_bound = env.action_space.low
         print('upper_bound: ',self.upper_bound)
         print('lower_bound: ',self.lower_bound)
-        self.action_width = (self.upper_bound+self.lower_bound)/2.0
 
         # Buffer
         self.min_buffer_counter = warmup_size
@@ -279,12 +278,14 @@ class KerasTD3(jlab_rl.Agent):
                 self.batch_indices = np.random.choice(record_range, self.batch_size)
 
             # fig = plt.figure()
-            # if self.ntrain_calls%100==0:
-            #     fig = plt.figure()
-            #     plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)], bins=25, color='black',range=[0,1])
-            #     plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25, range=[0,1])
-            #     plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
-            #     plt.close()
+            if self.ntrain_calls%100==0:
+                fig = plt.figure()
+                plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)],
+                         bins=25, color='black',range=[0,1], label="Default")
+                plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25, range=[0,1], label="Priority")
+                plt.legend()
+                plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
+                plt.close()
             # Convert to tensors
             state_batch = tf.convert_to_tensor(self.state_buffer[self.batch_indices])
             action_batch = tf.convert_to_tensor(self.action_buffer[self.batch_indices])
@@ -326,7 +327,7 @@ class KerasTD3(jlab_rl.Agent):
             if train:
                 #sampled_action = np.random.normal(sampled_action, 0.01, sampled_action.shape)
                 #noise = tf.random.normal(sampled_action.shape, 0, 0.1)
-                noise = np.random.normal(0, 0.1, self.num_actions)
+                noise = np.random.normal(0, 0.05, self.num_actions)
                 sampled_action = sampled_action + noise
             else:
                 noise = np.zeros(self.num_actions)
