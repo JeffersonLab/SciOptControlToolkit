@@ -134,6 +134,9 @@ class KerasGenerativeTD3(KerasTD3):
             # Single try
             state = np.expand_dims(state, 0)
 
+            rdm_norms = tf.random.normal([1, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+            sampled_action = self.actor_model([state, rdm_norms])
+
             # Try multiple times
             nrepeats = 100
             states = tf.repeat(state, nrepeats, axis=0)
@@ -143,13 +146,11 @@ class KerasGenerativeTD3(KerasTD3):
             if train:
                sampled_actions = np.random.normal(sampled_actions, 0.05, sampled_actions.shape)
 
-            #sampled_actions = np.random.normal(sampled_actions, 0.1, sampled_actions.shape)
             new_q1 = self.target_critic1([states, sampled_actions])
             new_q2 = self.target_critic2([states, sampled_actions])
             rewards = tf.math.maximum(new_q1, new_q2)
             rewards = np.squeeze(rewards)
-            #print(rewards.shape)
-            #print(rewards)
+
 
             # isort_reward = np.argsort(rewards)
             # isort_reward_sub = isort_reward[-25:]
