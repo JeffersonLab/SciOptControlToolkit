@@ -278,14 +278,14 @@ class KerasTD3(jlab_rl.Agent):
                 self.batch_indices = np.random.choice(record_range, self.batch_size)
 
             # fig = plt.figure()
-            if self.ntrain_calls%100==0:
-                fig = plt.figure()
-                plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)],
-                         bins=25, color='black',range=[0,1], label="Default")
-                plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25, range=[0,1], label="Priority")
-                plt.legend()
-                plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
-                plt.close()
+            # if self.ntrain_calls%100==0:
+            #     fig = plt.figure()
+            #     plt.hist(self.priority_buffer[np.random.choice(record_range, self.batch_size)],
+            #              bins=25, color='black',range=[0,1], label="Default")
+            #     plt.hist(self.priority_buffer[self.batch_indices], color='red', bins=25, range=[0,1], label="Priority")
+            #     plt.legend()
+            #     plt.savefig(self.logdir+'/priority_{}.png'.format(self.ntrain_calls))
+            #     plt.close()
             # Convert to tensors
             state_batch = tf.convert_to_tensor(self.state_buffer[self.batch_indices])
             action_batch = tf.convert_to_tensor(self.action_buffer[self.batch_indices])
@@ -309,7 +309,6 @@ class KerasTD3(jlab_rl.Agent):
                 self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
                 self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
-    #@tf.function
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         self.nactions.assign(self.nactions + 1)
@@ -353,6 +352,7 @@ class KerasTD3(jlab_rl.Agent):
         self.next_state_buffer[index] = obs_tuple[3]
         self.done_buffer[index] = obs_tuple[4]
 
+        #print('self.buffer_counter:', self.buffer_counter)
         self.buffer_counter += 1
 
     def load(self):

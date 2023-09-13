@@ -27,10 +27,11 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import sys
-import jlab_rl as jlab_rl
+#import jlab_rl as jlab_rl
 import tensorflow as tf
 from jlab_rl.models.state_generator import Generator_v3 as Generator
 from jlab_rl.agents.keras_td3 import KerasTD3
+#from scipy.stats import wasserstein_distance
 
 #from tensorflow.keras.initializers import RandomUniform
 #from tensorflow.keras.optimizers import Adam
@@ -50,11 +51,12 @@ class KerasGenerativeTD3(KerasTD3):
         self.rdm_intputs = 100
         self.nactor_layers = 6 # (was 4)
         self.ncritic_layers = 6
+
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasGenerativeTD3 __init__')
-        self.batch_size = 1000#128
-
+        self.batch_size = 512
+        self.ntrain_actor_calls = 0
         # Re-init models
         self.initialize_new_models()
 
@@ -62,15 +64,24 @@ class KerasGenerativeTD3(KerasTD3):
         model = Generator(ndims=self.num_actions, nlayers=self.nactor_layers, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
         return model
 
+    def update(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
+        self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
+        if self.buffer_counter >= self.min_buffer_counter:
+            self.ntrain_actor_calls += 1
+            td_loss, kl_loss = self.train_actor(state_batch)
+            tf.summary.scalar('Actor TD Loss', data=td_loss, step=int(self.ntrain_actor_calls))
+            tf.summary.scalar('Actor KL Loss', data=kl_loss, step=int(self.ntrain_actor_calls))
+            tf.summary.scalar('Actor Total Loss', data=td_loss + kl_loss, step=int(self.ntrain_actor_calls))
+
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
         next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
         # Do we need this noise ?
-        noises = tf.random.normal(next_actions.shape, 0, 0.2)
-        noises = tf.clip_by_value(noises, -0.5, 0.5)
-        next_actions = next_actions+noises
+        # noises = tf.random.normal(next_actions.shape, 0, 0.2)
+        # noises = tf.clip_by_value(noises, -0.5, 0.5)
+        # next_actions = next_actions+noises
         #
         new_q1 = self.target_critic1([next_states, next_actions], training=False)
         new_q2 = self.target_critic2([next_states, next_actions], training=False)
@@ -113,11 +124,35 @@ class KerasGenerativeTD3(KerasTD3):
             q_value = self.critic_model1([states, actions], training=False)
             #q_value2 = self.critic_model2([states, actions], training=False)
             #q_value = tf.keras.layers.Average()([q_value1, q_value2])
-            loss = -tf.math.reduce_mean(q_value)
-        gradient = tape.gradient(loss, self.actor_model.trainable_variables)
-        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+            td_loss = -tf.math.reduce_mean(q_value)
+        #gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
+        #self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
-#    @tf.function
+        # Add KL-div using top 5% of the warmup samples
+        w_rewards = self.reward_buffer[0:self.min_buffer_counter]
+        w_states = self.state_buffer[0:self.min_buffer_counter]
+        w_actions = self.action_buffer[0:self.min_buffer_counter]
+        isort_reward = np.argsort(np.squeeze(w_rewards))
+        idx_thr = int(0.90 * self.min_buffer_counter)
+        isort_top_reward = isort_reward[idx_thr:]
+        top_states = w_states[isort_top_reward]
+        top_actions = w_actions[isort_top_reward]
+
+        top_next_rdm_gaus = tf.random.normal([top_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+        with tf.GradientTape() as tape:
+            this_actions = self.actor_model([top_states, top_next_rdm_gaus], training=True)
+            #wd_loss = wasserstein_distance(top_actions,this_actions)
+            kl_loss = tf.math.reduce_sum(tf.keras.losses.kl_divergence(top_actions, this_actions))
+            # print('top_actions ', top_actions)
+            # print('this_actions ', this_actions)
+            #print('wd_loss ', wd_loss)
+            #
+            # sys.exit()
+        gradient = tape.gradient(kl_loss, self.actor_model.trainable_variables)
+        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        return td_loss, kl_loss
+
+    #    @tf.function
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
 
@@ -144,7 +179,7 @@ class KerasGenerativeTD3(KerasTD3):
             sampled_actions = self.actor_model([states, rdm_norms])
             #
             if train:
-               sampled_actions = np.random.normal(sampled_actions, 0.05, sampled_actions.shape)
+               sampled_actions = np.random.normal(sampled_actions, 0.5, sampled_actions.shape)
 
             new_q1 = self.target_critic1([states, sampled_actions])
             new_q2 = self.target_critic2([states, sampled_actions])

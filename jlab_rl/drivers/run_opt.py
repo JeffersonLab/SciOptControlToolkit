@@ -233,23 +233,28 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         z = agent.reward_buffer[0:agent.min_buffer_counter]
                         isort_z = np.argsort(np.squeeze(z))
                         z_sorted = z[isort_z]
-                        idx_thr = int(0.15*agent.min_buffer_counter)
+                        idx_thr = int(0.90*agent.min_buffer_counter)
                         idx_top_z = isort_z[idx_thr:]
-                        # print(z)
-                        # print(isort_z)
-                        # print(z_sorted)
-                        # print(idx_top_z)
-                        # # print(x)
-                        # # print(y)
-                        # print(z[idx_top_z])
-                        # print(x[idx_top_z])
-                        # print(y[idx_top_z])
-                        # sys.exit()
                         cb = ax.scatter(x[idx_top_z], y[idx_top_z], s=20, c=z[idx_top_z], marker='o', cmap=cm.jet);
                         plt.xlim(-1.5, 1.5)
                         plt.ylim(-1.5, 1.5)
                         plt.colorbar(cb)
-                        plt.savefig(logdir + '/xy_warmup_reward.png')
+                        plt.savefig(logdir + '/nextstate_xy_warmup_reward.png')
+                        plt.close()
+                        #
+                        fig = plt.figure(figsize=(6, 6))
+                        ax = fig.add_subplot(111)
+                        ax.set_title('Episode {}\n{}\n{}'.format(ep, agent_id, env_id))  # , fontsize=14)
+                        ax.set_xlabel("Action 1")  # , fontsize=12)
+                        ax.set_ylabel("Action 2")  # , fontsize=12)
+                        ax.grid(True, linestyle='-', color='0.75')
+                        x = agent.action_buffer[0:agent.min_buffer_counter, 0]
+                        y = agent.action_buffer[0:agent.min_buffer_counter, 1]
+                        cb = ax.scatter(x[idx_top_z], y[idx_top_z], s=20, c=z[idx_top_z], marker='o', cmap=cm.jet);
+                        plt.xlim(-1.5, 1.5)
+                        plt.ylim(-1.5, 1.5)
+                        plt.colorbar(cb)
+                        plt.savefig(logdir + '/action_xy_warmup_reward.png')
                         plt.close()
 
                 if "Sin" in env_id:
