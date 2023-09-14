@@ -86,7 +86,7 @@ class KerasTD3(jlab_rl.Agent):
 
         # Setup Optimizers
         self.critic_lr = 5e-3
-        self.actor_lr = 1e-3
+        self.actor_lr = 1e-4
 
         if processor == 'arm':
             print('Using legacy Adam')
