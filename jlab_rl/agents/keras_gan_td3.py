@@ -140,8 +140,10 @@ class KerasGenerativeTD3(KerasTD3):
             top_next_rdm_gaus = tf.random.normal([top_states.shape[0],
                                                   self.rdm_intputs], 0, 1, tf.float32,seed=time.time_ns())
             this_actions = self.actor_model([top_states, top_next_rdm_gaus], training=True)
-            this_actions = tf.cast(tf.expand_dims(this_actions, axis=0), dtype=tf.float32)
-            top_actions = tf.cast(tf.expand_dims(top_actions, axis=1), dtype=tf.float32)
+            # this_actions = tf.cast(tf.expand_dims(this_actions, axis=0), dtype=tf.float32)
+            # top_actions = tf.cast(tf.expand_dims(top_actions, axis=1), dtype=tf.float32)
+            this_actions = tf.cast(this_actions, dtype=tf.float32)
+            top_actions = tf.cast(top_actions, dtype=tf.float32)
             score, score1, score2 = get_score(this_actions,top_actions)
 
         dist_loss = score
@@ -174,9 +176,11 @@ class KerasGenerativeTD3(KerasTD3):
             states = tf.repeat(state, nrepeats, axis=0)
             rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
             sampled_actions = self.actor_model([states, rdm_norms])
+            # print("Sampled action shape: ", sampled_actions.shape)
             #
             if train:
                sampled_actions = np.random.normal(sampled_actions, 0.5, sampled_actions.shape)
+            #    print("Sampled action shape (if train): ", sampled_actions.shape)
 
             new_q1 = self.target_critic1([states, sampled_actions])
             new_q2 = self.target_critic2([states, sampled_actions])
@@ -192,6 +196,7 @@ class KerasGenerativeTD3(KerasTD3):
             # print(rewards[isort_reward_sub])
             # print(rewards[rdm_idx])
             sampled_action = sampled_actions[rdm_idx]
+            # print("Sampled action shape after isort: ", sampled_action.shape)
             noise = np.squeeze(np.zeros(sampled_action.shape))
 
             # Option #2: Pick best version
@@ -205,6 +210,7 @@ class KerasGenerativeTD3(KerasTD3):
             # if train:
             #     noise = np.random.normal(0, 0.1, self.num_actions)
             #     sampled_action = sampled_action + noise
+            # print("Legal action: ", sampled_action)
 
         #sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
