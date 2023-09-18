@@ -144,7 +144,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             agent.train()
             prev_state = state
 
-            if "2D" in env_id and (agent.buffer_counter % agent.batch_size == 0) \
+            if (agent.buffer_counter % agent.batch_size == 0) \
                     and (agent.buffer_counter > agent.batch_size)\
                     and (agent.buffer_counter > agent.min_buffer_counter):
                 # Plot
