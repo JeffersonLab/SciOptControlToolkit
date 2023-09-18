@@ -154,7 +154,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 ax.set_xlabel("X")
                 ax.set_ylabel("Y")
                 ax.grid(True, linestyle='-', color='0.75')
-                x = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
+                x = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
                 y = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
                 z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                 a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
