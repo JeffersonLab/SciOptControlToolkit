@@ -167,11 +167,18 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 plt.close()
                 #
                 figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
-                for i in range(agent.num_actions):
-                    sns.kdeplot(x=a[:, i], ax=axis[i, 0],
+                if agent.num_actions == 1:
+                    figure, axis = plt.subplots(2, figsize=(20, 16))
+                    sns.kdeplot(x=np.squeeze(a), ax=axis[0],
                                 color='green', fill=True, alpha=.5, linewidth=1, label='Warmup Parameter')
-                    sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
+                    sns.kdeplot(x=np.squeeze(a), y=np.squeeze(z), ax=axis[1],
                                 alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", label='Warmup Parameter')
+                else:
+                    for i in range(agent.num_actions):
+                        sns.kdeplot(x=a[:, i], ax=axis[i, 0],
+                                    color='green', fill=True, alpha=.5, linewidth=1, label='Warmup Parameter')
+                        sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
+                                    alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", label='Warmup Parameter')
                 plt.savefig(logdir + '/reward_action_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
 
