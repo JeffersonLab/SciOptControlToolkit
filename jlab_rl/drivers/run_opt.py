@@ -157,6 +157,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 x = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
                 y = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
                 z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                 # scatter with colormap mapping to z value
                 cb = ax.scatter(x, y, s=20, c=z, marker='o', cmap=cm.jet);
                 plt.xlim(-1.2, 1.2)
@@ -167,9 +168,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 #
                 figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
                 for i in range(agent.num_actions):
-                    sns.kdeplot(x=agent.top_actions[:, i], ax=axis[i, 0],
+                    sns.kdeplot(x=a[:, i], ax=axis[i, 0],
                                 color='green', fill=True, alpha=.5, linewidth=1, label='Warmup Parameter')
-                    sns.kdeplot(x=agent.top_actions[:, i], y=np.squeeze(agent.top_rewards), ax=axis[i, 1],
+                    sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
                                 alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", label='Warmup Parameter')
                 plt.savefig(logdir + '/reward_action_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
