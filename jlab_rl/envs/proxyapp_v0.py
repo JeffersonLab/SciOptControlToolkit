@@ -29,10 +29,11 @@ class proxy_app(gym.Env):
             self.parmax = [self.parmax for i in range(self.nParameters)]
             self.parmax = np.array(self.parmax)
 
-        self.ndx = 10
+        self.ndx = 1000
         self.xmin, self.xmax = 0.1, 0.99999
         self.dx = (self.xmax - self.xmin) / self.ndx
-        self.x_full_range = torch.arange(self.xmin, self.xmax, self.dx, device=self.devices)
+        #self.x_full_range = torch.arange(self.xmin, self.xmax, self.dx, device=self.devices)
+        self.x_full_range = np.linspace(self.xmin, self.xmax, self.ndx) #self.dx)
 
         # Define action space
         self.np_parmin = np.zeros(self.nParameters)
@@ -49,25 +50,25 @@ class proxy_app(gym.Env):
         self.states, _ = self.reset()
         print('reset state:{}'.format(self.states))
 
-        fig = plt.figure(figsize=(6, 6))
-        ax = fig.add_subplot(111)
-        ax.set_title('true_sigma1')
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        plt.plot(self.true_sigma1)
-        plt.savefig(self.logdir + '/true_sigma1.png')
-        plt.close()
-
-        fig = plt.figure(figsize=(6, 6))
-        ax = fig.add_subplot(111)
-        ax.set_title('true_sigma2')
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        plt.plot(self.true_sigma2)
-        plt.savefig(self.logdir + '/true_sigma2.png')
-        plt.close()
-
-        self.pdist = torch.nn.PairwiseDistance(p=2.0, eps=1e-06, keepdim=False)
+        # fig = plt.figure(figsize=(6, 6))
+        # ax = fig.add_subplot(111)
+        # ax.set_title('true_sigma1')
+        # ax.set_xlabel("X")
+        # ax.set_ylabel("Y")
+        # plt.plot(self.true_sigma1)
+        # plt.savefig(self.logdir + '/true_sigma1.png')
+        # plt.close()
+        #
+        # fig = plt.figure(figsize=(6, 6))
+        # ax = fig.add_subplot(111)
+        # ax.set_title('true_sigma2')
+        # ax.set_xlabel("X")
+        # ax.set_ylabel("Y")
+        # plt.plot(self.true_sigma2)
+        # plt.savefig(self.logdir + '/true_sigma2.png')
+        # plt.close()
+        #
+        # self.pdist = torch.nn.PairwiseDistance(p=2.0, eps=1e-06, keepdim=False)
 
         # Best results
         self.best_loss = 9999
@@ -91,9 +92,13 @@ class proxy_app(gym.Env):
 
         #
         gen_sigma1, gen_sigma2 = self.cross_sections(action)
+
+        # print("gen_sigma1: ", gen_sigma1)
+        # print("gen_sigma2: ", gen_sigma2)
         self.states = np.concatenate([gen_sigma1, gen_sigma2])
-        loss1 = tf.keras.losses.mse(self.true_sigma1, gen_sigma1)
-        loss2 = tf.keras.losses.mse(self.true_sigma2, gen_sigma2)
+        loss1 = np.mean(np.square(self.true_sigma1 - gen_sigma1))
+        loss2 = np.mean(np.square(self.true_sigma2 - gen_sigma2))
+        #loss2 = tf.keras.losses.mse(self.true_sigma2, gen_sigma2)
         loss = (loss1+loss2)
         #loss = tf.keras.losses.mse(self.true_params, action)
         #loss = tf.keras.losses.MeanSquaredLogarithmicError(reduction="auto")(self.true_params, action)
@@ -113,35 +118,36 @@ class proxy_app(gym.Env):
         # loss2 = tf.keras.losses.mse(gen_sigma2, self.true_sigma2)
         reward = -loss
 
-        if self.nsteps%100==0:
-            fig = plt.figure(figsize=(6, 6))
-            ax = fig.add_subplot(111)
-            ax.set_title(f'sigma1\nloss: {loss}')
-            ax.set_xlabel("X")
-            ax.set_ylabel("Y")
-            plt.plot(self.true_sigma1, label="Data")
-            plt.plot(gen_sigma1, label="GenAI")
-            plt.legend()
-            plt.savefig(self.logdir+'/sigma1_{}.png'.format(self.nsteps))
-            plt.close()
-            fig = plt.figure(figsize=(6, 6))
-            ax = fig.add_subplot(111)
-            ax.set_title(f'sigma2\nloss: {loss}')
-            ax.set_xlabel("X")
-            ax.set_ylabel("Y")
-            plt.plot(self.true_sigma2, label="Data")
-            plt.plot(gen_sigma2, label="GenAI")
-            plt.legend()
-            plt.savefig(self.logdir+'/sigma2_{}.png'.format(self.nsteps))
-            plt.close()
+        # if self.nsteps%100==0:
+        #     fig = plt.figure(figsize=(6, 6))
+        #     ax = fig.add_subplot(111)
+        #     ax.set_title(f'sigma1\nloss: {loss}')
+        #     ax.set_xlabel("X")
+        #     ax.set_ylabel("Y")
+        #     plt.plot(self.true_sigma1, label="Data")
+        #     plt.plot(gen_sigma1, label="GenAI")
+        #     plt.legend()
+        #     plt.savefig(self.logdir+'/sigma1_{}.png'.format(self.nsteps))
+        #     plt.close()
+        #
+        #     fig = plt.figure(figsize=(6, 6))
+        #     ax = fig.add_subplot(111)
+        #     ax.set_title(f'sigma2\nloss: {loss}')
+        #     ax.set_xlabel("X")
+        #     ax.set_ylabel("Y")
+        #     plt.plot(self.true_sigma2, label="Data")
+        #     plt.plot(gen_sigma2, label="GenAI")
+        #     plt.legend()
+        #     plt.savefig(self.logdir+'/sigma2_{}.png'.format(self.nsteps))
+        #     plt.close()
 
-        for i in range(self.true_sigma1.shape[0]):
-            tf.summary.scalar('Xsec-1 Diff #{}'.format(i),
-                              data=abs(gen_sigma1[i]-self.true_sigma1[i]),
-                              step=int(self.nsteps))
-            tf.summary.scalar('Xsec-2 Diff #{}'.format(i),
-                              data=abs(gen_sigma2[i] - self.true_sigma2[i]),
-                              step=int(self.nsteps))
+        # for i in range(self.true_sigma1.shape[0]):
+        #     tf.summary.scalar('Xsec-1 Diff #{}'.format(i),
+        #                       data=abs(gen_sigma1[i]-self.true_sigma1[i]),
+        #                       step=int(self.nsteps))
+        #     tf.summary.scalar('Xsec-2 Diff #{}'.format(i),
+        #                       data=abs(gen_sigma2[i] - self.true_sigma2[i]),
+        #                       step=int(self.nsteps))
         self.nsteps += 1
 
         return self.states, reward, False, False, {}

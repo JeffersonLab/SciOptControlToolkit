@@ -31,15 +31,12 @@ import sys
 import tensorflow as tf
 from jlab_rl.models.state_generator import Generator_v3 as Generator
 from jlab_rl.agents.keras_td3 import KerasTD3
-#from scipy.stats import wasserstein_distance
-import scipy.spatial.distance
-#from tensorflow.keras.initializers import RandomUniform
-#from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.legacy import Adam
 import numpy as np
 import os
 from os.path import join
 import time
+from jlab_rl.utils.score import get_score
 
 class KerasGenerativeTD3(KerasTD3):
     """ Define all key variables required for all agent """
@@ -49,13 +46,13 @@ class KerasGenerativeTD3(KerasTD3):
         """ Define all key variables required for all agent """
 
         self.rdm_intputs = 100
-        self.nactor_layers = 4 # (was 4)
-        self.ncritic_layers = 4
+        self.nactor_layers = 5 # (was 4)
+        self.ncritic_layers = 5
 
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasGenerativeTD3 __init__')
-        self.batch_size = 1000
+        self.batch_size = 512
         self.ntrain_actor_calls = 0
         # Re-init models
         self.initialize_new_models()
@@ -66,7 +63,7 @@ class KerasGenerativeTD3(KerasTD3):
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
         self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
-        if self.buffer_counter >= self.batch_size:
+        if self.buffer_counter >= self.batch_size:#np.max([):#, self.min_buffer_counter]):
             self.ntrain_actor_calls += 1
             td_loss, kl_loss = self.train_actor(state_batch)
             tf.summary.scalar('Actor TD Loss', data=td_loss, step=int(self.ntrain_actor_calls))
@@ -79,9 +76,9 @@ class KerasGenerativeTD3(KerasTD3):
         next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
         # Do we need this noise ?
-        # noises = tf.random.normal(next_actions.shape, 0, 0.2)
-        # noises = tf.clip_by_value(noises, -0.5, 0.5)
-        # next_actions = next_actions+noises
+        noises = tf.random.normal(next_actions.shape, 0, 0.2)
+        noises = tf.clip_by_value(noises, -0.5, 0.5)
+        next_actions = next_actions+noises
         #
         new_q1 = self.target_critic1([next_states, next_actions], training=False)
         new_q2 = self.target_critic2([next_states, next_actions], training=False)
@@ -115,29 +112,26 @@ class KerasGenerativeTD3(KerasTD3):
         # Update the priority buffer
         #self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
 
-
-
     #@tf.function
     def train_actor(self, states):
         # Use Critic 1
-        next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
-        with tf.GradientTape() as tape:
-            actions = self.actor_model([states, next_rdm_gaus], training=True)
-            q_value = self.critic_model1([states, actions], training=False)
-            #q_value2 = self.critic_model2([states, actions], training=False)
-            #q_value = tf.keras.layers.Average()([q_value1, q_value2])
-            td_loss = -tf.math.reduce_mean(q_value)
-        #  print('td_loss: ', td_loss)
-        #sys.exit()
-        #gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
-        #self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        td_loss = -9
+        # next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+        # with tf.GradientTape() as tape:
+        #     actions = self.actor_model([states, next_rdm_gaus], training=True)
+        #     q_value = self.critic_model1([states, actions], training=False)
+        #     #q_value2 = self.critic_model2([states, actions], training=False)
+        #     #q_value = tf.keras.layers.Average()([q_value1, q_value2])
+        #     td_loss = -tf.math.reduce_mean(q_value)
+        # gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
+        # self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
         # Add KL-div using top 5% of the warmup samples
         w_rewards = self.reward_buffer[0:self.min_buffer_counter]
         w_states = self.state_buffer[0:self.min_buffer_counter]
         w_actions = self.action_buffer[0:self.min_buffer_counter]
         isort_reward = np.argsort(np.squeeze(w_rewards))
-        idx_thr = int(0.90 * self.min_buffer_counter)
+        idx_thr = int(0.95 * self.min_buffer_counter)
         isort_top_reward = isort_reward[idx_thr:]
         top_states = w_states[isort_top_reward]
         top_actions = w_actions[isort_top_reward]
@@ -146,68 +140,10 @@ class KerasGenerativeTD3(KerasTD3):
             top_next_rdm_gaus = tf.random.normal([top_states.shape[0],
                                                   self.rdm_intputs], 0, 1, tf.float32,seed=time.time_ns())
             this_actions = self.actor_model([top_states, top_next_rdm_gaus], training=True)
-            # this_a2 = tf.math.square(this_actions)
-            # top_a2 = tf.math.square(top_actions)
-            # # term1 = tf.math(abs(this_a2-top_a2)
-            # # term2 = tf.math(abs(this_a2-top_a2)
-            #score1 = np.mean(scipy.spatial.distance.pdist(top_actions))
-
-            # score1 = np.mean(scipy.spatial.distance.cdist(top_actions, top_actions))
-            # score2 = np.mean(scipy.spatial.distance.cdist(this_actions, top_actions))
-            # print('score1:', score1)
-            # print('score2:', score2)
-            pred_size = this_actions.shape[0]
             this_actions = tf.cast(tf.expand_dims(this_actions, axis=0), dtype=tf.float32)
             top_actions = tf.cast(tf.expand_dims(top_actions, axis=1), dtype=tf.float32)
-            score2 = tf.reduce_mean(tf.math.sqrt(tf.reduce_sum(tf.math.squared_difference(
-                tf.expand_dims(top_actions, axis=1), tf.expand_dims(top_actions, axis=0)), axis=-1)))
-            score1 = tf.reduce_mean (tf.math.sqrt(tf.reduce_sum(tf.math.squared_difference(
-                tf.expand_dims(this_actions, axis=1), tf.expand_dims(top_actions, axis=0)), axis=-1)))
-            score1 = score1#/ (pred_size * pred_size)
-            score2 = score2#/ (pred_size * (pred_size - 1))
-            score = score1 - score2
+            score, score1, score2 = get_score(this_actions,top_actions)
 
-            # print('term1:', term1)
-            # print('term2:', term2)
-
-            # print(this_actions.shape)
-            # print(this_actions)
-            # print(top_actions)
-            # term1 = tf.math.squared_difference(this_actions, tf.float32,top_actions)
-            # print('term1:', term1.shape)
-            #sys.exit()
-            # emd_losses = []
-            # for _ in range(10):
-            #     top_next_rdm_gaus = tf.random.normal([top_states.shape[0], self.rdm_intputs], 0, 1, tf.float32,
-            #                                          seed=time.time_ns())
-            #     this_actions = self.actor_model([top_states, top_next_rdm_gaus], training=True)
-            #     emd_losses.append(score_es_scipy(this_actions, top_actions))
-            # emd_loss = tf.math.reduce_mean(emd_losses)
-            # #wd_loss = wasserstein_distance(top_actions,this_actions)
-            # kl_loss = tf.math.reduce_mean(tf.keras.losses.kl_divergence(top_actions, this_actions))
-            #
-            # preds = this_actions
-            # obsrvs = top_actions
-            # pred_size, pred_event = preds.shape
-            #
-            # # Calculate score1
-            # score1 = tf.convert_to_tensor(np.mean(scipy.spatial.distance.cdist(preds, obsrvs)), dtype=tf.float32)
-            # print(score1)
-            # # Calculate score2
-            # score2 = tf.convert_to_tensor(scipy.spatial.distance.pdist(preds), dtype=tf.float32)
-            # score2 = tf.math.reduce_sum(score2) / (pred_size * (pred_size - 1))
-            # print(score2)
-            # emd_loss = score1 - score2
-
-                        # print('top_actions ', top_actions)
-            # print('this_actions ', this_actions)
-            #print('wd_loss ', wd_loss)
-            #
-            # sys.exit()
-        #print('kl_loss: ', kl_loss)
-        # print('score1: ', score1)
-        # print('score2: ', score2)
-        # print('score: ', score)
         dist_loss = score
         gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
@@ -220,7 +156,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.nactions.assign(self.nactions + 1)
 
         if self.buffer_counter < np.max([self.batch_size, self.min_buffer_counter]):
-            #true_params = [0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
+            #true_params = self.env.true_params #[0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
             #sampled_action = np.random.normal(true_params, 0.25)
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
@@ -234,7 +170,7 @@ class KerasGenerativeTD3(KerasTD3):
             # sampled_action = self.actor_model([state, rdm_norms])
 
             # Try multiple times
-            nrepeats = 100
+            nrepeats = 1000
             states = tf.repeat(state, nrepeats, axis=0)
             rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
             sampled_actions = self.actor_model([states, rdm_norms])
@@ -247,24 +183,24 @@ class KerasGenerativeTD3(KerasTD3):
             rewards = tf.math.maximum(new_q1, new_q2)
             rewards = np.squeeze(rewards)
 
+            # Option #1: randomly sample to n-th percent
+            isort_reward = np.argsort(rewards)
+            isort_reward_sub = isort_reward[-0.05*nrepeats:]
+            rdm_idx = isort_reward_sub[np.random.randint(0,24)]
+            # print(rdm_idx)
+            # print(isort_reward_sub)
+            # print(rewards[isort_reward_sub])
+            # print(rewards[rdm_idx])
+            sampled_action = sampled_actions[rdm_idx]
+            noise = np.squeeze(np.zeros(sampled_action.shape))
 
-            # isort_reward = np.argsort(rewards)
-            # isort_reward_sub = isort_reward[-25:]
-            # rdm_idx = isort_reward_sub[np.random.randint(0,24)]
-            # # print(rdm_idx)
-            # # print(isort_reward_sub)
-            # # print(rewards[isort_reward_sub])
-            # # print(rewards[rdm_idx])
-            # # sys.exit()
-            # sampled_action = sampled_actions[rdm_idx]
+            # Option #2: Pick best version
+            # ireward = np.argmax(rewards)
+            # sampled_action = sampled_actions[ireward]
             # noise = tf.zeros(sampled_action.shape)
-
-            ireward = np.argmax(rewards)
-            sampled_action = sampled_actions[ireward]
-            noise = tf.zeros(sampled_action.shape)
-
-            sampled_action = np.squeeze(sampled_action)#sampled_action = sampled_action.flatten()
-            noise = np.squeeze(noise)#noise = noise.flatten()
+            #
+            # sampled_action = np.squeeze(sampled_action)
+            # noise = np.squeeze(noise)#noise = noise.flatten()
 
             # if train:
             #     noise = np.random.normal(0, 0.1, self.num_actions)
