@@ -252,7 +252,7 @@ class KerasTD3(jlab_rl.Agent):
         """ Method used to train """
         self.ntrain_calls += 1
 
-        if self.buffer_counter>self.batch_size:
+        if self.buffer_counter>=self.batch_size:
             # Get sampling range
             record_range = min(self.buffer_counter, self.buffer_capacity)
 
