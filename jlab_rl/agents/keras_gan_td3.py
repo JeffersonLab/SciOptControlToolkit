@@ -185,7 +185,7 @@ class KerasGenerativeTD3(KerasTD3):
 
             # Option #1: randomly sample to n-th percent
             isort_reward = np.argsort(rewards)
-            isort_reward_sub = isort_reward[-0.05*nrepeats:]
+            isort_reward_sub = isort_reward[int(-0.05*nrepeats):]
             rdm_idx = isort_reward_sub[np.random.randint(0,24)]
             # print(rdm_idx)
             # print(isort_reward_sub)
