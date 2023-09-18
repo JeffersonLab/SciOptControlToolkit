@@ -165,6 +165,24 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 plt.colorbar(cb)
                 plt.savefig(logdir+'/xy_reward_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
+                z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                if agent.next_state_buffer.shape[1] > 1:
+                    fig = plt.figure(figsize=(6, 6))
+                    ax = fig.add_subplot(111)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
+                    ax.set_xlabel("X")
+                    ax.set_ylabel("Y")
+                    ax.grid(True, linestyle='-', color='0.75')
+                    x = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
+                    y = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
+                    # scatter with colormap mapping to z value
+                    cb = ax.scatter(x, y, s=20, c=z, marker='o', cmap=cm.jet);
+                    plt.xlim(-1.2, 1.2)
+                    plt.ylim(-1.2, 1.2)
+                    plt.colorbar(cb)
+                    plt.savefig(logdir+'/xy_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+                    plt.close()
                 #
                 figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
                 if agent.num_actions == 1:

@@ -5,11 +5,17 @@ from jlab_rl.envs.circle_constraint_v1 import circle_constraint_env as circle_co
 from jlab_rl.envs.cebaf_env_v0 import cebaf_env
 from jlab_rl.envs.gaussian_gan_env_v0 import ProxyGaussian
 from jlab_rl.envs.sin_env import sin_env as sin_env
+from jlab_rl.envs.x_square_env import XSquareEnv as XSquareEnv
 
 # Register the proxy app
 register(
     id='DnC2s-SinX-v0',
     entry_point='jlab_rl.envs:sin_env',
+)
+
+register(
+    id='DnC2s-XSquare-v0',
+    entry_point='jlab_rl.envs:XSquareEnv',
 )
 
 # Register the proxy app
