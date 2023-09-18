@@ -52,7 +52,7 @@ class KerasGenerativeTD3(KerasTD3):
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasGenerativeTD3 __init__')
-        self.batch_size = 512
+        self.batch_size = 1000
         self.ntrain_actor_calls = 0
 
         self.top_action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
@@ -88,7 +88,8 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
-        next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+        #next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+        next_rdm_gaus = tf.random.uniform([next_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
         # Do we need this noise ?
         noises = tf.random.normal(next_actions.shape, 0, 0.2)
@@ -130,22 +131,24 @@ class KerasGenerativeTD3(KerasTD3):
     #@tf.function
     def train_actor(self, states):
         # Use Critic 1
-        next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
-        with tf.GradientTape() as tape:
-            actions = self.actor_model([states, next_rdm_gaus], training=True)
-            q_value = self.critic_model1([states, actions], training=False)
-            #q_value2 = self.critic_model2([states, actions], training=False)
-            #q_value = tf.keras.layers.Average()([q_value1, q_value2])
-            td_loss = -tf.math.reduce_mean(q_value)
-        gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
-        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        td_loss = 0
+        #next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+        # next_rdm_gaus = tf.random.uniform([states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+        # with tf.GradientTape() as tape:
+        #     actions = self.actor_model([states, next_rdm_gaus], training=True)
+        #     q_value = self.critic_model1([states, actions], training=False)
+        #     #q_value2 = self.critic_model2([states, actions], training=False)
+        #     #q_value = tf.keras.layers.Average()([q_value1, q_value2])
+        #     td_loss = -tf.math.reduce_mean(q_value)
+        # gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
+        # self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
-        # Add KL-div using top 5% of the warmup samples
+        # # Add KL-div using top 5% of the warmup samples
         w_rewards = self.reward_buffer[0:self.min_buffer_counter]
         w_states = self.state_buffer[0:self.min_buffer_counter]
         w_actions = self.action_buffer[0:self.min_buffer_counter]
         isort_reward = np.argsort(np.squeeze(w_rewards))
-        idx_thr = int(0.95 * self.min_buffer_counter)
+        idx_thr = int(0.85 * self.min_buffer_counter)
         isort_top_reward = isort_reward[idx_thr:]
         top_states = w_states[isort_top_reward]
         top_actions = w_actions[isort_top_reward]
@@ -186,36 +189,39 @@ class KerasGenerativeTD3(KerasTD3):
             # sampled_action = self.actor_model([state, rdm_norms])
 
             # Try multiple times
-            nrepeats = 100
+            nrepeats = 10
             states = tf.repeat(state, nrepeats, axis=0)
-            rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+            #rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+            rdm_norms = tf.random.uniform([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
             sampled_actions = self.actor_model([states, rdm_norms])
-            # print("Sampled action shape: ", sampled_actions.shape)
-            #
+            # # print("Sampled action shape: ", sampled_actions.shape)
+            # #
             if train:
                sampled_actions = np.random.normal(sampled_actions, 0.5, sampled_actions.shape)
-            #    print("Sampled action shape (if train): ", sampled_actions.shape)
 
             new_q1 = self.target_critic1([states, sampled_actions])
             new_q2 = self.target_critic2([states, sampled_actions])
             rewards = tf.math.maximum(new_q1, new_q2)
             rewards = np.squeeze(rewards)
-
-            # Option #1: randomly sample to n-th percent
+            #
+            # # Option #1: randomly sample to n-th percent
             # isort_reward = np.argsort(rewards)
             # isort_reward_sub = isort_reward[int(-0.05*nrepeats):]
             # rdm_idx = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
             # sampled_action = sampled_actions[rdm_idx]
             # noise = np.squeeze(np.zeros(sampled_action.shape))
-
-            # Option #2: Pick best version
+            #
+            # # Option #2: Pick best version
             ireward = np.argmax(rewards)
             sampled_action = sampled_actions[ireward]
             noise = tf.zeros(sampled_action.shape)
-            #
-            # sampled_action = np.squeeze(sampled_action)
-            # noise = np.squeeze(noise)#noise = noise.flatten()
 
+            # Option 3
+            # rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+            # sampled_action = self.actor_model([state, rdm_norms])
+            # sampled_action = np.random.normal(sampled_action, 0.5, sampled_action.shape)
+            # noise = np.squeeze(np.zeros(sampled_action.shape))
+            # sampled_action = np.squeeze(sampled_action)
 
         #sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
@@ -223,4 +229,5 @@ class KerasGenerativeTD3(KerasTD3):
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
+        #print('legal_action: ', legal_action.shape)
         return [np.squeeze(legal_action)], [np.squeeze(noise)]
