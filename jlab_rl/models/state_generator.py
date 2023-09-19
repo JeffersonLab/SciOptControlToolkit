@@ -108,8 +108,11 @@ class Generator_v3(tf.keras.Model):
     tf.random.set_seed(seed)
     self.ndims = ndims
     self.nlayers = nlayers
-    # init = tf.keras.initializers.RandomUniform(minval=-0.1, maxval=0.1, seed=seed)
-    init = tf.keras.initializers.GlorotUniform(seed)
+    init = tf.keras.initializers.HeUniform(seed=seed)#RandomUniform(minval=-1.0, maxval=1.0, seed=seed)
+    # init = tf.keras.initializers.VarianceScaling(
+    #   scale=1, mode='fan_in', distribution='uniform')
+
+    #init = tf.keras.initializers.GlorotUniform(seed)
     self.nodes = 256
     self.denses1, self.denses2 = [], []
     self.bn1 = []
@@ -118,7 +121,8 @@ class Generator_v3(tf.keras.Model):
       self.denses1.append(tf.keras.layers.Dense(self.nodes, kernel_initializer=init))
       self.bn1.append(tf.keras.layers.BatchNormalization())
       #self.act1.append(tf.keras.layers.ReLU())
-      self.act1.append(tf.keras.layers.LeakyReLU(0.2))
+      self.act1.append(tf.keras.activations.selu)
+      #self.act1.append(tf.keras.layers.LeakyReLU(0.2))
       # self.denses2.append(tf.keras.layers.Dense(self.nodes, kernel_initializer=init))
       # self.act2.append(tf.keras.layers.LeakyReLU(0.2))
 

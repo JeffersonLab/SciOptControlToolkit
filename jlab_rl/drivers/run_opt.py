@@ -150,6 +150,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 # Plot
                 z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                 a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+
                 if agent.next_state_buffer.shape[1] > 1:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
@@ -180,6 +181,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                                     color='green', fill=True, alpha=.5, linewidth=1, label='Warmup Parameter')
                         sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
                                     alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", label='Warmup Parameter')
+                plt.title(f'Episode {ep} - Reward: {np.mean(z)}')
                 plt.savefig(logdir + '/reward_action_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
 
@@ -187,7 +189,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     warmup_actions = agent.action_buffer[0:agent.min_buffer_counter]
                     warmup_rewards = agent.reward_buffer[0:agent.min_buffer_counter]
                     isort_z = np.argsort(np.squeeze(warmup_rewards))
-                    thr = 0.05
+                    thr = 0.15
                     idx_thr = int( (1-thr) * agent.min_buffer_counter)
                     idx_top_z = isort_z[idx_thr:]
                     top_warmup_actions = warmup_actions[idx_top_z]
@@ -227,24 +229,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             # End this episode when `done` is True
             if done:
                 break
-
-        if 'Gaussian' in env_id and ep % 1000 == 0 and ep > 0:
-            predictions = []
-            for t in range(env.true_params.shape[0]):
-                st, _ = env.reset()
-                prediction, _ = agent.action(tf.convert_to_tensor(st), train=False)
-                predictions.append(np.squeeze(prediction))
-            predictions = np.squeeze(predictions)
-            # tf.summary.histogram('predictions', data=predictions, step=int(total_nsteps))
-            # tf.summary.histogram('real_data', data=env.data, step=int(total_nsteps))
-            plt.clf()
-            plt.figure(figsize=(8,5))
-            plt.hist(predictions, bins=100, range=(0, 1), histtype='step', color = 'red', label="GAN")
-            plt.title('param_at_epoch'+str(ep).zfill(6))
-            plt.hist(env.true_params, bins=100, range=(0, 1), histtype='step', color='green', label="True")
-            plt.savefig(os.path.join("Params_"+str(ep).zfill(6)+".png"))
-            plt.legend()
-            plt.show()
 
         ep_reward_list.append(episodic_reward)
         tf.summary.scalar('Reward', data=episodic_reward, step=int(ep))
