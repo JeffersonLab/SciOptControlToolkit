@@ -145,8 +145,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             prev_state = state
 
             if (agent.buffer_counter % agent.batch_size == 0) \
-                    and (agent.buffer_counter > agent.batch_size)\
-                    and (agent.buffer_counter > agent.min_buffer_counter):
+                    and (agent.buffer_counter >= agent.batch_size)\
+                    and (agent.buffer_counter >= agent.min_buffer_counter):
                 # Plot
                 z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                 a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
@@ -189,7 +189,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     warmup_actions = agent.action_buffer[0:agent.min_buffer_counter]
                     warmup_rewards = agent.reward_buffer[0:agent.min_buffer_counter]
                     isort_z = np.argsort(np.squeeze(warmup_rewards))
-                    thr = 0.15
+                    thr = 0.25
                     idx_thr = int( (1-thr) * agent.min_buffer_counter)
                     idx_top_z = isort_z[idx_thr:]
                     top_warmup_actions = warmup_actions[idx_top_z]
