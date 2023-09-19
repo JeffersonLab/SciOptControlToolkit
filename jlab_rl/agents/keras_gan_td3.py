@@ -144,27 +144,27 @@ class KerasGenerativeTD3(KerasTD3):
         gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
-        # # Add KL-div using top 5% of the warmup samples
-        # w_rewards = self.reward_buffer[0:self.min_buffer_counter]
-        # w_states = self.state_buffer[0:self.min_buffer_counter]
-        # w_actions = self.action_buffer[0:self.min_buffer_counter]
-        # isort_reward = np.argsort(np.squeeze(w_rewards))
-        # idx_thr = int(0.85 * self.min_buffer_counter)
-        # isort_top_reward = isort_reward[idx_thr:]
-        # top_states = w_states[isort_top_reward]
-        # top_actions = w_actions[isort_top_reward]
-        #
-        # with tf.GradientTape() as tape:
-        #     top_next_rdm_gaus = tf.random.normal([top_states.shape[0],
-        #                                           self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
-        #     this_actions = self.actor_model([top_states, top_next_rdm_gaus], training=True)
-        #     this_actions = tf.cast(this_actions, dtype=tf.float32)
-        #     top_actions = tf.cast(top_actions, dtype=tf.float32)
-        #     score, score1, score2 = get_score(this_actions, top_actions)
-        #
-        dist_loss = 0 #score
-        # gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
-        # self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        # Add KL-div using top 5% of the warmup samples
+        w_rewards = self.reward_buffer[0:self.min_buffer_counter]
+        w_states = self.state_buffer[0:self.min_buffer_counter]
+        w_actions = self.action_buffer[0:self.min_buffer_counter]
+        isort_reward = np.argsort(np.squeeze(w_rewards))
+        idx_thr = int(0.85 * self.min_buffer_counter)
+        isort_top_reward = isort_reward[idx_thr:]
+        top_states = w_states[isort_top_reward]
+        top_actions = w_actions[isort_top_reward]
+
+        with tf.GradientTape() as tape:
+            top_next_rdm_gaus = tf.random.normal([top_states.shape[0],
+                                                  self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
+            this_actions = self.actor_model([top_states, top_next_rdm_gaus], training=True)
+            this_actions = tf.cast(this_actions, dtype=tf.float32)
+            top_actions = tf.cast(top_actions, dtype=tf.float32)
+            score, score1, score2 = get_score(this_actions, top_actions)
+
+        dist_loss = score
+        gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
+        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
         return td_loss, dist_loss
 
     def action(self, state, train=True):
