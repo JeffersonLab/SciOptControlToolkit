@@ -36,7 +36,7 @@ import numpy as np
 import os
 from os.path import join
 import time
-from jlab_rl.utils.score import get_score
+from jlab_rl.utils.score import get_score, get_score_1d
 
 class KerasGenerativeTD3(KerasTD3):
     """ Define all key variables required for all agent """
@@ -144,7 +144,7 @@ class KerasGenerativeTD3(KerasTD3):
             # top_actions = tf.cast(tf.expand_dims(top_actions, axis=1), dtype=tf.float32)
             this_actions = tf.cast(this_actions, dtype=tf.float32)
             top_actions = tf.cast(top_actions, dtype=tf.float32)
-            score, score1, score2 = get_score(this_actions,top_actions)
+            score, score1, score2 = get_score_1d(this_actions,top_actions)
 
         dist_loss = score
         gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
@@ -172,7 +172,7 @@ class KerasGenerativeTD3(KerasTD3):
             # sampled_action = self.actor_model([state, rdm_norms])
 
             # Try multiple times
-            nrepeats = 1000
+            nrepeats = 100
             states = tf.repeat(state, nrepeats, axis=0)
             rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
             sampled_actions = self.actor_model([states, rdm_norms])
@@ -187,9 +187,9 @@ class KerasGenerativeTD3(KerasTD3):
             rewards = tf.math.maximum(new_q1, new_q2)
             rewards = np.squeeze(rewards)
 
-            # Option #1: randomly sample to n-th percent
+            # Option #1: randomly sample to n-th percent -  works for X_square problem
             isort_reward = np.argsort(rewards)
-            isort_reward_sub = isort_reward[int(-0.05*nrepeats):]
+            isort_reward_sub = isort_reward[int(-0.25*nrepeats):]
             rdm_idx = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
             # print(rdm_idx)
             # print(isort_reward_sub)
