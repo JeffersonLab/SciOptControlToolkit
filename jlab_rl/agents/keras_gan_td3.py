@@ -42,7 +42,7 @@ class KerasGenerativeTD3(KerasTD3):
     """ Define all key variables required for all agent """
 
 
-    def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, **kwargs):
+    def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, dynamic_ref=True, **kwargs):
         """ Define all key variables required for all agent """
 
         self.rdm_intputs = 40
@@ -50,6 +50,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.nactor_layers = 5 # (was 4)
         self.ncritic_layers = 5
         self.hidden_size = 256
+        self.dynamic_ref = dynamic_ref
 
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
@@ -57,9 +58,14 @@ class KerasGenerativeTD3(KerasTD3):
         self.batch_size = 1000
         self.ntrain_actor_calls = 0
 
-        self.top_action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
-        self.top_reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.top_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
+        # self.top_action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
+        # self.top_reward_buffer = np.zeros((self.buffer_capacity, 1))
+        # self.top_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
+
+        self.top_states = None
+        self.top_actions = None
+        self.top_rewards = None
+        self.n_top = 0
 
         # Re-init models
         self.initialize_new_models()
@@ -87,7 +93,7 @@ class KerasGenerativeTD3(KerasTD3):
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
         self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
-        if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]):
+        if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]) and self.top_actions is not None:
             self.ntrain_actor_calls += 1
 
             # Calculate the new 5%
@@ -165,22 +171,13 @@ class KerasGenerativeTD3(KerasTD3):
         gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
-        # Add KL-div using top 5% of the warmup samples
-        w_rewards = self.reward_buffer[0:self.min_buffer_counter]
-        w_states = self.state_buffer[0:self.min_buffer_counter]
-        w_actions = self.action_buffer[0:self.min_buffer_counter]
-        isort_reward = np.argsort(np.squeeze(w_rewards))
-        idx_thr = int(0.75 * self.min_buffer_counter)
-        isort_top_reward = isort_reward[idx_thr:]
-        top_states = w_states[isort_top_reward]
-        top_actions = w_actions[isort_top_reward]
 
         with tf.GradientTape() as tape:
-            top_next_rdm_gaus = tf.random.normal([top_states.shape[0],
+            top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
                                                   self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
-            this_actions = self.actor_model([top_states, top_next_rdm_gaus], training=True)
+            this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
             this_actions = tf.cast(this_actions, dtype=tf.float32)
-            top_actions = tf.cast(top_actions, dtype=tf.float32)
+            top_actions = tf.cast(self.top_actions, dtype=tf.float32)
             if top_actions.shape[1] > 1:
                 score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
             else:
@@ -196,7 +193,7 @@ class KerasGenerativeTD3(KerasTD3):
 
         self.nactions.assign(self.nactions + 1)
 
-        if self.buffer_counter < np.max([self.batch_size, self.min_buffer_counter]):
+        if self.buffer_counter < np.max([self.batch_size, self.min_buffer_counter])-1:
             #true_params = self.env.true_params #[0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
             #sampled_action = np.random.normal(true_params, 0.25)
             sampled_action = self.env.action_space.sample()
@@ -204,9 +201,20 @@ class KerasGenerativeTD3(KerasTD3):
             # return sampled_action, noise
 
         else:
+            if self.top_actions is None or self.top_actions is None:
+                # Add KL-div using top N% of the warmup samples
+                w_rewards = self.reward_buffer[0:self.min_buffer_counter]
+                w_states = self.state_buffer[0:self.min_buffer_counter]
+                w_actions = self.action_buffer[0:self.min_buffer_counter]
+                isort_reward = np.argsort(np.squeeze(w_rewards))
+                self.n_top = int(0.25 * self.min_buffer_counter)
+                isort_top_reward = isort_reward[-self.n_top:]
+                self.top_states = w_states[isort_top_reward]
+                self.top_actions = w_actions[isort_top_reward]
+                self.top_rewards = w_rewards[isort_top_reward]
+
             # Single try
             state = np.expand_dims(state, 0)
-
             # rdm_norms = tf.random.normal([1, self.rdm_intputs], 0, 1, tf.float64, seed=time.time_ns())
             # sampled_action = self.actor_model([state, rdm_norms])
 
@@ -223,9 +231,25 @@ class KerasGenerativeTD3(KerasTD3):
             # TODO: should be a larger ensemble than two!
             new_q1 = self.target_critic1([states, sampled_actions])
             new_q2 = self.target_critic2([states, sampled_actions])
+
             q_mean = np.mean( [new_q1, new_q2], axis=0)
             q_std = np.std([new_q1, new_q2], axis=0)
             q_ucb = q_mean + 3.0*q_std
+
+            # ============ Dynamic Reference ==============================
+            if self.dynamic_ref:
+                merged_top_actions = np.concatenate([self.top_actions, sampled_actions])
+                merged_top_states = np.concatenate([self.top_states, states])
+                merged_top_reward = np.concatenate([self.top_rewards, q_ucb])
+                isort_reward = np.argsort(np.squeeze(merged_top_reward))
+                isort_top_reward = isort_reward[-self.n_top:]
+                # print(isort_top_reward)
+                self.top_states = merged_top_states[isort_top_reward]
+                self.top_actions = merged_top_actions[isort_top_reward]
+                self.top_rewards = merged_top_reward[isort_top_reward]
+
+            # ========================================================================
+
             q_ucb = np.squeeze(q_ucb)
 
             tf.summary.histogram('Action q_mean', data=q_mean, step=int(self.nactions))

@@ -185,15 +185,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 plt.savefig(logdir + '/reward_action_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
 
-                if (agent.buffer_counter > agent.min_buffer_counter) and is_ref_plot==False:
-                    warmup_actions = agent.action_buffer[0:agent.min_buffer_counter]
-                    warmup_rewards = agent.reward_buffer[0:agent.min_buffer_counter]
-                    isort_z = np.argsort(np.squeeze(warmup_rewards))
-                    thr = 0.25
-                    idx_thr = int( (1-thr) * agent.min_buffer_counter)
-                    idx_top_z = isort_z[idx_thr:]
-                    top_warmup_actions = warmup_actions[idx_top_z]
-                    top_warmup_rewards = warmup_rewards[idx_top_z]
+                if (agent.buffer_counter >= agent.min_buffer_counter) and is_ref_plot==False:
+                    top_warmup_actions = agent.top_actions
+                    top_warmup_rewards = agent.top_rewards
                     print(top_warmup_rewards.shape)
                     #print('top_warmup_actions:', top_warmup_actions)
                     if agent.num_actions==1:
@@ -218,9 +212,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         # sns.kdeplot(top_warmup_actions[:,i], weights=np.squeeze(top_warmup_rewards), ax=axis[i,1],
                         #             color='orange', fill=True, alpha=.5, linewidth=1, label='Warmup Parameter')
                     plt.tight_layout()
-                    plt.savefig(logdir + f'/top{int(thr*100)}_warmup_action.png')
+                    plt.savefig(logdir + f'/top{int(agent.n_top)}_warmup_action_{agent.buffer_counter / nsavefig}.png')
                     plt.close()
-                    is_ref_plot=True
+                    # is_ref_plot=True
 
             # End this episode when `done` is True
             if done_old:
