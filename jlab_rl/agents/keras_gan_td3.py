@@ -141,17 +141,17 @@ class KerasGenerativeTD3(KerasTD3):
     def train_actor(self, states):
         dist_loss = 0
         td_loss = 0
-        if self.buffer_counter>=np.max([self.batch_size, 2*self.min_buffer_counter]):
+        #if self.buffer_counter>=np.max([self.batch_size, 2*self.min_buffer_counter]):
             # Use Critic 1
-            next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
-            with tf.GradientTape() as tape:
-                actions = self.actor_model([states, next_rdm_gaus], training=True)
-                q_value = self.critic_model1([states, actions], training=False)
-                #q_value2 = self.critic_model2([states, actions], training=False)
-                #q_value = tf.keras.layers.Average()([q_value1, q_value2])
-                td_loss = -tf.math.reduce_mean(q_value)
-            gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
-            self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+        with tf.GradientTape() as tape:
+            actions = self.actor_model([states, next_rdm_gaus], training=True)
+            q_value = self.critic_model1([states, actions], training=False)
+            #q_value2 = self.critic_model2([states, actions], training=False)
+            #q_value = tf.keras.layers.Average()([q_value1, q_value2])
+            td_loss = -tf.math.reduce_mean(q_value)
+        gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
+        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
 
         with tf.GradientTape() as tape:
@@ -206,14 +206,17 @@ class KerasGenerativeTD3(KerasTD3):
             #rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
             rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
             sampled_actions = self.actor_model([states, rdm_norms])
-            # # print("Sampled action shape: ", sampled_actions.shape)
-            # #
+
             if train:
                sampled_actions = np.random.normal(sampled_actions, 0.5, sampled_actions.shape)
 
+            # TODO: should be a larger ensemble than two!
             new_q1 = self.target_critic1([states, sampled_actions])
             new_q2 = self.target_critic2([states, sampled_actions])
-            rewards = tf.math.maximum(new_q1, new_q2)
+
+            q_mean = np.mean( [new_q1, new_q2], axis=0)
+            q_std = np.std([new_q1, new_q2], axis=0)
+            q_ucb = q_mean + 3.0*q_std
 
             # ============ Dynamic Reference ==============================
             if self.dynamic_ref:
@@ -228,25 +231,34 @@ class KerasGenerativeTD3(KerasTD3):
                 self.top_rewards = merged_top_reward[isort_top_reward]
 
             # ========================================================================
-            
-            rewards = np.squeeze(rewards)
 
-            # Option #1: randomly sample to n-th percent -  works for X_square problem
-            isort_reward = np.argsort(rewards)
-            isort_reward_sub = isort_reward[int(-0.25*nrepeats):]
-            rdm_idx = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
-            # print(rdm_idx)
-            # print(isort_reward_sub)
-            # print(rewards[isort_reward_sub])
-            # print(rewards[rdm_idx])
-            sampled_action = sampled_actions[rdm_idx]
-            # print("Sampled action shape after isort: ", sampled_action.shape)
-            noise = np.squeeze(np.zeros(sampled_action.shape))
+            q_ucb = np.squeeze(q_ucb)
 
-            # Option #2: Pick best version
-            # ireward = np.argmax(rewards)
-            # sampled_action = sampled_actions[ireward]
+            tf.summary.histogram('Action q_mean', data=q_mean, step=int(self.nactions))
+            tf.summary.histogram('Action q_std', data=q_std, step=int(self.nactions))
+            tf.summary.histogram('Action q_ucb', data=q_ucb, step=int(self.nactions))
+
+            # TODO: Make this an argument
+
+            # Option #1: randomly sample to n-th percent
+            # isort_reward = np.argsort(q_ucb)
+            # isort_reward_sub = isort_reward[int(-0.25*nrepeats):]
+            # rdm_idx = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
+            # sampled_action = sampled_actions[rdm_idx]
             # noise = tf.zeros(sampled_action.shape)
+
+            # # Option #2: Pick best version
+            ireward = np.argmax(q_ucb)
+            sampled_action = sampled_action[ireward]
+            noise = tf.zeros(sampled_action.shape)
+
+            # # Option #1: randomly sample to n-th percent
+            # isort_reward = np.argsort(rewards)
+            # isort_reward_sub = isort_reward[int(-0.05*nrepeats):]
+            # rdm_idx = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
+            # sampled_action = sampled_actions[rdm_idx]
+            # noise = np.squeeze(np.zeros(sampled_action.shape))
+            #
 
 
             # Option 3
