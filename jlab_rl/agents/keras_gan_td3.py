@@ -222,7 +222,7 @@ class KerasGenerativeTD3(KerasTD3):
             if self.dynamic_ref:
                 merged_top_actions = np.concatenate([self.top_actions, sampled_actions])
                 merged_top_states = np.concatenate([self.top_states, states])
-                merged_top_reward = np.concatenate([self.top_rewards, rewards])
+                merged_top_reward = np.concatenate([self.top_rewards, q_ucb])
                 isort_reward = np.argsort(np.squeeze(merged_top_reward))
                 isort_top_reward = isort_reward[-self.n_top:]
                 # print(isort_top_reward)
@@ -249,17 +249,8 @@ class KerasGenerativeTD3(KerasTD3):
 
             # # Option #2: Pick best version
             ireward = np.argmax(q_ucb)
-            sampled_action = sampled_action[ireward]
+            sampled_action = sampled_actions[ireward]
             noise = tf.zeros(sampled_action.shape)
-
-            # # Option #1: randomly sample to n-th percent
-            # isort_reward = np.argsort(rewards)
-            # isort_reward_sub = isort_reward[int(-0.05*nrepeats):]
-            # rdm_idx = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
-            # sampled_action = sampled_actions[rdm_idx]
-            # noise = np.squeeze(np.zeros(sampled_action.shape))
-            #
-
 
             # Option 3
             # nrepeats = 1
