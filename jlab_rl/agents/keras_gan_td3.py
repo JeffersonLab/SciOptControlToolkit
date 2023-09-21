@@ -79,8 +79,7 @@ class KerasGenerativeTD3(KerasTD3):
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
         for _ in range(self.ncritic_layers):
             state_action = tf.keras.layers.Dense(self.hidden_size, activation=tf.keras.activations.selu)(state_action)
-        #state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
-        outputs = tf.keras.layers.Dense(1)(state_action)
+        outputs = tf.keras.layers.Dense(1, activation='linear')(state_action)
 
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)
@@ -113,7 +112,6 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
-        q_1sigma = 0.841
         #next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
         next_rdm_gaus = tf.random.uniform([next_states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
@@ -209,6 +207,8 @@ class KerasGenerativeTD3(KerasTD3):
                 isort_reward = np.argsort(np.squeeze(w_rewards))
                 self.n_top = int(0.25 * self.min_buffer_counter)
                 isort_top_reward = isort_reward[-self.n_top:]
+                print('total/filtered: ', w_rewards.shape, self.n_top)
+                sys.exit()
                 self.top_states = w_states[isort_top_reward]
                 self.top_actions = w_actions[isort_top_reward]
                 self.top_rewards = w_rewards[isort_top_reward]
@@ -221,7 +221,6 @@ class KerasGenerativeTD3(KerasTD3):
             # Try multiple times
             nrepeats = 100
             states = tf.repeat(state, nrepeats, axis=0)
-            #rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
             rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
             sampled_actions = self.actor_model([states, rdm_norms])
 
@@ -235,21 +234,6 @@ class KerasGenerativeTD3(KerasTD3):
             q_mean = np.mean( [new_q1, new_q2], axis=0)
             q_std = np.std([new_q1, new_q2], axis=0)
             q_ucb = q_mean + 3.0*q_std
-
-            # ============ Dynamic Reference ==============================
-            if self.dynamic_ref:
-                merged_top_actions = np.concatenate([self.top_actions, sampled_actions])
-                merged_top_states = np.concatenate([self.top_states, states])
-                merged_top_reward = np.concatenate([self.top_rewards, q_ucb])
-                isort_reward = np.argsort(np.squeeze(merged_top_reward))
-                isort_top_reward = isort_reward[-self.n_top:]
-                # print(isort_top_reward)
-                self.top_states = merged_top_states[isort_top_reward]
-                self.top_actions = merged_top_actions[isort_top_reward]
-                self.top_rewards = merged_top_reward[isort_top_reward]
-
-            # ========================================================================
-
             q_ucb = np.squeeze(q_ucb)
 
             tf.summary.histogram('Action q_mean', data=q_mean, step=int(self.nactions))
@@ -287,6 +271,19 @@ class KerasGenerativeTD3(KerasTD3):
             print('action/reward:', sampled_action,sampled_reward )
             noise = tf.zeros(sampled_action.shape)
 
+            # ============ Dynamic Reference ==============================
+            if self.dynamic_ref:
+                merged_top_actions = np.concatenate([self.top_actions, sampled_actions])
+                merged_top_states = np.concatenate([self.top_states, states])
+                merged_top_reward = np.concatenate([self.top_rewards, q_ucb])
+                isort_reward = np.argsort(np.squeeze(merged_top_reward))
+                isort_top_reward = isort_reward[-self.n_top:]
+                # print(isort_top_reward)
+                self.top_states = merged_top_states[isort_top_reward]
+                self.top_actions = merged_top_actions[isort_top_reward]
+                self.top_rewards = merged_top_reward[isort_top_reward]
+
+            # ========================================================================
 
         #sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
