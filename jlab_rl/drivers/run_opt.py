@@ -151,7 +151,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                 a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
 
-                if agent.next_state_buffer.shape[1] > 1:
+                if agent.next_state_buffer.shape[1] == 2:
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
                     ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
@@ -172,15 +172,15 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 if agent.num_actions == 1:
                     figure, axis = plt.subplots(2, figsize=(20, 16))
                     sns.kdeplot(x=np.squeeze(a), ax=axis[0],
-                                color='green', fill=True, alpha=.5, linewidth=1, label='Warmup Parameter')
+                                color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.25, label='Warmup Parameter')
                     sns.kdeplot(x=np.squeeze(a), y=np.squeeze(z), ax=axis[1],
-                                alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", label='Warmup Parameter')
+                                alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.25,label='Warmup Parameter')
                 else:
                     for i in range(agent.num_actions):
                         sns.kdeplot(x=a[:, i], ax=axis[i, 0],
-                                    color='green', fill=True, alpha=.5, linewidth=1, label='Warmup Parameter')
+                                    color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.25,label='Warmup Parameter')
                         sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
-                                    alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", label='Warmup Parameter')
+                                    alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.25,label='Warmup Parameter')
                 plt.title(f'Episode {ep} - Reward: {np.mean(z)}')
                 plt.savefig(logdir + '/reward_action_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()

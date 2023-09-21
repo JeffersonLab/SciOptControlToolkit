@@ -26,7 +26,7 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import sys
+import sys, random
 #import jlab_rl as jlab_rl
 import tensorflow as tf
 from jlab_rl.models.state_generator import Generator_v3 as Generator
@@ -49,6 +49,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.norm_sdt = 0.0175
         self.nactor_layers = 5 # (was 4)
         self.ncritic_layers = 5
+        self.hidden_size = 256
 
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
@@ -62,6 +63,23 @@ class KerasGenerativeTD3(KerasTD3):
 
         # Re-init models
         self.initialize_new_models()
+
+    def get_critic(self):
+
+        # State as input
+        state_input = tf.keras.layers.Input(shape=(self.num_states))
+        # Action as input
+        action_input = tf.keras.layers.Input(shape=(self.num_actions))
+        state_action = tf.keras.layers.Concatenate()([state_input, action_input])
+        for _ in range(self.ncritic_layers):
+            state_action = tf.keras.layers.Dense(self.hidden_size, activation=tf.keras.activations.selu)(state_action)
+        #state_action2 = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action1)
+        outputs = tf.keras.layers.Dense(1)(state_action)
+
+        # Outputs single value for give state-action
+        model = tf.keras.Model([state_input, action_input], outputs)
+        #print('Critic model:',model.summary())
+        return model
 
     def get_actor(self):
         model = Generator(ndims=self.num_actions, nlayers=self.nactor_layers, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
@@ -224,26 +242,27 @@ class KerasGenerativeTD3(KerasTD3):
             # noise = tf.zeros(sampled_action.shape)
 
             # # Option #2: Pick best version
-            ireward = np.argmax(q_ucb)
-            sampled_action = sampled_actions[ireward]
+            # ireward = np.argmax(q_ucb)
+            # sampled_action = sampled_actions[ireward]
+            # noise = tf.zeros(sampled_action.shape)
+
+            # Option #3: Contour
+            self.epsilon = 0.85 # Need to add annealing
+            q_threshold = np.quantile(q_ucb, self.epsilon)
+            # print('min/max:', np.min(q_ucb), np.max(q_ucb))
+            # print('q_threshold:', q_threshold)
+            percentile_xyz = []
+            for i, val in enumerate(zip(sampled_actions, q_ucb)):
+                this_action, this_ucb = val
+                if this_ucb >= q_threshold:
+                    percentile_xyz.append( (this_action,this_ucb) )
+            rdm_action_q_ucb = random.choice(percentile_xyz)
+
+            sampled_action = rdm_action_q_ucb[0]
+            sampled_reward = rdm_action_q_ucb[1]
+            print('action/reward:', sampled_action,sampled_reward )
             noise = tf.zeros(sampled_action.shape)
 
-            # # Option #1: randomly sample to n-th percent
-            # isort_reward = np.argsort(rewards)
-            # isort_reward_sub = isort_reward[int(-0.05*nrepeats):]
-            # rdm_idx = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
-            # sampled_action = sampled_actions[rdm_idx]
-            # noise = np.squeeze(np.zeros(sampled_action.shape))
-            #
-
-
-            # Option 3
-            # nrepeats = 1
-            # rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
-            # sampled_action = self.actor_model([state, rdm_norms])
-            # sampled_action = np.random.normal(sampled_action, 0.5, sampled_action.shape)
-            # noise = np.squeeze(np.zeros(sampled_action.shape))
-            # sampled_action = np.squeeze(sampled_action)
 
         #sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
