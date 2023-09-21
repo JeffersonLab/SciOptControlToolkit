@@ -7,10 +7,11 @@ from jlab_rl.envs.gaussian_gan_env_v0 import ProxyGaussian
 from jlab_rl.envs.sin_env import sin_env as sin_env
 from jlab_rl.envs.x_square_env import XSquareEnv as XSquareEnv
 
-# Register the proxy app
+
 register(
-    id='DnC2s-SinX-v0',
-    entry_point='jlab_rl.envs:sin_env',
+    id='DnC2s-FixedStatefullCircle2DEnv-v1',
+    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
+    kwargs={'ndim': 2, 'rdm_reset_mode': 'fixed', 'statefull': True},
 )
 
 register(
@@ -20,12 +21,24 @@ register(
 
 )
 
+register(
+    id='DnC2s-HeatObj-FixedStatefullCEBAF2DEnv-v0',
+    entry_point='jlab_rl.envs:cebaf_env',
+    kwargs={'linac': '1l10_test2', 'objective': 'heat', 'rdm_reset_mode': 'fixed'}
+)
+
 # Register the proxy app
 # register(
 #     id='DnC2s-ProxyApp-v0',
 #     entry_point='jlab_rl.envs:proxy_app',
 #     kwargs={'loss_type': 'default'},
 # )
+
+# Register the proxy app
+register(
+    id='DnC2s-SinX-v0',
+    entry_point='jlab_rl.envs:sin_env',
+)
 
 register(
     id='DnC2s-ProxyAppXsec-v0',
@@ -76,11 +89,7 @@ register(
     kwargs={'ndim': 2, 'rdm_reset_mode': 'circle', 'statefull': True},
 )
 
-register(
-    id='DnC2s-FixedStatefullCircle2DEnv-v1',
-    entry_point='jlab_rl.envs:circle_constraint_statefull_env',
-    kwargs={'ndim': 2, 'rdm_reset_mode': 'fixed', 'statefull': True},
-)
+
 
 # This environment is stateless: meaning the action overides the state
 register(
@@ -111,11 +120,7 @@ register(
 )
 
 # This environment is stateless: meaning the action overides the state
-register(
-    id='DnC2s-CEBAF2DEnv-v0',
-    entry_point='jlab_rl.envs:cebaf_env',
-    kwargs={'linac': '1l10_test2'}
-)
+
 
 register(
     id='DnC2s-CEBAF4DEnv-v0',
