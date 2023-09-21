@@ -34,7 +34,7 @@ import numpy as np
 
 
 class XSquareEnv(gym.Env):
-    def __init__(self, ndim=1, rdm_reset_mode='uniform', statefull=True):
+    def __init__(self, ndim=1, rdm_reset_mode='fixed', statefull=True):
         self.ndim = ndim
         self.rdm_reset_mode = rdm_reset_mode
         self.statefull = statefull
@@ -50,7 +50,7 @@ class XSquareEnv(gym.Env):
             self.states = action
 
         # reward = - np.log(np.abs(radius - self.target_radius)) - 100 * np.square(radius - self.target_radius)
-        reward = - np.sum(np.abs(np.square(action) - self.target_value))
+        reward = - np.sum(np.abs(np.square(self.states) - self.target_value))
         # if self.states.any() > 1.5:
         #     reward = -99
         # if self.states.any() < -1.5:

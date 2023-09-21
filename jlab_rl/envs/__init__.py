@@ -14,7 +14,7 @@ register(
 )
 
 register(
-    id='DnC2s-XSquare-v0',
+    id='DnC2s-FixedXSquare-v0',
     entry_point='jlab_rl.envs:XSquareEnv',
 )
 

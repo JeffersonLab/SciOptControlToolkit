@@ -69,7 +69,7 @@ class KerasGenerativeTD3(KerasTD3):
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
         self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
-        if self.buffer_counter >= self.batch_size:#np.max([):#, self.min_buffer_counter]):
+        if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]):
             self.ntrain_actor_calls += 1
 
             # Calculate the new 5%
@@ -89,6 +89,7 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
+        q_1sigma = 0.841
         #next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
         next_rdm_gaus = tf.random.uniform([next_states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
@@ -109,6 +110,7 @@ class KerasGenerativeTD3(KerasTD3):
             #priority_buffer1 = np.abs(td_errors1.numpy()+1e-8)
             #self.priority_buffer1 = tf.math.abs(td_errors1)
             critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
+            #critic_loss1 = tf.reduce_mean(tf.maximum(q_1sigma * td_errors1, (q_1sigma - 1) * td_errors1))
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
         self.critic_optimizer1.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
 
