@@ -133,18 +133,19 @@ class KerasGenerativeTD3(KerasTD3):
 
     #@tf.function
     def train_actor(self, states):
-        # Use Critic 1
+        dist_loss = 0
         td_loss = 0
-        # next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
-        # #next_rdm_gaus = tf.random.uniform([states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
-        # with tf.GradientTape() as tape:
-        #     actions = self.actor_model([states, next_rdm_gaus], training=True)
-        #     q_value = self.critic_model1([states, actions], training=False)
-        #     #q_value2 = self.critic_model2([states, actions], training=False)
-        #     #q_value = tf.keras.layers.Average()([q_value1, q_value2])
-        #     td_loss = -tf.math.reduce_mean(q_value)
-        # gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
-        # self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        if self.buffer_counter>=np.max([self.batch_size, 2*self.min_buffer_counter]):
+            # Use Critic 1
+            next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+            with tf.GradientTape() as tape:
+                actions = self.actor_model([states, next_rdm_gaus], training=True)
+                q_value = self.critic_model1([states, actions], training=False)
+                #q_value2 = self.critic_model2([states, actions], training=False)
+                #q_value = tf.keras.layers.Average()([q_value1, q_value2])
+                td_loss = -tf.math.reduce_mean(q_value)
+            gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
+            self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
         # Add KL-div using top 5% of the warmup samples
         w_rewards = self.reward_buffer[0:self.min_buffer_counter]
@@ -163,10 +164,9 @@ class KerasGenerativeTD3(KerasTD3):
             this_actions = tf.cast(this_actions, dtype=tf.float32)
             top_actions = tf.cast(top_actions, dtype=tf.float32)
             if top_actions.shape[1] > 1:
-                score, score1, score2 = get_score(this_actions,top_actions) # For ND problems
+                score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
             else:
                 score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
-            
 
         dist_loss = score
         gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)

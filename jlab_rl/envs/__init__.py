@@ -14,8 +14,10 @@ register(
 )
 
 register(
-    id='DnC2s-FixedXSquare-v0',
+    id='DnC2s-FixedStatefullXSquare-v0',
     entry_point='jlab_rl.envs:XSquareEnv',
+    kwargs={'rdm_reset_mode': 'fixed', 'statefull': True},
+
 )
 
 # Register the proxy app
