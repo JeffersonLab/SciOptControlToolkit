@@ -58,7 +58,7 @@ class KerasGenerativeTD3(KerasTD3):
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasGenerativeTD3 __init__')
-        self.batch_size = 1000
+        self.batch_size = 250
         self.ntrain_actor_calls = 0
 
         # self.top_action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
@@ -117,8 +117,7 @@ class KerasGenerativeTD3(KerasTD3):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         #
-        #next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
-        next_rdm_gaus = tf.random.uniform([next_states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+        next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
         # Do we need this noise ?
         noises = tf.random.normal(next_actions.shape, 0, 0.2)
@@ -161,7 +160,6 @@ class KerasGenerativeTD3(KerasTD3):
 
     #@tf.function
     def train_actor(self, states):
-        dist_loss = 0
         #td_loss = 0
         next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
         with tf.GradientTape() as tape:
@@ -173,6 +171,7 @@ class KerasGenerativeTD3(KerasTD3):
         gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
+        #dist_loss = 0
         with tf.GradientTape() as tape:
             top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
                                                   self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
@@ -195,12 +194,15 @@ class KerasGenerativeTD3(KerasTD3):
         self.nactions.assign(self.nactions + 1)
         state = np.expand_dims(state, 0)
 
-        if self.buffer_counter < np.max([self.batch_size, self.min_buffer_counter])-1:
+        max_size = np.max([self.batch_size, self.min_buffer_counter])-1
+        if self.buffer_counter < max_size:
             #true_params = self.env.true_params #[0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
             #sampled_action = np.random.normal(true_params, 0.25)
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
-        elif self.buffer_counter < 4*self.min_buffer_counter:
+            #print('Rdm sampled_action: ', sampled_action.shape)
+
+        elif self.buffer_counter >= max_size and self.buffer_counter < 4*max_size:
             nrepeats = 500
             states = tf.repeat(state, nrepeats, axis=0)
             rdm_actions = tf.random.uniform([nrepeats, self.num_actions], \
@@ -227,6 +229,7 @@ class KerasGenerativeTD3(KerasTD3):
             sampled_action = rdm_action_q_ucb[0]
             #ampled_q = rdm_action_q_ucb[1]
             noise = tf.zeros(sampled_action.shape)
+            #print('Critic-Q sampled_action: ', sampled_action.shape)
 
         else:
 
@@ -269,6 +272,7 @@ class KerasGenerativeTD3(KerasTD3):
             ireward = np.argmax(new_q)
             sampled_action = sampled_actions[ireward]
             noise = tf.zeros(sampled_action.shape)
+            #print('Policy sampled_action: ', sampled_action.shape)
 
             # Option #3: Contour
             # self.epsilon = 0.75 # Need to add annealing
@@ -294,7 +298,6 @@ class KerasGenerativeTD3(KerasTD3):
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-        #print('legal_action: ', legal_action.shape)
         return [np.squeeze(legal_action)], [np.squeeze(noise)]
 
     def memory(self, obs_tuple):
@@ -318,6 +321,7 @@ class KerasGenerativeTD3(KerasTD3):
                 w_rewards = self.reward_buffer[0:self.min_buffer_counter]
                 w_states = self.state_buffer[0:self.min_buffer_counter]
                 w_actions = self.action_buffer[0:self.min_buffer_counter]
+                #print('w_actions: ', w_actions.shape)
                 isort_reward = np.argsort(np.squeeze(w_rewards))
                 #self.n_top = int(0.25 * self.min_buffer_counter)
                 isort_top_reward = isort_reward[-self.n_top:]
@@ -325,12 +329,17 @@ class KerasGenerativeTD3(KerasTD3):
                 # sys.exit()
                 self.top_states = w_states[isort_top_reward]
                 self.top_actions = w_actions[isort_top_reward]
+                #print('top_actions: ', self.top_actions.shape)
+
                 self.top_rewards = np.squeeze(w_rewards[isort_top_reward])
             # ============ Dynamic Reference ==============================
             elif (self.dynamic_ref):
-                # print('new reward:',obs_tuple[2])
+                action = obs_tuple[1]
+                action = np.expand_dims(obs_tuple[1], axis=0)
+                if self.num_actions==1:
+                    action = np.expand_dims(action, axis=0)
                 merged_top_states = np.concatenate([self.top_states, np.expand_dims(obs_tuple[0], axis=0)])
-                merged_top_actions = np.concatenate([self.top_actions, np.expand_dims(obs_tuple[1], axis=0)])
+                merged_top_actions = np.concatenate([self.top_actions, action])
                 merged_top_reward = np.concatenate([self.top_rewards, np.expand_dims(obs_tuple[2], axis=0)])
                 isort_reward = np.argsort(np.squeeze(merged_top_reward))
                 isort_top_reward = isort_reward[-self.n_top:]

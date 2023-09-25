@@ -71,10 +71,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         env = gym.make(env_id, exclude_current_positions_from_observation=False)
     elif 'Proxy' in env_id:
         env = gym.make(env_id,logdir=logdir)
-        test_env = gym.make(env_id, logdir=logdir)
+        #test_env = gym.make(env_id, logdir=logdir)
     else:
         env = gym.make(env_id)
-        test_env = gym.make(env_id)
+        #test_env = gym.make(env_id)
 
     env._max_episode_steps = max_nsteps
 
@@ -132,7 +132,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 action = np.squeeze(action)
             # if agent_id == 'KerasGenerativeTD3-v0':
             #     action = np.squeeze(action)
-            # print('action: ', action.shape)
+            #print('run_opt action: ', action.shape)
             state, reward, done_old, done, info = env.step(action)
             # done_old = float(done_old)
             # done = float(done)
