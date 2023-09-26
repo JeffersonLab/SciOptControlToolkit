@@ -52,7 +52,8 @@ class KerasGenerativeTD3(KerasTD3):
         self.hidden_size = 256
         self.dynamic_ref = dynamic_ref
         self.epsilon = 1
-        self.min_epsilon = 0.1
+        self.min_epsilon = 0.05
+        self.best_qvalue = -9999
         self.decay_epsilon = 0.999
 
         # Get env info
@@ -69,6 +70,8 @@ class KerasGenerativeTD3(KerasTD3):
         self.top_actions = None
         self.top_rewards = None
         self.n_top = warmup_size
+        self.max_size = np.max([self.batch_size, self.min_buffer_counter])
+
 
         # Re-init models
         self.initialize_new_models()
@@ -188,115 +191,162 @@ class KerasGenerativeTD3(KerasTD3):
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
         return td_loss, dist_loss
 
+    def get_critic_qvalue(self, state):
+        nrepeats = 100
+        states = tf.repeat(state, nrepeats, axis=0)
+        rdm_actions = tf.random.uniform([nrepeats, self.num_actions], \
+                                        self.lower_bound, self.upper_bound, tf.float32, seed=time.time_ns())
+        new_q1 = self.target_critic1.predict_on_batch([states, rdm_actions])
+        new_q2 = self.target_critic2.predict_on_batch([states, rdm_actions])
+        q_mean = np.mean([new_q1, new_q2], axis=0)
+        q_std = np.std([new_q1, new_q2], axis=0)
+        q_ucb = q_mean + 3.0 * q_std
+        q_ucb = np.squeeze(q_ucb)
+
+        q_threshold = np.quantile(q_ucb, 1 - self.epsilon)
+        percentile_xyz, top_ucb_actions = [], []
+        for i, val in enumerate(zip(rdm_actions, q_ucb)):
+            this_action, this_ucb = val
+            if this_ucb >= q_threshold:
+                percentile_xyz.append((this_action, this_ucb))
+                top_ucb_actions.append(this_action)
+        rdm_action_q_ucb = random.choice(percentile_xyz)
+        return rdm_action_q_ucb
+
+    def get_policy_qvalue(self, state):
+        nrepeats = 100
+        states = tf.repeat(state, nrepeats, axis=0)
+        rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+        sampled_actions = self.actor_model([states, rdm_norms])
+        new_q1 = self.target_critic1([states, sampled_actions])
+        new_q2 = self.target_critic2([states, sampled_actions])
+        new_q = tf.math.maximum(new_q1,new_q2)
+        ireward = np.argmax(new_q)
+        sampled_action = sampled_actions[ireward]
+        return sampled_action, new_q[ireward]
+
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
 
         self.nactions.assign(self.nactions + 1)
         state = np.expand_dims(state, 0)
+        sampled_action = np.zeros(self.num_actions)
+        noise = np.zeros(self.num_actions)
 
-        max_size = np.max([self.batch_size, self.min_buffer_counter])-1
-        if self.buffer_counter < max_size:
-            #true_params = self.env.true_params #[0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
-            #sampled_action = np.random.normal(true_params, 0.25)
+        if self.buffer_counter <= self.max_size:
             sampled_action = self.env.action_space.sample()
-            noise = np.zeros(self.num_actions)
-            #print('Rdm sampled_action: ', sampled_action.shape)
+        else:
+            # Calculate q-value from critic sampling
+            rdm_action_q_ucb = self.get_critic_qvalue(state)
+            policy_action_q_ucb = self.get_policy_qvalue(state)
 
-        elif self.buffer_counter >= max_size and self.buffer_counter < 4*max_size:
-            nrepeats = 500
-            states = tf.repeat(state, nrepeats, axis=0)
-            rdm_actions = tf.random.uniform([nrepeats, self.num_actions], \
-                                            self.lower_bound, self.upper_bound, tf.float32, seed=time.time_ns())
-            new_q1 = self.target_critic1.predict_on_batch([states, rdm_actions])
-            new_q2 = self.target_critic2.predict_on_batch([states, rdm_actions])
-            q_mean = np.mean( [new_q1, new_q2], axis=0)
-            q_std = np.std([new_q1, new_q2], axis=0)
-            q_ucb = q_mean + 3.0*q_std
-            q_ucb = np.squeeze(q_ucb)
+            if policy_action_q_ucb[1]>rdm_action_q_ucb[1]:
+                sampled_action = policy_action_q_ucb[0]
+                self.epsilon = self.epsilon*self.decay_epsilon # Need to add annealing
+                self.epsilon = self.epsilon if self.epsilon>self.min_epsilon else self.min_epsilon
+            else:
+                sampled_action = rdm_action_q_ucb[0]
 
-            self.epsilon = self.epsilon*self.decay_epsilon # Need to add annealing
-            self.epsilon = self.epsilon if self.epsilon>self.min_epsilon else self.min_epsilon
-            # if self.epsilon == self.min_epsilon:
-            #     print('## Epsilon hit min')
-            q_threshold = np.quantile(q_ucb, 1-self.epsilon)
-            percentile_xyz, top_ucb_actions = [], []
-            for i, val in enumerate(zip(rdm_actions, q_ucb)):
-                this_action, this_ucb = val
-                if this_ucb >= q_threshold:
-                    percentile_xyz.append( (this_action,this_ucb) )
-                    top_ucb_actions.append(this_action)
-            rdm_action_q_ucb = random.choice(percentile_xyz)
             sampled_action = rdm_action_q_ucb[0]
-            #ampled_q = rdm_action_q_ucb[1]
+            sampled_q = rdm_action_q_ucb[1]
             noise = tf.zeros(sampled_action.shape)
             #print('Critic-Q sampled_action: ', sampled_action.shape)
-
-        else:
-
-            # Single try
-            # rdm_norms = tf.random.normal([1, self.rdm_intputs], 0, 1, tf.float64, seed=time.time_ns())
-            # sampled_action = self.actor_model([state, rdm_norms])
-
-            # Try multiple times
-            nrepeats = 100
-            states = tf.repeat(state, nrepeats, axis=0)
-            rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
-            sampled_actions = self.actor_model([states, rdm_norms])
-
-            # if train:
-            #    sampled_actions = np.random.normal(sampled_actions, 0.2, sampled_actions.shape)
-
-            # TODO: should be a larger ensemble than two!
-            new_q1 = self.target_critic1([states, sampled_actions])
-            new_q2 = self.target_critic2([states, sampled_actions])
-            new_q = tf.math.maximum(new_q1,new_q2)
-            # q_mean = np.mean( [new_q1, new_q2], axis=0)
-            # q_std = np.std([new_q1, new_q2], axis=0)
-            # q_ucb = q_mean + 0.0*q_std
-            # q_ucb = np.squeeze(q_ucb)
-
-            # tf.summary.histogram('Action q_mean', data=q_mean, step=int(self.nactions))
-            # tf.summary.histogram('Action q_std', data=q_std, step=int(self.nactions))
-            # tf.summary.histogram('Action q_ucb', data=q_ucb, step=int(self.nactions))
-
-            # TODO: Make this an argument
-
-            # Option #1: randomly sample to n-th percent
-            # isort_reward = np.argsort(q_ucb)
-            # isort_reward_sub = isort_reward[int(-0.25*nrepeats):]
-            # rdm_idx = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
-            # sampled_action = sampled_actions[rdm_idx]
-            # noise = tf.zeros(sampled_action.shape)
-
-            # # Option #2: Pick best version
-            ireward = np.argmax(new_q)
-            sampled_action = sampled_actions[ireward]
-            noise = tf.zeros(sampled_action.shape)
-            #print('Policy sampled_action: ', sampled_action.shape)
-
-            # Option #3: Contour
-            # self.epsilon = 0.75 # Need to add annealing
-            # q_threshold = np.quantile(q_ucb, self.epsilon)
-            # # print('min/max:', np.min(q_ucb), np.max(q_ucb))
-            # # print('q_threshold:', q_threshold)
-            # percentile_xyz, top_ucb_actions = [], []
-            # for i, val in enumerate(zip(sampled_actions, q_ucb)):
-            #     this_action, this_ucb = val
-            #     if this_ucb >= q_threshold:
-            #         percentile_xyz.append( (this_action,this_ucb) )
-            #         top_ucb_actions.append(this_action)
-            # rdm_action_q_ucb = random.choice(percentile_xyz)
-            #
-            # sampled_action = rdm_action_q_ucb[0]
-            # sampled_q = rdm_action_q_ucb[1]
-            # print('action/reward:', sampled_action, sampled_q )
-            # noise = tf.zeros(sampled_action.shape)
+        # elif self.buffer_counter >= max_size and self.buffer_counter < 4*max_size:
+        #     nrepeats = 500
+        #     states = tf.repeat(state, nrepeats, axis=0)
+        #     rdm_actions = tf.random.uniform([nrepeats, self.num_actions], \
+        #                                     self.lower_bound, self.upper_bound, tf.float32, seed=time.time_ns())
+        #     new_q1 = self.target_critic1.predict_on_batch([states, rdm_actions])
+        #     new_q2 = self.target_critic2.predict_on_batch([states, rdm_actions])
+        #     q_mean = np.mean( [new_q1, new_q2], axis=0)
+        #     q_std = np.std([new_q1, new_q2], axis=0)
+        #     q_ucb = q_mean + 3.0*q_std
+        #     q_ucb = np.squeeze(q_ucb)
+        #
+        #     self.epsilon = self.epsilon*self.decay_epsilon # Need to add annealing
+        #     self.epsilon = self.epsilon if self.epsilon>self.min_epsilon else self.min_epsilon
+        #     # if self.epsilon == self.min_epsilon:
+        #     #     print('## Epsilon hit min')
+        #     q_threshold = np.quantile(q_ucb, 1-self.epsilon)
+        #     percentile_xyz, top_ucb_actions = [], []
+        #     for i, val in enumerate(zip(rdm_actions, q_ucb)):
+        #         this_action, this_ucb = val
+        #         if this_ucb >= q_threshold:
+        #             percentile_xyz.append( (this_action,this_ucb) )
+        #             top_ucb_actions.append(this_action)
+        #     rdm_action_q_ucb = random.choice(percentile_xyz)
+        #     sampled_action = rdm_action_q_ucb[0]
+        #     #ampled_q = rdm_action_q_ucb[1]
+        #     noise = tf.zeros(sampled_action.shape)
+        #     #print('Critic-Q sampled_action: ', sampled_action.shape)
+        #
+        # else:
+        #
+        #     # Single try
+        #     # rdm_norms = tf.random.normal([1, self.rdm_intputs], 0, 1, tf.float64, seed=time.time_ns())
+        #     # sampled_action = self.actor_model([state, rdm_norms])
+        #
+        #     # Try multiple times
+        #     nrepeats = 100
+        #     states = tf.repeat(state, nrepeats, axis=0)
+        #     rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+        #     sampled_actions = self.actor_model([states, rdm_norms])
+        #
+        #     # if train:
+        #     #    sampled_actions = np.random.normal(sampled_actions, 0.2, sampled_actions.shape)
+        #
+        #     # TODO: should be a larger ensemble than two!
+        #     new_q1 = self.target_critic1([states, sampled_actions])
+        #     new_q2 = self.target_critic2([states, sampled_actions])
+        #     new_q = tf.math.maximum(new_q1,new_q2)
+        #     # q_mean = np.mean( [new_q1, new_q2], axis=0)
+        #     # q_std = np.std([new_q1, new_q2], axis=0)
+        #     # q_ucb = q_mean + 0.0*q_std
+        #     # q_ucb = np.squeeze(q_ucb)
+        #
+        #     # tf.summary.histogram('Action q_mean', data=q_mean, step=int(self.nactions))
+        #     # tf.summary.histogram('Action q_std', data=q_std, step=int(self.nactions))
+        #     # tf.summary.histogram('Action q_ucb', data=q_ucb, step=int(self.nactions))
+        #
+        #     # TODO: Make this an argument
+        #
+        #     # Option #1: randomly sample to n-th percent
+        #     # isort_reward = np.argsort(q_ucb)
+        #     # isort_reward_sub = isort_reward[int(-0.25*nrepeats):]
+        #     # rdm_idx = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
+        #     # sampled_action = sampled_actions[rdm_idx]
+        #     # noise = tf.zeros(sampled_action.shape)
+        #
+        #     # # Option #2: Pick best version
+        #     ireward = np.argmax(new_q)
+        #     sampled_action = sampled_actions[ireward]
+        #     noise = tf.zeros(sampled_action.shape)
+        #     #print('Policy sampled_action: ', sampled_action.shape)
+        #
+        #     # Option #3: Contour
+        #     # self.epsilon = 0.75 # Need to add annealing
+        #     # q_threshold = np.quantile(q_ucb, self.epsilon)
+        #     # # print('min/max:', np.min(q_ucb), np.max(q_ucb))
+        #     # # print('q_threshold:', q_threshold)
+        #     # percentile_xyz, top_ucb_actions = [], []
+        #     # for i, val in enumerate(zip(sampled_actions, q_ucb)):
+        #     #     this_action, this_ucb = val
+        #     #     if this_ucb >= q_threshold:
+        #     #         percentile_xyz.append( (this_action,this_ucb) )
+        #     #         top_ucb_actions.append(this_action)
+        #     # rdm_action_q_ucb = random.choice(percentile_xyz)
+        #     #
+        #     # sampled_action = rdm_action_q_ucb[0]
+        #     # sampled_q = rdm_action_q_ucb[1]
+        #     # print('action/reward:', sampled_action, sampled_q )
+        #     # noise = tf.zeros(sampled_action.shape)
 
         #sampled_action = np.squeeze(sampled_action)
         for i in range(self.num_actions):
             if self.num_actions > 1:
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
+        tf.summary.scalar('Annealing Term', data=self.epsilon, step=int(self.nactions))
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         return [np.squeeze(legal_action)], [np.squeeze(noise)]
 

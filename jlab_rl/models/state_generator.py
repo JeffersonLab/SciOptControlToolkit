@@ -108,11 +108,11 @@ class Generator_v3(tf.keras.Model):
     tf.random.set_seed(seed)
     self.ndims = ndims
     self.nlayers = nlayers
-    init = tf.keras.initializers.HeUniform(seed=seed)#RandomUniform(minval=-1.0, maxval=1.0, seed=seed)
+    #init = tf.keras.initializers.HeUniform(seed=seed)#RandomUniform(minval=-1.0, maxval=1.0, seed=seed)
     # init = tf.keras.initializers.VarianceScaling(
     #   scale=1, mode='fan_in', distribution='uniform')
 
-    #init = tf.keras.initializers.GlorotUniform(seed)
+    init = tf.keras.initializers.GlorotUniform(seed)
     self.nodes = 256
     self.denses1, self.denses2 = [], []
     self.bn1 = []
