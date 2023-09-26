@@ -247,9 +247,9 @@ class KerasGenerativeTD3(KerasTD3):
             else:
                 sampled_action = rdm_action_q_ucb[0]
 
-            sampled_action = rdm_action_q_ucb[0]
-            sampled_q = rdm_action_q_ucb[1]
-            noise = tf.zeros(sampled_action.shape)
+            # sampled_action = rdm_action_q_ucb[0]
+            # sampled_q = rdm_action_q_ucb[1]
+            # noise = tf.zeros(sampled_action.shape)
             #print('Critic-Q sampled_action: ', sampled_action.shape)
         # elif self.buffer_counter >= max_size and self.buffer_counter < 4*max_size:
         #     nrepeats = 500
