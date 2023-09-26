@@ -221,6 +221,7 @@ class KerasGenerativeTD3(KerasTD3):
         new_q1 = self.target_critic1([states, sampled_actions])
         new_q2 = self.target_critic2([states, sampled_actions])
         new_q = tf.math.maximum(new_q1,new_q2)
+        # TODO: should this be random like the critic method?
         ireward = np.argmax(new_q)
         sampled_action = sampled_actions[ireward]
         return sampled_action, new_q[ireward]
