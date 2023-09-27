@@ -118,10 +118,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 tf_prev_state = torch.Tensor([prev_state])
                 action = agent.action(tf_prev_state)
             else:
-                action, noise = agent.action(tf.convert_to_tensor(prev_state))
-                if np.isnan(noise).any():
-                    print('action:', action)
-                    sys.exit(-11)
+                action, action_type = agent.action(tf.convert_to_tensor(prev_state))
+                # if np.isnan(noise).any():
+                #     print('action:', action)
+                #     sys.exit(-11)
                 # TODO: We suspect this is to the the num_actions > 1
                 if env_id == "LunarLanderContinuous-v2":
                     action = action[0]
@@ -139,7 +139,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             # nsteps += 1
             # if done:
             #     print('old/new done: {}/{}({})'.format(done_old, done, estep))
-            agent.memory((prev_state, action, reward, state, done))
+            agent.memory((prev_state, action, reward, state, done, action_type))
             episodic_reward += reward
             agent.train()
             prev_state = state

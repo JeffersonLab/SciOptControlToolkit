@@ -45,7 +45,7 @@ class KerasGenerativeTD3(KerasTD3):
     def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, dynamic_ref=True, **kwargs):
         """ Define all key variables required for all agent """
 
-        self.rdm_intputs = 40
+        self.rdm_intputs = 100
         self.norm_sdt = 1#0.0175
         self.nactor_layers = 5 # (was 4)
         self.ncritic_layers = 5
@@ -59,7 +59,7 @@ class KerasGenerativeTD3(KerasTD3):
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasGenerativeTD3 __init__')
-        self.batch_size = 250
+        self.batch_size = 500
         self.ntrain_actor_calls = 0
 
         # self.top_action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
@@ -161,7 +161,7 @@ class KerasGenerativeTD3(KerasTD3):
         #self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
         return critic_loss1, critic_loss2
 
-    #@tf.function
+    @tf.function
     def train_actor(self, states):
         #td_loss = 0
         next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
@@ -200,7 +200,7 @@ class KerasGenerativeTD3(KerasTD3):
         new_q2 = self.target_critic2.predict_on_batch([states, rdm_actions])
         q_mean = np.mean([new_q1, new_q2], axis=0)
         q_std = np.std([new_q1, new_q2], axis=0)
-        q_ucb = q_mean + 3.0 * q_std
+        q_ucb = q_mean + 5.0 * q_std
         q_ucb = np.squeeze(q_ucb)
 
         q_threshold = np.quantile(q_ucb, 1 - self.epsilon)
@@ -220,33 +220,50 @@ class KerasGenerativeTD3(KerasTD3):
         sampled_actions = self.actor_model([states, rdm_norms])
         new_q1 = self.target_critic1([states, sampled_actions])
         new_q2 = self.target_critic2([states, sampled_actions])
-        new_q = tf.math.maximum(new_q1,new_q2)
+        #
         # TODO: should this be random like the critic method?
+        #if self.epsilon == self.min_epsilon:
+        new_q = tf.math.maximum(new_q1, new_q2)
         ireward = np.argmax(new_q)
         sampled_action = sampled_actions[ireward]
         return sampled_action, new_q[ireward]
+        # else:
+        #     q_mean = np.mean([new_q1, new_q2], axis=0)
+        #     q_std = np.std([new_q1, new_q2], axis=0)
+        #     q_ucb = q_mean + 5.0 * q_std
+        #     q_ucb = np.squeeze(q_ucb)
+        #     q_threshold = np.quantile(q_ucb, 1 - self.epsilon)
+        #     percentile_xyz, top_ucb_actions = [], []
+        #     for i, val in enumerate(zip(sampled_actions, q_ucb)):
+        #         this_action, this_ucb = val
+        #         if this_ucb >= q_threshold:
+        #             percentile_xyz.append((this_action, this_ucb))
+        #             top_ucb_actions.append(this_action)
+        #     policy_action_q_ucb = random.choice(percentile_xyz)
+        #     return policy_action_q_ucb
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
 
         self.nactions.assign(self.nactions + 1)
         state = np.expand_dims(state, 0)
-        sampled_action = np.zeros(self.num_actions)
-        noise = np.zeros(self.num_actions)
-
+        #sampled_action = np.zeros(self.num_actions)
+        #noise = np.zeros(self.num_actions)
+        action_type = 0
         if self.buffer_counter <= self.max_size:
             sampled_action = self.env.action_space.sample()
+            # print(sampled_action.shape)
+            # print(type(sampled_action))
         else:
             # Calculate q-value from critic sampling
             rdm_action_q_ucb = self.get_critic_qvalue(state)
             policy_action_q_ucb = self.get_policy_qvalue(state)
-
+            sampled_action = rdm_action_q_ucb[0].numpy()
             if policy_action_q_ucb[1]>rdm_action_q_ucb[1]:
-                sampled_action = policy_action_q_ucb[0]
                 self.epsilon = self.epsilon*self.decay_epsilon # Need to add annealing
                 self.epsilon = self.epsilon if self.epsilon>self.min_epsilon else self.min_epsilon
-            else:
-                sampled_action = rdm_action_q_ucb[0]
+                sampled_action = policy_action_q_ucb[0].numpy()
+                action_type = 1
 
             # sampled_action = rdm_action_q_ucb[0]
             # sampled_q = rdm_action_q_ucb[1]
@@ -348,8 +365,9 @@ class KerasGenerativeTD3(KerasTD3):
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
         tf.summary.scalar('Annealing Term', data=self.epsilon, step=int(self.nactions))
+        tf.summary.scalar('Action Type', data=action_type, step=int(self.nactions))
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-        return [np.squeeze(legal_action)], [np.squeeze(noise)]
+        return [np.squeeze(legal_action)], [action_type]
 
     def memory(self, obs_tuple):
         # Set index to zero if buffer_capacity is exceeded,
@@ -361,7 +379,8 @@ class KerasGenerativeTD3(KerasTD3):
         self.reward_buffer[index] = obs_tuple[2]
         self.next_state_buffer[index] = obs_tuple[3]
         self.done_buffer[index] = obs_tuple[4]
-
+        action_type = obs_tuple[5][0]
+        #print('action_type: ',action_type)
         #print('self.buffer_counter:', self.buffer_counter)
         self.buffer_counter += 1
 
@@ -384,7 +403,7 @@ class KerasGenerativeTD3(KerasTD3):
 
                 self.top_rewards = np.squeeze(w_rewards[isort_top_reward])
             # ============ Dynamic Reference ==============================
-            elif (self.dynamic_ref):
+            elif (self.dynamic_ref and action_type==0):
                 action = obs_tuple[1]
                 action = np.expand_dims(obs_tuple[1], axis=0)
                 if self.num_actions==1:
