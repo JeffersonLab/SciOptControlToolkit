@@ -47,12 +47,12 @@ class KerasGenerativeTD3(KerasTD3):
 
         self.rdm_intputs = 100
         self.norm_sdt = 1#0.0175
-        self.nactor_layers = 5 # (was 4)
-        self.ncritic_layers = 5
+        self.nactor_layers = 3 # (was 4)
+        self.ncritic_layers = 3
         self.hidden_size = 256
         self.dynamic_ref = dynamic_ref
         self.epsilon = 1
-        self.min_epsilon = 0.05
+        self.min_epsilon = 0.01
         self.best_qvalue = -9999
         self.decay_epsilon = 0.999
 
@@ -62,12 +62,20 @@ class KerasGenerativeTD3(KerasTD3):
         self.batch_size = 500
         self.ntrain_actor_calls = 0
 
+        self.ncritics = 7
+        self.critic_models = []
+        self.target_critics = []
+        self.critic_optimizers = []
+
+        # self.top_action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
+        # self.top_reward_buffer = np.zeros((self.buffer_capacity, 1))
+        # self.top_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
+
         self.top_states = None
         self.top_actions = None
         self.top_rewards = None
         self.n_top = warmup_size
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
-
 
         # Re-init models
         self.initialize_new_models()
@@ -107,8 +115,18 @@ class KerasGenerativeTD3(KerasTD3):
         
         if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]) and self.top_actions is not None:
             self.ntrain_actor_calls += 1
-            # Train Actor
-            td_loss, kl_loss = self.train_actor(state_batch)
+
+            # Calculate the new 5%
+            # isort_reward = np.argsort(np.squeeze(self.reward_buffer[0:self.buffer_counter]))
+            # idx_thr = int(0.95 * isort_reward.shape[0])#self.min_buffer_counter)
+            # isort_top_reward = isort_reward[idx_thr:]
+            # self.top_action_buffer = self.action_buffer[isort_top_reward]
+            # self.top_state_buffer = self.state_buffer[isort_top_reward]
+            # self.top_reward_buffer = self.reward_buffer[isort_top_reward]
+
+            # Train
+            td_loss, kl_loss = self.train_actor(self.top_states)
+            #td_loss, kl_loss = self.train_actor(state_batch)
             tf.summary.scalar('Actor TD-error Loss', data=td_loss, step=int(self.ntrain_actor_calls))
             tf.summary.scalar('Actor Distance Loss', data=kl_loss, step=int(self.ntrain_actor_calls))
             tf.summary.scalar('Actor Total Loss', data=td_loss + kl_loss, step=int(self.ntrain_actor_calls))
@@ -158,34 +176,60 @@ class KerasGenerativeTD3(KerasTD3):
         #self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
         return critic_loss1, critic_loss2
 
-    @tf.function
+    # @tf.function
+    # def train_actor(self, states):
+    #     #td_loss = 0
+    #     next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+    #     with tf.GradientTape() as tape:
+    #         actions = self.actor_model([states, next_rdm_gaus], training=True)
+    #         q_value = self.critic_model1([states, actions], training=False)
+    #         #q_value2 = self.critic_model2([states, actions], training=False)
+    #         #q_value = tf.keras.layers.Average()([q_value1, q_value2])
+    #         td_loss = -tf.math.reduce_mean(q_value)
+    #     gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
+    #     self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+    #
+    #     #dist_loss = 0
+    #     with tf.GradientTape() as tape:
+    #         top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
+    #                                               self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
+    #         this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
+    #         this_actions = tf.cast(this_actions, dtype=tf.float32)
+    #         top_actions = tf.cast(self.top_actions, dtype=tf.float32)
+    #         if top_actions.shape[1] > 1:
+    #             score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
+    #         else:
+    #             score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
+    #
+    #     dist_loss = score
+    #     gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
+    #     self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+    #     return td_loss, dist_loss
+
     def train_actor(self, states):
-        #td_loss = 0
         next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
         with tf.GradientTape() as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             q_value = self.critic_model1([states, actions], training=False)
-            #q_value2 = self.critic_model2([states, actions], training=False)
-            #q_value = tf.keras.layers.Average()([q_value1, q_value2])
             td_loss = -tf.math.reduce_mean(q_value)
         gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
-        #dist_loss = 0
-        with tf.GradientTape() as tape:
-            top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
-                                                  self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
-            this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
-            this_actions = tf.cast(this_actions, dtype=tf.float32)
-            top_actions = tf.cast(self.top_actions, dtype=tf.float32)
-            if top_actions.shape[1] > 1:
-                score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
-            else:
-                score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
-
-        dist_loss = score
-        gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
-        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        dist_loss = 0
+        # with tf.GradientTape() as tape:
+        #     top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
+        #                                           self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
+        #     this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
+        #     this_actions = tf.cast(this_actions, dtype=tf.float32)
+        #     top_actions = tf.cast(self.top_actions, dtype=tf.float32)
+        #     if top_actions.shape[1] > 1:
+        #         score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
+        #     else:
+        #         score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
+        #
+        # dist_loss = score
+        # gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
+        # self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
         return td_loss, dist_loss
 
     def get_critic_qvalue(self, state):
@@ -423,3 +467,20 @@ class KerasGenerativeTD3(KerasTD3):
                 self.top_rewards = merged_top_reward[isort_top_reward]
 
         # ========================================================================
+
+    # def initialize_new_models(self):
+    #     """ Initialize new models from scratch """
+    #     print('Running KerasTD3 initialize_new_models()')
+    #
+    #     self.actor_model = self.get_actor()
+    #     self.target_actor = self.get_actor()
+    #     self.target_actor.set_weights(self.actor_model.get_weights())
+    #
+    #     for i in range(self.ncritics):
+    #         seed = time.time_ns()
+    #         tf.random.set_seed(seed)
+    #         self.critic_models.append(self.get_critic())
+    #         self.target_critics.append(self.get_critic())
+    #         self.target_critics[i].set_weights(self.critic_models[i].get_weights())
+    #         self.critic_optimizers.append(tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08))
+    #         time.sleep(1 / 10)
