@@ -160,14 +160,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     ax.set_xlabel("X")
                     ax.set_ylabel("Y")
                     ax.grid(True, linestyle='-', color='0.75')
-                    x = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
-                    y = agent.next_state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
+                    x = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
+                    y = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
                     # scatter with colormap mapping to z value
                     cb = ax.scatter(x, y, s=20, c=z, marker='o', cmap=cm.jet);
                     plt.xlim(-1.2, 1.2)
                     plt.ylim(-1.2, 1.2)
                     plt.colorbar(cb)
-                    plt.savefig(logdir+'/xy_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+                    plt.savefig(logdir+'/current_xy_action_reward_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
                 #
                 figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
@@ -184,7 +184,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
                                     alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
                 plt.title(f'Episode {ep} - Reward: {np.mean(z)}')
-                plt.savefig(logdir + '/current_reward_action_dist_{}.png'.format(agent.buffer_counter / nsavefig))
+                plt.savefig(logdir + '/current_action_reward_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
 
                 if (agent.buffer_counter >= agent.min_buffer_counter) and is_ref_plot==False:
@@ -195,27 +195,43 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     if agent.num_actions==1:
                         figure, axis = plt.subplots(2, figsize=(20, 16))
                         sns.kdeplot(x=np.squeeze(top_warmup_actions), ax=axis[0],
-                                    color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.5, label='Warmup Parameter')
+                                    color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.25, label='Warmup Parameter')
                         sns.kdeplot(x=np.squeeze(top_warmup_actions), y=np.squeeze(top_warmup_rewards), ax=axis[1],
-                                    alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5, label='Warmup Parameter')
+                                    alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.25, label='Warmup Parameter')
                     else:
                         figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
                         for i in range(agent.num_actions):
                             sns.kdeplot(x=top_warmup_actions[:, i], ax=axis[i,0],
-                                        color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.5, label='Warmup Parameter')
+                                        color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.25, label='Warmup Parameter')
                             sns.kdeplot(x=top_warmup_actions[:, i], y=np.squeeze(top_warmup_rewards), ax=axis[i,1],
-                                          alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,  label='Warmup Parameter')
+                                          alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.25,  label='Warmup Parameter')
                             if "Proxy" in env_id:
                                 axis[i, 0].axvline(x=env.true_params[i], color='r', label='True Parameter')
                                 axis[i, 1].axvline(x=env.true_params[i], color='r', label='True Parameter')
                                 axis[i, 1].set_ylabel('Reward')
                                 axis[i, 0].set_xlim(0, 1)
                                 axis[i, 1].set_xlim(0, 1)
-                        # sns.kdeplot(top_warmup_actions[:,i], weights=np.squeeze(top_warmup_rewards), ax=axis[i,1],
-                        #             color='orange', fill=True, alpha=.5, linewidth=1, label='Warmup Parameter')
+
                     plt.tight_layout()
-                    plt.savefig(logdir + f'/top{int(agent.n_top)}_warmup_action_{agent.buffer_counter / nsavefig}.png')
+                    plt.savefig(logdir + f'/top{int(agent.n_top)}_action_dist_{agent.buffer_counter / nsavefig}.png')
                     plt.close()
+
+                    if agent.num_actions == 2:
+                        fig = plt.figure(figsize=(6, 6))
+                        ax = fig.add_subplot(111)
+                        ax.set_title('Top Episode {}\n{}\n{}'.format(ep, agent_id, env_id))
+                        ax.set_xlabel("X")
+                        ax.set_ylabel("Y")
+                        ax.grid(True, linestyle='-', color='0.75')
+                        x = top_warmup_actions[:, 0]
+                        y = top_warmup_actions[:, 1]
+                        # scatter with colormap mapping to z value
+                        cb = ax.scatter(x, y, s=20, c=top_warmup_rewards, marker='o', cmap=cm.jet);
+                        plt.xlim(-1.2, 1.2)
+                        plt.ylim(-1.2, 1.2)
+                        plt.colorbar(cb)
+                        plt.savefig(logdir + f'/top{int(agent.n_top)}_xy_action_reward_{agent.buffer_counter / nsavefig}.png')
+                        plt.close()
                     # is_ref_plot=True
 
             # End this episode when `done` is True

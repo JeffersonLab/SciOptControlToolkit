@@ -47,12 +47,12 @@ class KerasGenerativeTD3(KerasTD3):
 
         self.rdm_intputs = 100
         self.norm_sdt = 1#0.0175
-        self.nactor_layers = 5 # (was 4)
-        self.ncritic_layers = 5
+        self.nactor_layers = 3 # (was 4)
+        self.ncritic_layers = 3
         self.hidden_size = 256
         self.dynamic_ref = dynamic_ref
         self.epsilon = 1
-        self.min_epsilon = 0.05
+        self.min_epsilon = 0.01
         self.best_qvalue = -9999
         self.decay_epsilon = 0.999
 
