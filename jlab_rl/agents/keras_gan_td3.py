@@ -62,10 +62,6 @@ class KerasGenerativeTD3(KerasTD3):
         self.batch_size = 500
         self.ntrain_actor_calls = 0
 
-        # self.top_action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
-        # self.top_reward_buffer = np.zeros((self.buffer_capacity, 1))
-        # self.top_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
-
         self.top_states = None
         self.top_actions = None
         self.top_rewards = None
@@ -97,21 +93,21 @@ class KerasGenerativeTD3(KerasTD3):
         return model
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
+        # Check the shapes of the training data
+        assert state_batch.shape == (self.batch_size, self.num_states), "State_batch shape incorrect in update function" 
+        assert action_batch.shape == (self.batch_size, self.num_actions), "action_batch shape incorrect in update function" 
+        assert reward_batch.shape == (self.batch_size, 1), "reward_batch shape incorrect in update function" 
+        assert next_state_batch.shape == (self.batch_size, self.num_states), "next_state_batch shape incorrect in update function" 
+        assert done_batch.shape == (self.batch_size, 1), "done_batch shape incorrect in update function" 
+
+        # Train Critic
         critic_loss1, critic_loss2 = self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
         tf.summary.scalar('Critic #1 Loss', data=critic_loss1, step=int(self.buffer_counter))
         tf.summary.scalar('Critic #2 Loss', data=critic_loss2, step=int(self.buffer_counter))
+        
         if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]) and self.top_actions is not None:
             self.ntrain_actor_calls += 1
-
-            # Calculate the new 5%
-            # isort_reward = np.argsort(np.squeeze(self.reward_buffer[0:self.buffer_counter]))
-            # idx_thr = int(0.95 * isort_reward.shape[0])#self.min_buffer_counter)
-            # isort_top_reward = isort_reward[idx_thr:]
-            # self.top_action_buffer = self.action_buffer[isort_top_reward]
-            # self.top_state_buffer = self.state_buffer[isort_top_reward]
-            # self.top_reward_buffer = self.reward_buffer[isort_top_reward]
-
-            # Train
+            # Train Actor
             td_loss, kl_loss = self.train_actor(state_batch)
             tf.summary.scalar('Actor TD-error Loss', data=td_loss, step=int(self.ntrain_actor_calls))
             tf.summary.scalar('Actor Distance Loss', data=kl_loss, step=int(self.ntrain_actor_calls))
@@ -119,14 +115,15 @@ class KerasGenerativeTD3(KerasTD3):
 
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
-        #
+        
         next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
+        
         # Do we need this noise ?
         noises = tf.random.normal(next_actions.shape, 0, 0.2)
         noises = tf.clip_by_value(noises, -0.5, 0.5)
         next_actions = next_actions+noises
-        #
+        
         new_q1 = self.target_critic1([next_states, next_actions], training=False)
         new_q2 = self.target_critic2([next_states, next_actions], training=False)
         new_q = tf.math.minimum(new_q1, new_q2)
@@ -244,9 +241,13 @@ class KerasGenerativeTD3(KerasTD3):
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
+        
+        assert state.shape == self.num_states, "Shape of the input state to action method is not correct..."
+        # print(type(state))
+        # assert isinstance(state, (tf.) ), "DataType of the input state to action method is not correct..."
 
         self.nactions.assign(self.nactions + 1)
-        state = np.expand_dims(state, 0)
+        state = tf.expand_dims(state, 0)
         #sampled_action = np.zeros(self.num_actions)
         #noise = np.zeros(self.num_actions)
         action_type = 0
@@ -264,6 +265,10 @@ class KerasGenerativeTD3(KerasTD3):
                 self.epsilon = self.epsilon if self.epsilon>self.min_epsilon else self.min_epsilon
                 sampled_action = policy_action_q_ucb[0].numpy()
                 action_type = 1
+
+        sampled_action = sampled_action.flatten()
+        assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), "Sampled action shape is incorrect..."
+        
 
             # sampled_action = rdm_action_q_ucb[0]
             # sampled_q = rdm_action_q_ucb[1]
