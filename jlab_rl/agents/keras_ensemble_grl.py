@@ -1,4 +1,4 @@
-# Copyright (c) 2020, Jefferson Science Associates, LLC. All Rights Reserved. Redistribution
+ # Copyright (c) 2020, Jefferson Science Associates, LLC. All Rights Reserved. Redistribution
 # and use in source and binary forms, with or without modification, are permitted as a
 # licensed user provided that the following conditions are met:
 #
