@@ -104,7 +104,8 @@ class KerasECGTD3(KerasTD3):
         if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]) and self.top_actions is not None:
             self.ntrain_actor_calls += 1
             # Train
-            td_loss, kl_loss = self.train_actor(self.top_states)
+            #print('state_batch:', state_batch)
+            td_loss, kl_loss = self.train_actor(state_batch)
             #td_loss, kl_loss = self.train_actor(state_batch)
             tf.summary.scalar('Actor TD-error Loss', data=td_loss, step=int(self.ntrain_actor_calls))
             tf.summary.scalar('Actor Distance Loss', data=kl_loss, step=int(self.ntrain_actor_calls))
@@ -114,8 +115,8 @@ class KerasECGTD3(KerasTD3):
         q_list = []
         for i in range(self.ncritics):
             q_list.append(critics[i]([states, actions], training=False))
-        q_mean = np.mean(q_list, axis=0)
-        q_std = np.mean(q_list, axis=0)
+        q_mean = tf.reduce_mean(q_list, axis=0)
+        q_std = tf.math.reduce_std(q_list, axis=0)
         return q_mean, q_std
 
     #@tf.function
@@ -150,11 +151,24 @@ class KerasECGTD3(KerasTD3):
         with tf.GradientTape() as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             q_mean, q_std = self.get_ensemble_critic_predict(self.critic_models, states, actions)
+            # q_list = []
+            # for i in range(self.ncritics):
+            #     q_list.append(self.critic_models[i]([states, actions], training=False))
+            # q_mean = tf.reduce_mean(q_list, axis=0)
+            # #q_std = np.mean(q_list, axis=0)
             # TODO: should include the STD
             td_loss = -tf.math.reduce_mean(q_mean)
-            ##################### Dist loss #################################
-            top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
-                                                  self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
+        #try:
+        gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
+        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        # except:
+        #     print(q_mean)
+        #     print(q_std)
+        #     sys.exit()
+
+        top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
+                                              self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+        with tf.GradientTape() as tape:
             this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
             this_actions = tf.cast(this_actions, dtype=tf.float32)
             top_actions = tf.cast(self.top_actions, dtype=tf.float32)
@@ -163,9 +177,7 @@ class KerasECGTD3(KerasTD3):
             else:
                 score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
 
-            total_loss = score + td_loss
-
-        gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
+        gradient = tape.gradient(score, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
         return td_loss, score
@@ -197,8 +209,8 @@ class KerasECGTD3(KerasTD3):
         q_list = []
         for i in range(self.ncritics):
             q_list.append(self.target_critics[i]([states, sampled_actions], training=False))
-        q_mean = np.mean(q_list, axis=0)
-        q_std = np.mean(q_list, axis=0)
+        q_mean = tf.reduce_mean(q_list, axis=0)
+        q_std = tf.math.reduce_std(q_list, axis=0)
         # TODO: How do we use STD
         ireward = np.argmax(q_mean)
         sampled_action = sampled_actions[ireward]
@@ -311,7 +323,7 @@ class KerasECGTD3(KerasTD3):
             # Get sampling range
             record_range = min(self.buffer_counter, self.buffer_capacity)
             self.batch_indices = np.random.choice(record_range, self.batch_size)
-
+            #print('batch_indices: ', self.batch_indices)
             # Convert to tensors
             state_batch = tf.convert_to_tensor(self.state_buffer[self.batch_indices])
             action_batch = tf.convert_to_tensor(self.action_buffer[self.batch_indices])
@@ -320,6 +332,8 @@ class KerasECGTD3(KerasTD3):
             next_state_batch = tf.convert_to_tensor(self.next_state_buffer[self.batch_indices])
             done_batch = tf.convert_to_tensor(self.done_buffer[self.batch_indices])
             done_batch = tf.cast(done_batch, dtype=tf.float32)
+            # print('train action_batch:', action_batch)
+            # sys.exit()
 
             self.update(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
             if self.ntrain_calls%self.actor_update_freq == 0:
