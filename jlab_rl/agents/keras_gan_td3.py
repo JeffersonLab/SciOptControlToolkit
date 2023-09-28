@@ -207,15 +207,31 @@ class KerasGenerativeTD3(KerasTD3):
     #     return td_loss, dist_loss
 
     def train_actor(self, states):
+        # td_loss = 0
         next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
-        with tf.GradientTape() as tape:
+        with tf.GradientTape(persistent=True) as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             q_value = self.critic_model1([states, actions], training=False)
             td_loss = -tf.math.reduce_mean(q_value)
-        gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
+
+            ##################### Dist loss #################################
+            top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
+                                                  self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
+            this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
+            this_actions = tf.cast(this_actions, dtype=tf.float32)
+            top_actions = tf.cast(self.top_actions, dtype=tf.float32)
+            if top_actions.shape[1] > 1:
+                score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
+            else:
+                score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
+
+            total_loss = score + td_loss
+            
+            ##################### Dist loss #################################
+        gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
-        dist_loss = 0
+        # dist_loss = 0
         # with tf.GradientTape() as tape:
         #     top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
         #                                           self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
@@ -226,11 +242,11 @@ class KerasGenerativeTD3(KerasTD3):
         #         score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
         #     else:
         #         score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
-        #
+        
         # dist_loss = score
         # gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
         # self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
-        return td_loss, dist_loss
+        return td_loss, score
 
     def get_critic_qvalue(self, state):
         nrepeats = 100
