@@ -111,34 +111,25 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         prev_state, _ = env.reset()
         nsteps = 0
         episodic_reward = 0
-#        for estep in tqdm(range(int(max_nsteps)), desc='Index {} - Steps'.format(index)):
         for estep in range(max_nsteps):
             total_nsteps += 1
-            if 'Torch' in agent_id:
-                tf_prev_state = torch.Tensor([prev_state])
-                action = agent.action(tf_prev_state)
-            else:
-                action, action_type = agent.action(tf.convert_to_tensor(prev_state))
-                # if np.isnan(noise).any():
-                #     print('action:', action)
-                #     sys.exit(-11)
-                # TODO: We suspect this is to the the num_actions > 1
-                if env_id == "LunarLanderContinuous-v2":
-                    action = action[0]
-                    # noise = noise[0]
+            action, action_type = agent.action(tf.convert_to_tensor(prev_state))
+            assert 'numpy.ndarray' in str(type(action))
+            assert action.shape == (num_actions,)
+            # TODO: We suspect this is to the the num_actions > 1
+            if env_id == "LunarLanderContinuous-v2":
+                action = action[0]
 
             # Receive state and reward from environment.
-            if 'Pendulum' not in env_id:# != 'Pendulum-v1' or :
+            if 'Pendulum' not in env_id:
                 action = np.squeeze(action)
-            # if agent_id == 'KerasGenerativeTD3-v0':
-            #     action = np.squeeze(action)
-            #print('run_opt action: ', action.shape)
             state, reward, done_old, done, info = env.step(action)
-            # done_old = float(done_old)
-            # done = float(done)
-            # nsteps += 1
-            # if done:
-            #     print('old/new done: {}/{}({})'.format(done_old, done, estep))
+
+            # Check shapes and data types
+            assert 'numpy.ndarray' in str(type(state))
+            assert state.shape == (num_states,)
+            assert 'numpy.float64' in str(type(reward))
+
             agent.memory((prev_state, action, reward, state, done, action_type))
             episodic_reward += reward
             agent.train()

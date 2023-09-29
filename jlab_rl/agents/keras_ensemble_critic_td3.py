@@ -45,7 +45,7 @@ class KerasECGTD3(KerasTD3):
     def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, dynamic_ref=True, **kwargs):
         """ Define all key variables required for all agent """
 
-        self.rdm_intputs = 100
+        self.rdm_intputs = 10
         self.norm_sdt = 1
         self.nactor_layers = 3
         self.ncritic_layers = 3
@@ -75,7 +75,7 @@ class KerasECGTD3(KerasTD3):
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
 
         # Re-init models
-        #self.initialize_new_models()
+        self.initialize_new_models()
 
     def get_critic(self):
 
@@ -227,6 +227,10 @@ class KerasECGTD3(KerasTD3):
         action_type = 0
         if self.buffer_counter <= self.max_size:
             sampled_action = self.env.action_space.sample()
+            assert 'numpy.ndarray' in str(type(sampled_action))
+            assert sampled_action.shape == (self.num_actions,)
+            # print(type(sampled_action))
+            # print((sampled_action.shape))
         else:
             # Calculate q-value from critic sampling
             rdm_action_q_ucb = self.get_critic_qvalue(state)
@@ -244,8 +248,16 @@ class KerasECGTD3(KerasTD3):
 
         tf.summary.scalar('Annealing Term', data=self.epsilon, step=int(self.nactions))
         tf.summary.scalar('Action Type', data=action_type, step=int(self.nactions))
+
+        # Check sampled action
+        assert 'numpy.ndarray' in str(type(sampled_action))
+        assert sampled_action.shape == (self.num_actions,)
+
+        # Check legal action
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-        return [np.squeeze(legal_action)], [action_type]
+        assert 'numpy.ndarray' in str(type(legal_action))
+        assert legal_action.shape == (self.num_actions,)
+        return np.squeeze(legal_action), action_type
 
     def memory(self, obs_tuple):
         # Set index to zero if buffer_capacity is exceeded,
@@ -257,9 +269,7 @@ class KerasECGTD3(KerasTD3):
         self.reward_buffer[index] = obs_tuple[2]
         self.next_state_buffer[index] = obs_tuple[3]
         self.done_buffer[index] = obs_tuple[4]
-        action_type = obs_tuple[5][0]
-        #print('action_type: ',action_type)
-        #print('self.buffer_counter:', self.buffer_counter)
+        action_type = obs_tuple[5]
         self.buffer_counter += 1
 
         if (self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter])):
