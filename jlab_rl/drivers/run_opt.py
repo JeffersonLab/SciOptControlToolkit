@@ -145,6 +145,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
 
                 if agent.next_state_buffer.shape[1] == 2:
+                    # Latest buffer
                     fig = plt.figure(figsize=(6, 6))
                     ax = fig.add_subplot(111)
                     ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
@@ -160,6 +161,34 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.colorbar(cb)
                     plt.savefig(logdir+'/current_xy_action_reward_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
+
+                    # Inference
+                    fig = plt.figure(figsize=(6, 6))
+                    ax = fig.add_subplot(111)
+                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))
+                    ax.set_xlabel("X")
+                    ax.set_ylabel("Y")
+                    ax.grid(True, linestyle='-', color='0.75')
+                    action_types = agent.action_type_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    #print(action_types)
+                    policy_idx = np.where(action_types==1)[0]
+                    #print(policy_idx)
+                    policy_x = x[policy_idx]
+                    policy_y = y[policy_idx]
+                    policy_z = z[policy_idx]
+                    #inference_states = agent.state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    #actions, rewards = agent.action_inference(inference_states)
+                    # a1 = actions[:,0]
+                    # a2 = actions[:,1]
+                    # scatter with colormap mapping to z value
+                    cb = ax.scatter(policy_x, policy_y, s=20, c=policy_z, marker='o', cmap=cm.jet);
+                    plt.xlim(-1.2, 1.2)
+                    plt.ylim(-1.2, 1.2)
+                    plt.colorbar(cb)
+                    plt.tight_layout
+                    plt.savefig(logdir+'/inference_xy_action_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+                    plt.close()
+
                 #
                 figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
                 if agent.num_actions == 1:
@@ -178,7 +207,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 plt.savefig(logdir + '/current_action_reward_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
 
-                if (agent.buffer_counter >= agent.min_buffer_counter) and is_ref_plot==False:
+                if ('ECGTD3' in agent_id or 'Generative' in agent_id) and is_ref_plot==False:
                     top_warmup_actions = agent.top_actions
                     top_warmup_rewards = agent.top_rewards
                     print(top_warmup_rewards.shape)
@@ -204,7 +233,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                                 axis[i, 1].set_xlim(0, 1)
 
                     plt.tight_layout()
-                    plt.savefig(logdir + f'/top{int(agent.n_top)}_action_dist_{agent.buffer_counter / nsavefig}.png')
+                    plt.savefig(logdir + f'/top{int(agent.buffer_counter)}_action_dist_{agent.buffer_counter / nsavefig}.png')
                     plt.close()
 
                     if agent.num_actions == 2:
@@ -221,7 +250,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         plt.xlim(-1.2, 1.2)
                         plt.ylim(-1.2, 1.2)
                         plt.colorbar(cb)
-                        plt.savefig(logdir + f'/top{int(agent.n_top)}_xy_action_reward_{agent.buffer_counter / nsavefig}.png')
+                        plt.savefig(logdir + f'/top{int(agent.batch_size)}_xy_action_reward_{agent.buffer_counter / nsavefig}.png')
                         plt.close()
                     # is_ref_plot=True
 

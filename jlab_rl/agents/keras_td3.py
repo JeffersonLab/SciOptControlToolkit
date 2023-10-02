@@ -77,6 +77,7 @@ class KerasTD3(jlab_rl.Agent):
         self.next_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
         self.done_buffer = np.zeros((self.buffer_capacity, 1))
         self.priority_buffer = np.ones((self.buffer_capacity, 1))
+        self.action_type_buffer = np.ones((self.buffer_capacity, 1))
         self.batch_indices = None
         self.use_priority = 0
 
@@ -339,7 +340,7 @@ class KerasTD3(jlab_rl.Agent):
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-        return [np.squeeze(legal_action)], [np.squeeze(noise)]
+        return np.squeeze(legal_action), np.squeeze(noise)
 
     def memory(self, obs_tuple):
         # Set index to zero if buffer_capacity is exceeded,

@@ -12,6 +12,8 @@ from jlab_rl.agents.keras_td3_critic_dgpa_v2 import KerasTD3CriticDGPA as KerasT
 from jlab_rl.agents.keras_mo_td3 import KerasTD3 as KerasMultiObjTD3
 from jlab_rl.agents.keras_gdmb_td3 import KerasGenerativeDynamicModelBased
 from jlab_rl.agents.keras_ensemble_grl import KerasEnsembleGenerativeTD3
+from jlab_rl.agents.keras_gtd3 import KerasGTD3
+
 # Single objective agents
 register(
     id='KerasTD3-v0',
@@ -21,6 +23,11 @@ register(
 register(
     id='KerasGenerativeTD3-v0',
     entry_point='jlab_rl.agents:KerasGenerativeTD3'
+)
+
+register(
+    id='KerasGTD3-v0',
+    entry_point='jlab_rl.agents:KerasGTD3'
 )
 
 register(

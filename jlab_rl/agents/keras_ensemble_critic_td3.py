@@ -37,6 +37,8 @@ import os
 from os.path import join
 import time
 from jlab_rl.utils.score import get_score, get_score_1d
+#from tensorflow_probability.python.stats import quantiles
+import tensorflow_probability as tfp
 
 class KerasECGTD3(KerasTD3):
     """ Define all key variables required for all agent """
@@ -45,7 +47,7 @@ class KerasECGTD3(KerasTD3):
     def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, dynamic_ref=True, **kwargs):
         """ Define all key variables required for all agent """
 
-        self.rdm_intputs = 10
+        self.rdm_intputs = 50
         self.norm_sdt = 1
         self.nactor_layers = 3
         self.ncritic_layers = 3
@@ -74,6 +76,7 @@ class KerasECGTD3(KerasTD3):
         self.n_top = warmup_size
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
 
+        self.ave_critic_losses = []
         # Re-init models
         self.initialize_new_models()
 
@@ -101,6 +104,26 @@ class KerasECGTD3(KerasTD3):
         for i in range(self.ncritics):
             tf.summary.scalar(f'Critic #{i} Loss', data=critic_losses[i], step=int(self.buffer_counter))
 
+        # nave=25
+        # self.ave_critic_losses.append(np.array(critic_losses))
+        # np_critic_losses = np.array(critic_losses)
+        # #print('np_critic_losses:', np_critic_losses.shape)
+        # np_ave_critic_losses = np.array(self.ave_critic_losses)
+        #print('np_ave_critic_losses:', np_ave_critic_losses.shape)
+        #print('self.ave_critic_losses', np_ave_critic_losses)
+        # print('self.ave_critic_losses', np_ave_critic_losses.shape)
+        # if self.buffer_counter>3000:
+        #     #print('np_ave_critic_losses[-nave:,]', np_ave_critic_losses[-nave:,:].shape)
+        #     avg_reward = np.mean(np_ave_critic_losses[-nave:,:],axis=0)
+        #     std_reward = np.std(np_ave_critic_losses[-nave:,:],axis=0)
+        #     for i in range(self.ncritics):
+        #         tf.summary.scalar(f'Critic Mean #{i} Loss', data=avg_reward[i], step=int(self.buffer_counter))
+        #         tf.summary.scalar(f'Critic STD #{i} Loss', data=std_reward[i], step=int(self.buffer_counter))
+        #         if critic_losses[i]>0.1:
+        #             print(critic_losses[i], '>', avg_reward[i])
+        #             print(state_batch, action_batch, reward_batch, next_state_batch)
+        #             sys.exit()
+
         if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]) and self.top_actions is not None:
             self.ntrain_actor_calls += 1
             # Train
@@ -115,8 +138,10 @@ class KerasECGTD3(KerasTD3):
         q_list = []
         for i in range(self.ncritics):
             q_list.append(critics[i]([states, actions], training=False))
-        q_mean = tf.reduce_mean(q_list, axis=0)
+        q_mean = tf.math.reduce_mean(q_list, axis=0)
         q_std = tf.math.reduce_std(q_list, axis=0)
+
+
         return q_mean, q_std
 
     #@tf.function
@@ -129,7 +154,7 @@ class KerasECGTD3(KerasTD3):
         noises = tf.clip_by_value(noises, -0.5, 0.5)
         next_actions = next_actions+noises
         #
-        q_mean, q_std = self.get_ensemble_critic_predict(self.critic_models, next_states, next_actions)
+        q_mean, q_std = self.get_ensemble_critic_predict(self.target_critics, next_states, next_actions)
 
         # Bellman equation for the q value
         q_targets = rewards + self.gamma * q_mean * (1.0-dones)
@@ -151,13 +176,20 @@ class KerasECGTD3(KerasTD3):
         with tf.GradientTape() as tape:
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             q_mean, q_std = self.get_ensemble_critic_predict(self.critic_models, states, actions)
-            # q_list = []
-            # for i in range(self.ncritics):
-            #     q_list.append(self.critic_models[i]([states, actions], training=False))
-            # q_mean = tf.reduce_mean(q_list, axis=0)
-            # #q_std = np.mean(q_list, axis=0)
             # TODO: should include the STD
-            td_loss = -tf.math.reduce_mean(q_mean)
+            td_loss = -tf.math.reduce_mean(q_mean/q_std + tf.math.log(q_std), axis=0)
+            #td_loss = -tf.math.reduce_mean(q_mean+3.0*q_std, axis=0)
+            # ##################### Dist loss #################################
+            # top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
+            #                                       self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
+            # this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
+            # this_actions = tf.cast(this_actions, dtype=tf.float32)
+            # top_actions = tf.cast(self.top_actions, dtype=tf.float32)
+            # if top_actions.shape[1] > 1:
+            #     score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
+            # else:
+            #     score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
+            # total_loss = td_loss + score
         #try:
         gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
@@ -180,7 +212,7 @@ class KerasECGTD3(KerasTD3):
         gradient = tape.gradient(score, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
-        return td_loss, score
+        return float(td_loss), float(score)
 
     def get_critic_qvalue(self, state):
         nrepeats = 100
@@ -266,7 +298,7 @@ class KerasECGTD3(KerasTD3):
 
         self.state_buffer[index] = obs_tuple[0]
         self.action_buffer[index] = obs_tuple[1]
-        self.reward_buffer[index] = obs_tuple[2]
+        self.reward_buffer[index] = obs_tuple[2]#*1.0e+4+100
         self.next_state_buffer[index] = obs_tuple[3]
         self.done_buffer[index] = obs_tuple[4]
         action_type = obs_tuple[5]
@@ -322,7 +354,7 @@ class KerasECGTD3(KerasTD3):
             self.critic_models.append(self.get_critic())
             self.target_critics.append(self.get_critic())
             self.target_critics[i].set_weights(self.critic_models[i].get_weights())
-            self.critic_optimizers.append(tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08))
+            self.critic_optimizers.append(tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08, clipvalue=0.5))
             time.sleep(1 / 10)
 
     def train(self):

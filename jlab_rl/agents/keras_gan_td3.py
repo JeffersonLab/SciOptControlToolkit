@@ -25,7 +25,7 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
-
+import math
 import sys, random
 #import jlab_rl as jlab_rl
 import tensorflow as tf
@@ -45,37 +45,35 @@ class KerasGenerativeTD3(KerasTD3):
     def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, dynamic_ref=True, **kwargs):
         """ Define all key variables required for all agent """
 
-        self.rdm_intputs = 100
-        self.norm_sdt = 1#0.0175
-        self.nactor_layers = 3 # (was 4)
-        self.ncritic_layers = 3
+        # Standard TD3 setup
+        self.nactor_layers = 4
+        self.ncritic_layers = 4
         self.hidden_size = 256
-        self.dynamic_ref = dynamic_ref
-        self.epsilon = 1
-        self.min_epsilon = 0.01
-        self.best_qvalue = -9999
-        self.decay_epsilon = 0.999
+        self.batch_size = 1000
+        self.ntrain_actor_calls = 0
 
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasGenerativeTD3 __init__')
-        self.batch_size = 500
-        self.ntrain_actor_calls = 0
 
-        self.ncritics = 7
-        self.critic_models = []
-        self.target_critics = []
-        self.critic_optimizers = []
+        # Used for random samples
+        self.rdm_intputs = 100
+        self.norm_sdt = 1
 
-        # self.top_action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
-        # self.top_reward_buffer = np.zeros((self.buffer_capacity, 1))
-        # self.top_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
+        # For quantile annealing
+        self.epsilon = 1
+        self.min_epsilon = 0.001
+        self.best_qvalue = -9999
+        self.decay_epsilon = 0.999
 
+        # Reference distribution
+        self.dynamic_ref = dynamic_ref
         self.top_states = None
         self.top_actions = None
         self.top_rewards = None
-        self.n_top = warmup_size
-        self.max_size = np.max([self.batch_size, self.min_buffer_counter])
+        # self.n_top = warmup_size
+        #
+        #self.max_size = np.max([self.batch_size, self.min_buffer_counter])
 
         # Re-init models
         self.initialize_new_models()
@@ -86,14 +84,15 @@ class KerasGenerativeTD3(KerasTD3):
         state_input = tf.keras.layers.Input(shape=(self.num_states))
         # Action as input
         action_input = tf.keras.layers.Input(shape=(self.num_actions))
+        # Concatenate state + rdm
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
+        # Build layers
         for _ in range(self.ncritic_layers):
-            state_action = tf.keras.layers.Dense(self.hidden_size, activation=tf.keras.activations.selu)(state_action)
+            state_action = tf.keras.layers.Dense(self.hidden_size, activation=tf.keras.activations.relu)(state_action)
         outputs = tf.keras.layers.Dense(1, activation='linear')(state_action)
 
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)
-        #print('Critic model:',model.summary())
         return model
 
     def get_actor(self):
@@ -112,26 +111,25 @@ class KerasGenerativeTD3(KerasTD3):
         critic_loss1, critic_loss2 = self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
         tf.summary.scalar('Critic #1 Loss', data=critic_loss1, step=int(self.buffer_counter))
         tf.summary.scalar('Critic #2 Loss', data=critic_loss2, step=int(self.buffer_counter))
-        
-        if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]) and self.top_actions is not None:
-            self.ntrain_actor_calls += 1
 
-            # Calculate the new 5%
-            # isort_reward = np.argsort(np.squeeze(self.reward_buffer[0:self.buffer_counter]))
-            # idx_thr = int(0.95 * isort_reward.shape[0])#self.min_buffer_counter)
-            # isort_top_reward = isort_reward[idx_thr:]
-            # self.top_action_buffer = self.action_buffer[isort_top_reward]
-            # self.top_state_buffer = self.state_buffer[isort_top_reward]
-            # self.top_reward_buffer = self.reward_buffer[isort_top_reward]
+        # Train actor
+        #if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]) and self.top_actions is not None:
+        self.ntrain_actor_calls += 1
+        # Train
+        td_loss, kl_loss = self.train_actor(self.top_states)
+        # td_loss, kl_loss = self.train_actor(state_batch)
+        tf.summary.scalar('Actor TD-error Loss', data=td_loss, step=int(self.ntrain_actor_calls))
+        tf.summary.scalar('Actor Distance Loss', data=kl_loss, step=int(self.ntrain_actor_calls))
+        tf.summary.scalar('Actor Total Loss', data=td_loss + kl_loss, step=int(self.ntrain_actor_calls))
+        # Calculate the new 5%
+        # isort_reward = np.argsort(np.squeeze(self.reward_buffer[0:self.buffer_counter]))
+        # idx_thr = int(0.95 * isort_reward.shape[0])#self.min_buffer_counter)
+        # isort_top_reward = isort_reward[idx_thr:]
+        # self.top_action_buffer = self.action_buffer[isort_top_reward]
+        # self.top_state_buffer = self.state_buffer[isort_top_reward]
+        # self.top_reward_buffer = self.reward_buffer[isort_top_reward]
 
-            # Train
-            td_loss, kl_loss = self.train_actor(self.top_states)
-            #td_loss, kl_loss = self.train_actor(state_batch)
-            tf.summary.scalar('Actor TD-error Loss', data=td_loss, step=int(self.ntrain_actor_calls))
-            tf.summary.scalar('Actor Distance Loss', data=kl_loss, step=int(self.ntrain_actor_calls))
-            tf.summary.scalar('Actor Total Loss', data=td_loss + kl_loss, step=int(self.ntrain_actor_calls))
-
-    @tf.function
+    #@tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         
         next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
@@ -147,14 +145,12 @@ class KerasGenerativeTD3(KerasTD3):
         new_q = tf.math.minimum(new_q1, new_q2)
         # Bellman equation for the q value
         q_targets = rewards + self.gamma * new_q * (1.0-dones)
+
         # Critic 1
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
             td_errors1 = q_values1-q_targets
-            #priority_buffer1 = np.abs(td_errors1.numpy()+1e-8)
-            #self.priority_buffer1 = tf.math.abs(td_errors1)
             critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
-            #critic_loss1 = tf.reduce_mean(tf.maximum(q_1sigma * td_errors1, (q_1sigma - 1) * td_errors1))
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
         self.critic_optimizer1.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
 
@@ -162,59 +158,21 @@ class KerasGenerativeTD3(KerasTD3):
         with tf.GradientTape() as tape:
             q_values2 = self.critic_model2([states, actions], training=False)
             td_errors2 = q_values2-q_targets
-            #priority_buffer2 = np.abs(td_errors2.numpy()+1e-8)
-            #self.priority_buffer2 = tf.math.abs(td_errors2)
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
 
-        # average_priority_buffer = (priority_buffer1 + priority_buffer2) / 2
-        # max_average_priority_buffer = np.max(average_priority_buffer)
-        # self.priority_buffer[self.batch_indices] = average_priority_buffer / max_average_priority_buffer
-
-        # Update the priority buffer
-        #self.priority_buffer[self.batch_indices] = (priority_buffer1+priority_buffer2)/2
         return critic_loss1, critic_loss2
 
-    # @tf.function
-    # def train_actor(self, states):
-    #     #td_loss = 0
-    #     next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
-    #     with tf.GradientTape() as tape:
-    #         actions = self.actor_model([states, next_rdm_gaus], training=True)
-    #         q_value = self.critic_model1([states, actions], training=False)
-    #         #q_value2 = self.critic_model2([states, actions], training=False)
-    #         #q_value = tf.keras.layers.Average()([q_value1, q_value2])
-    #         td_loss = -tf.math.reduce_mean(q_value)
-    #     gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
-    #     self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
-    #
-    #     #dist_loss = 0
-    #     with tf.GradientTape() as tape:
-    #         top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
-    #                                               self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
-    #         this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
-    #         this_actions = tf.cast(this_actions, dtype=tf.float32)
-    #         top_actions = tf.cast(self.top_actions, dtype=tf.float32)
-    #         if top_actions.shape[1] > 1:
-    #             score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
-    #         else:
-    #             score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
-    #
-    #     dist_loss = score
-    #     gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
-    #     self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
-    #     return td_loss, dist_loss
-
     def train_actor(self, states):
-        # td_loss = 0
-        next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
         with tf.GradientTape(persistent=True) as tape:
+            next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
+                                             seed=time.time_ns())
             actions = self.actor_model([states, next_rdm_gaus], training=True)
             q_value = self.critic_model1([states, actions], training=False)
             td_loss = -tf.math.reduce_mean(q_value)
 
-            ##################### Dist loss #################################
+            # Add distance
             top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
                                                   self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
             this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
@@ -225,36 +183,18 @@ class KerasGenerativeTD3(KerasTD3):
             else:
                 score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
 
-            total_loss = score + td_loss
+            total_loss = td_loss + score
             
-            ##################### Dist loss #################################
         gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
-
-        # dist_loss = 0
-        # with tf.GradientTape() as tape:
-        #     top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
-        #                                           self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
-        #     this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
-        #     this_actions = tf.cast(this_actions, dtype=tf.float32)
-        #     top_actions = tf.cast(self.top_actions, dtype=tf.float32)
-        #     if top_actions.shape[1] > 1:
-        #         score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
-        #     else:
-        #         score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
-        
-        # dist_loss = score
-        # gradient = tape.gradient(dist_loss, self.actor_model.trainable_variables)
-        # self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
         return td_loss, score
 
-    def get_critic_qvalue(self, state):
-        nrepeats = 100
+    def get_critic_qvalue(self, state, nrepeats=100):
         states = tf.repeat(state, nrepeats, axis=0)
         rdm_actions = tf.random.uniform([nrepeats, self.num_actions], \
                                         self.lower_bound, self.upper_bound, tf.float32, seed=time.time_ns())
-        new_q1 = self.target_critic1.predict_on_batch([states, rdm_actions])
-        new_q2 = self.target_critic2.predict_on_batch([states, rdm_actions])
+        new_q1 = self.target_critic1([states, rdm_actions])
+        new_q2 = self.target_critic2([states, rdm_actions])
         q_mean = np.mean([new_q1, new_q2], axis=0)
         q_std = np.std([new_q1, new_q2], axis=0)
         q_ucb = q_mean + 5.0 * q_std
@@ -270,55 +210,73 @@ class KerasGenerativeTD3(KerasTD3):
         rdm_action_q_ucb = random.choice(percentile_xyz)
         return rdm_action_q_ucb
 
-    def get_policy_qvalue(self, state):
-        nrepeats = 100
+    def get_policy_qvalue(self, state, nrepeats=100):
         states = tf.repeat(state, nrepeats, axis=0)
         rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
         sampled_actions = self.actor_model([states, rdm_norms])
         new_q1 = self.target_critic1([states, sampled_actions])
         new_q2 = self.target_critic2([states, sampled_actions])
-        #
-        # TODO: should this be random like the critic method?
-        #if self.epsilon == self.min_epsilon:
         new_q = tf.math.maximum(new_q1, new_q2)
-        ireward = np.argmax(new_q)
+        new_q = tf.squeeze(new_q)
+        #print('new_q:', new_q)
+
+        #
+        # Option #1: sample the max value
+        # ireward = np.argmax(new_q)
+        # print('ireward', ireward)
+
+        #
+        # Option #2: randomly sample to n-th percent
+        isort_reward = np.argsort(new_q.numpy())
+        #print('isort_reward:', isort_reward)
+        isort_reward_sub = isort_reward[-int(math.ceil(0.1*nrepeats)):]
+        #print('isort_reward_sub:', isort_reward_sub)
+        ireward = isort_reward_sub[np.random.randint(0,len(isort_reward_sub))]
+        #print('ireward', ireward)
+        #print('sampled_actions[ireward]', sampled_actions[ireward])
+        #sys.exit()
         sampled_action = sampled_actions[ireward]
         return sampled_action, new_q[ireward]
-        # else:
-        #     q_mean = np.mean([new_q1, new_q2], axis=0)
-        #     q_std = np.std([new_q1, new_q2], axis=0)
-        #     q_ucb = q_mean + 5.0 * q_std
-        #     q_ucb = np.squeeze(q_ucb)
-        #     q_threshold = np.quantile(q_ucb, 1 - self.epsilon)
-        #     percentile_xyz, top_ucb_actions = [], []
-        #     for i, val in enumerate(zip(sampled_actions, q_ucb)):
-        #         this_action, this_ucb = val
-        #         if this_ucb >= q_threshold:
-        #             percentile_xyz.append((this_action, this_ucb))
-        #             top_ucb_actions.append(this_action)
-        #     policy_action_q_ucb = random.choice(percentile_xyz)
-        #     return policy_action_q_ucb
+
+    # def action_inference(self, states):
+    #     nrepeats = 100
+    #     actions, rewards = [], []
+    #     for state in states:
+    #         state = tf.expand_dims(state, 0)
+    #         repeated_state = tf.repeat(state, nrepeats, axis=0)
+    #         #action, qvalue = self.get_policy_qvalue(state)
+    #         rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32,
+    #                                      seed=time.time_ns())
+    #         repeated_actions = self.actor_model([repeated_state, rdm_norms])
+    #         for action in repeated_actions:
+    #             self.env.reset()
+    #             _, reward, _, _, _ = self.env.step(action)
+    #             rewards.append(reward)
+    #             actions.append(action)
+        #
+        # rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+        # actions = self.actor_model([states,rdm_gaus])
+        # rewards = []
+        # for a in actions:
+        #     self.env.reset()
+        #     _, reward, _, _, _ = self.env.step(a)
+        #     rewards.append( reward )
+        return np.squeeze(actions), np.squeeze(rewards)
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         
         assert state.shape == self.num_states, "Shape of the input state to action method is not correct..."
-        # print(type(state))
-        # assert isinstance(state, (tf.) ), "DataType of the input state to action method is not correct..."
 
         self.nactions.assign(self.nactions + 1)
         state = tf.expand_dims(state, 0)
-        #sampled_action = np.zeros(self.num_actions)
-        #noise = np.zeros(self.num_actions)
         action_type = 0
-        if self.buffer_counter <= self.max_size:
+        if self.buffer_counter <= self.batch_size: #self.max_size:
             sampled_action = self.env.action_space.sample()
-            # print(sampled_action.shape)
-            # print(type(sampled_action))
         else:
             # Calculate q-value from critic sampling
             rdm_action_q_ucb = self.get_critic_qvalue(state)
-            policy_action_q_ucb = self.get_policy_qvalue(state)
+            policy_action_q_ucb = self.get_policy_qvalue(state,10)
             sampled_action = rdm_action_q_ucb[0].numpy()
             if policy_action_q_ucb[1]>rdm_action_q_ucb[1]:
                 self.epsilon = self.epsilon*self.decay_epsilon # Need to add annealing
@@ -432,7 +390,7 @@ class KerasGenerativeTD3(KerasTD3):
         tf.summary.scalar('Annealing Term', data=self.epsilon, step=int(self.nactions))
         tf.summary.scalar('Action Type', data=action_type, step=int(self.nactions))
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
-        return [np.squeeze(legal_action)], [action_type]
+        return np.squeeze(legal_action), action_type
 
     def memory(self, obs_tuple):
         # Set index to zero if buffer_capacity is exceeded,
@@ -444,40 +402,35 @@ class KerasGenerativeTD3(KerasTD3):
         self.reward_buffer[index] = obs_tuple[2]
         self.next_state_buffer[index] = obs_tuple[3]
         self.done_buffer[index] = obs_tuple[4]
-        action_type = obs_tuple[5][0]
-        #print('action_type: ',action_type)
-        #print('self.buffer_counter:', self.buffer_counter)
+        self.action_type_buffer[index] = obs_tuple[5]
         self.buffer_counter += 1
 
-        if (self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter])):
+        if (self.buffer_counter >= self.batch_size): #np.max([self.batch_size, self.min_buffer_counter])):
 
-            if self.top_actions is None or self.top_actions is None:
+            if self.top_actions is None:
                 # Add KL-div using top N% of the warmup samples
-                w_rewards = self.reward_buffer[0:self.min_buffer_counter]
-                w_states = self.state_buffer[0:self.min_buffer_counter]
-                w_actions = self.action_buffer[0:self.min_buffer_counter]
-                #print('w_actions: ', w_actions.shape)
-                isort_reward = np.argsort(np.squeeze(w_rewards))
-                #self.n_top = int(0.25 * self.min_buffer_counter)
-                isort_top_reward = isort_reward[-self.n_top:]
-                # print('total/filtered: ', w_rewards.shape, self.n_top)
+                # w_rewards = self.reward_buffer[0:self.batch_size]
+                # w_states = self.state_buffer[0:self.batch_size]
+                # w_actions = self.action_buffer[0:self.batch_size]
+                # isort_reward = np.argsort(np.squeeze(w_rewards))
+                # isort_top_reward = isort_reward[-self.batch_size:]
                 # sys.exit()
-                self.top_states = w_states[isort_top_reward]
-                self.top_actions = w_actions[isort_top_reward]
-                #print('top_actions: ', self.top_actions.shape)
-
-                self.top_rewards = np.squeeze(w_rewards[isort_top_reward])
+                self.top_states = self.state_buffer[0:self.batch_size]
+                self.top_actions = self.action_buffer[0:self.batch_size]
+                self.top_rewards = self.reward_buffer[0:self.batch_size]
             # ============ Dynamic Reference ==============================
-            elif (self.dynamic_ref and action_type==0):
-                action = obs_tuple[1]
+            elif (self.dynamic_ref and obs_tuple[5]==0):
+                state = np.expand_dims(obs_tuple[0], axis=0)
                 action = np.expand_dims(obs_tuple[1], axis=0)
+                reward = np.expand_dims(obs_tuple[2], axis=0)
+                reward = np.expand_dims(reward, axis=0)
                 if self.num_actions==1:
                     action = np.expand_dims(action, axis=0)
-                merged_top_states = np.concatenate([self.top_states, np.expand_dims(obs_tuple[0], axis=0)])
+                merged_top_states = np.concatenate([self.top_states, state])
                 merged_top_actions = np.concatenate([self.top_actions, action])
-                merged_top_reward = np.concatenate([self.top_rewards, np.expand_dims(obs_tuple[2], axis=0)])
+                merged_top_reward = np.concatenate([self.top_rewards, reward])
                 isort_reward = np.argsort(np.squeeze(merged_top_reward))
-                isort_top_reward = isort_reward[-self.n_top:]
+                isort_top_reward = isort_reward[-self.batch_size:]
                 self.top_states = merged_top_states[isort_top_reward]
                 self.top_actions = merged_top_actions[isort_top_reward]
                 self.top_rewards = merged_top_reward[isort_top_reward]

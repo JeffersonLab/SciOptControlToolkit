@@ -121,7 +121,7 @@ class Generator_v3(tf.keras.Model):
       self.denses1.append(tf.keras.layers.Dense(self.nodes, kernel_initializer=init))
       self.bn1.append(tf.keras.layers.BatchNormalization())
       #self.act1.append(tf.keras.layers.ReLU())
-      self.act1.append(tf.keras.activations.selu)
+      self.act1.append(tf.keras.activations.relu)
       #self.act1.append(tf.keras.layers.LeakyReLU(0.2))
       # self.denses2.append(tf.keras.layers.Dense(self.nodes, kernel_initializer=init))
       # self.act2.append(tf.keras.layers.LeakyReLU(0.2))
