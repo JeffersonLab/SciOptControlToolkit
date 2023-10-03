@@ -73,7 +73,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.top_rewards = None
 
         # Score
-        self.scores = np.zeros(self.num_actions)
+        self.scores = [0] * self.num_actions #np.zeros(self.num_actions, dtype=np.float32)
 
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
 
@@ -168,16 +168,60 @@ class KerasGenerativeTD3(KerasTD3):
 
     #@tf.function
     def train_actor(self, states):
-        with tf.GradientTape(persistent=True) as tape:
+
+        top_actions = tf.cast(self.top_actions, dtype=tf.float32)
+        top_actions0, top_actions1 = tf.split(top_actions, num_or_size_splits=self.num_actions, axis=1)
+        top_actions0_hist, bins = np.histogram(top_actions0, range=[-1.0, +1.0], bins=40)
+        top_actions1_hist, bins = np.histogram(top_actions1, range=[-1.0, +1.0], bins=40)
+        #print(top_actions0_hist)
+
+        #top_actions0_hist = tf.histogram_fixed_width(top_actions1, \
+        #                                                  [-1.0, +1.0], nbins=40, dtype=tf.dtypes.float16)
+        # top_actions1_hist = tf.histogram_fixed_width(top_actions1, \
+        #                                                   [-1.0, +1.0], nbins=40)
+
+        top_actions0_hist = tf.cast(top_actions0_hist, dtype=tf.float32)
+        top_actions1_hist = tf.cast(top_actions1_hist, dtype=tf.float32)
+        with tf.GradientTape() as tape:
             next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
                                              seed=time.time_ns())
             self.training_actions = self.actor_model([states, next_rdm_gaus], training=True)
+
+            #score = tf.math.reduce_mean(tf.math.squared_difference(self.training_actions, top_actions))
+            training_actions0, training_actions1 = tf.split(self.training_actions, num_or_size_splits=self.num_actions, axis=1)
+            # Sort
+            # training_actions0 = tf.cumsum(training_actions0)
+            # training_actions1 = tf.cumsum(training_actions1)
+            # top_actions0 = tf.sort(top_actions0)
+            # top_actions1 = tf.cumsum(top_actions1)
+            # print('training_actions0', training_actions0.shape)
+            # print('top_actions0', top_actions0.shape)
+            # self.scores[0] = tf.math.reduce_sum(tf.math.abs(training_actions0 - top_actions0))
+            # self.scores[1] = tf.math.reduce_sum(tf.math.abs(training_actions1 - top_actions1))
+            # print(training_actions0.shape)
+            # training_actions0_hist = tf.histogram_fixed_width(training_actions0,
+            #                                                        [-1.0, +1.0], nbins=40)
+            # print(training_actions0_hist)
+            # training_actions1_hist = tf.histogram_fixed_width(training_actions1,\
+            #                                                        [-1.0, +1.0], nbins=40)
+            training_actions0_hist, bins = np.histogram(training_actions0, range=[-1.0, +1.0], bins=40)
+            training_actions1_hist, bins = np.histogram(training_actions1, range=[-1.0, +1.0], bins=40)
+
+            self.scores[0] = tf.math.reduce_sum(tf.math.abs(training_actions0_hist - top_actions0_hist))
+            self.scores[1] = tf.math.reduce_sum(tf.math.abs(training_actions1_hist - top_actions1_hist))
+            print('self.scores[0]:', self.scores[0])
+            print('self.scores[1]:', self.scores[1])
+            score = self.scores[0]+self.scores[1]
+            print('score:', score)
+            #score = tf.math.reduce_mean(tf.losses.kl_divergence(self.top_actions, self.training_actions))
             # q_value = self.critic_model1([states, actions], training=False)
             # td_loss = -tf.math.reduce_mean(q_value)
 
             # print('self.top_actions.shape:', self.top_actions.shape)
             # print('self.training_actions.shape:', self.training_actions.shape)
             #score = tf.math.reduce_mean(tf.losses.kl_divergence(self.top_actions, self.training_actions))
+            # print(score)
+            # sys.exit()
             # for i in range(self.num_actions):
             #     self.scores[i] =  score
             #         # tf.math.reduce_mean(
@@ -207,17 +251,18 @@ class KerasGenerativeTD3(KerasTD3):
             # top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
             #                                       self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
             # this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
-            top_actions = tf.cast(self.top_actions, dtype=tf.float32)
-            training_actions = tf.cast(self.training_actions, dtype=tf.float32)
-            if self.top_actions.shape[1] > 1:
-                score, score1, score2 = get_score(training_actions, top_actions) # For ND problems
-            else:
-                score, score1, score2 = get_score_1d(training_actions, top_actions) # For 1D problems
-
-            for i in range(self.num_actions):
-                self.scores[i] =  score
-                score += self.scores[i]
-
+            # top_actions = tf.cast(self.top_actions, dtype=tf.float32)
+            # training_actions = tf.cast(self.training_actions, dtype=tf.float32)
+            # if self.top_actions.shape[1] > 1:
+            #     score, score1, score2 = get_score(training_actions, top_actions) # For ND problems
+            # else:
+            #     score, score1, score2 = get_score_1d(training_actions, top_actions) # For 1D problems
+            # for i in range(self.num_actions):
+            #     top_actions = tf.cast(self.top_actions[:, i], dtype=tf.float32)
+            #     training_actions = tf.cast(self.training_actions[:, i], dtype=tf.float32)
+            #     self.scores[i] = tf.reduce_mean(tf.math.square(tf.sort(training_actions) - tf.sort(top_actions)))
+            # score = tf.math.reduce_sum(self.scores)
+            # print(score)
             total_loss = score #td_loss + score
             
         gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
