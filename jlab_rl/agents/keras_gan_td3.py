@@ -73,7 +73,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.top_rewards = None
         # self.n_top = warmup_size
         #
-        #self.max_size = np.max([self.batch_size, self.min_buffer_counter])
+        self.max_size = np.max([self.batch_size, self.min_buffer_counter])
 
         # Re-init models
         self.initialize_new_models()
@@ -174,6 +174,8 @@ class KerasGenerativeTD3(KerasTD3):
             td_loss = -tf.math.reduce_mean(q_value)
 
             score = tf.math.reduce_mean(tf.losses.kl_divergence(self.top_actions, actions))
+            for i in range(self.num_actions):
+                score += get_score_1d(self.top_actions[:,i], actions[:,i])
             # Binary
             # print('actions:', actions.shape)
             # print('self.top_actions:', self.top_actions.shape)
@@ -313,7 +315,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.nactions.assign(self.nactions + 1)
         state = tf.expand_dims(state, 0)
         action_type = 0
-        if self.buffer_counter <= self.batch_size: #self.max_size:
+        if self.buffer_counter <= self.max_size:
             sampled_action = self.env.action_space.sample()
         else:
             # Calculate q-value from critic sampling
@@ -461,7 +463,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.action_type_buffer[index] = obs_tuple[5]
         self.buffer_counter += 1
 
-        if (self.buffer_counter >= self.batch_size): #np.max([self.batch_size, self.min_buffer_counter])):
+        if (self.buffer_counter >= self.max_size): #np.max([self.batch_size, self.min_buffer_counter])):
 
             if self.top_actions is None:
                 # Add KL-div using top N% of the warmup samples
