@@ -36,15 +36,15 @@ class proxy_app(gym.Env):
         self.x_full_range = np.linspace(self.xmin, self.xmax, self.ndx) #self.dx)
 
         # Define action space
-        self.np_parmin = np.zeros(self.nParameters)
-        self.np_parmax = np.ones(self.nParameters)
+        self.true_params = [0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
+        self.np_parmin = np.array([x * 0.9for x in self.true_params]) #np.zeros(self.nParameters)
+        self.np_parmax = np.array([x * 1.1for x in self.true_params]) #np.ones(self.nParameters)
 
         self.action_space = spaces.Box(low=self.np_parmin, high=self.np_parmax, dtype=np.float64)
         print('action_space:{}'.format(self.action_space))
         self.observation_space = spaces.Box(low=np.zeros(2*self.ndx), high=2*np.ones(2*self.ndx), dtype=np.float64)
         print('observation_space:{}'.format(self.observation_space))
 
-        self.true_params = [0.72916667, 0.25, 0.6, 0.36458333, 0.25, 0.8]
         self.true_sigma1, self.true_sigma2 = self.cross_sections(self.true_params)
         self.true_sigmas = np.concatenate([self.true_sigma1, self.true_sigma2])
         self.states, _ = self.reset()
@@ -96,58 +96,17 @@ class proxy_app(gym.Env):
         # print("gen_sigma1: ", gen_sigma1)
         # print("gen_sigma2: ", gen_sigma2)
         self.states = np.concatenate([gen_sigma1, gen_sigma2])
-        loss1 = np.mean(np.square(self.true_sigma1 - gen_sigma1))
-        loss2 = np.mean(np.square(self.true_sigma2 - gen_sigma2))
-        #loss2 = tf.keras.losses.mse(self.true_sigma2, gen_sigma2)
-        loss = (loss1+loss2)
-        #loss = tf.keras.losses.mse(self.true_params, action)
-        #loss = tf.keras.losses.MeanSquaredLogarithmicError(reduction="auto")(self.true_params, action)
-        #loss = np.sum(np.square(action - self.true_params))
-        # i_loss1 = np.abs( np.sum(gen_sigma1) - np.sum(self.true_sigma1))
-        # i_loss2 = np.abs( np.sum(gen_sigma2) - np.sum(self.true_sigma2))
-        # # parameters
-        # loss = np.mean(np.abs(action - self.true_params))
-        # loss += (p_loss1 + p_loss2)
-        # loss += (i_loss1 + i_loss2)
-        if self.best_loss>loss:
-            self.best_loss = loss
-            self.best_params = action
-            print(f'Best loss {self.best_loss}')
-            print(f'Best params {self.best_params}')
-        # loss1 = tf.keras.losses.mse(gen_sigma1, self.true_sigma1)
-        # loss2 = tf.keras.losses.mse(gen_sigma2, self.true_sigma2)
-        reward = -loss
+        # loss1 = np.mean(np.square(self.true_sigma1 - gen_sigma1))
+        # loss2 = np.mean(np.square(self.true_sigma2 - gen_sigma2))
+        # #loss2 = tf.keras.losses.mse(self.true_sigma2, gen_sigma2)
+        # loss = (loss1+loss2)+1e-6
+        # # Scale for linear approximation
+        # reward = 1000.0*np.exp(-loss)
+        r1 = 1000.0*np.exp(-5*np.mean(np.abs(self.true_sigma1-gen_sigma1)))
+        r2 = 1000.0*np.exp(-5*np.mean(np.abs(self.true_sigma2-gen_sigma2)))
+        reward = r1 + r2 + 1e-6
+        #print('reward', reward)
 
-        # if self.nsteps%100==0:
-        #     fig = plt.figure(figsize=(6, 6))
-        #     ax = fig.add_subplot(111)
-        #     ax.set_title(f'sigma1\nloss: {loss}')
-        #     ax.set_xlabel("X")
-        #     ax.set_ylabel("Y")
-        #     plt.plot(self.true_sigma1, label="Data")
-        #     plt.plot(gen_sigma1, label="GenAI")
-        #     plt.legend()
-        #     plt.savefig(self.logdir+'/sigma1_{}.png'.format(self.nsteps))
-        #     plt.close()
-        #
-        #     fig = plt.figure(figsize=(6, 6))
-        #     ax = fig.add_subplot(111)
-        #     ax.set_title(f'sigma2\nloss: {loss}')
-        #     ax.set_xlabel("X")
-        #     ax.set_ylabel("Y")
-        #     plt.plot(self.true_sigma2, label="Data")
-        #     plt.plot(gen_sigma2, label="GenAI")
-        #     plt.legend()
-        #     plt.savefig(self.logdir+'/sigma2_{}.png'.format(self.nsteps))
-        #     plt.close()
-
-        # for i in range(self.true_sigma1.shape[0]):
-        #     tf.summary.scalar('Xsec-1 Diff #{}'.format(i),
-        #                       data=abs(gen_sigma1[i]-self.true_sigma1[i]),
-        #                       step=int(self.nsteps))
-        #     tf.summary.scalar('Xsec-2 Diff #{}'.format(i),
-        #                       data=abs(gen_sigma2[i] - self.true_sigma2[i]),
-        #                       step=int(self.nsteps))
         self.nsteps += 1
 
         return self.states, reward, False, False, {}

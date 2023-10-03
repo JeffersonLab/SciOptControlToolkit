@@ -128,7 +128,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             # Check shapes and data types
             assert 'numpy.ndarray' in str(type(state))
             assert state.shape == (num_states,)
-            assert 'numpy.float64' in str(type(reward))
+            assert 'numpy.float' in str(type(reward)), str(type(reward))
 
             agent.memory((prev_state, action, reward, state, done, action_type))
             episodic_reward += reward
@@ -146,42 +146,52 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                 if agent.next_state_buffer.shape[1] == 2:
                     # Latest buffer
-                    fig = plt.figure(figsize=(6, 6))
+                    action_types = agent.action_type_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    x = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
+                    y = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
+                    sample_idx = np.where(action_types==0)[0]
+                    sample_x = x[sample_idx]
+                    sample_y = y[sample_idx]
+                    sample_z = z[sample_idx]
+
+                    fig = plt.figure(figsize=(12, 12))
                     ax = fig.add_subplot(111)
-                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))#, fontsize=14)
+                    ax.set_title(f'Sampled {sample_idx.shape[0]}')
                     ax.set_xlabel("X")
                     ax.set_ylabel("Y")
                     ax.grid(True, linestyle='-', color='0.75')
-                    x = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
-                    y = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
                     # scatter with colormap mapping to z value
-                    cb = ax.scatter(x, y, s=20, c=z, marker='o', cmap=cm.jet);
+                    cb = ax.scatter(sample_x, sample_y, s=35, c=sample_z, marker='o', cmap=cm.jet);
                     plt.xlim(-1.2, 1.2)
                     plt.ylim(-1.2, 1.2)
                     plt.colorbar(cb)
-                    plt.savefig(logdir+'/current_xy_action_reward_{}.png'.format(agent.buffer_counter / nsavefig))
+                    plt.savefig(logdir+'/sampled_xy_action_reward_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
 
                     # Inference
-                    fig = plt.figure(figsize=(6, 6))
-                    ax = fig.add_subplot(111)
-                    ax.set_title('Episode {}\n{}\n{}'.format(ep,agent_id, env_id))
-                    ax.set_xlabel("X")
-                    ax.set_ylabel("Y")
-                    ax.grid(True, linestyle='-', color='0.75')
-                    action_types = agent.action_type_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
-                    #print(action_types)
-                    policy_idx = np.where(action_types==1)[0]
-                    #print(policy_idx)
+                    #inference_actions, inference_rewards = agent.action_inference(agent.top_states)
+                    # policy_x = inference_actions[:, 0]
+                    # policy_y = inference_actions[:, 1]
+                    # policy_z = inference_rewards
+
+                    policy_idx = np.where(action_types == 1)[0]
                     policy_x = x[policy_idx]
                     policy_y = y[policy_idx]
                     policy_z = z[policy_idx]
+
+                    fig = plt.figure(figsize=(12, 12))
+                    ax = fig.add_subplot(111)
+                    ax.set_title(f'Inference {policy_idx.shape[0]}')
+                    #ax.set_title(f'Inference')
+                    ax.set_xlabel("X")
+                    ax.set_ylabel("Y")
+                    ax.grid(True, linestyle='-', color='0.75')
                     #inference_states = agent.state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                     #actions, rewards = agent.action_inference(inference_states)
                     # a1 = actions[:,0]
                     # a2 = actions[:,1]
                     # scatter with colormap mapping to z value
-                    cb = ax.scatter(policy_x, policy_y, s=20, c=policy_z, marker='o', cmap=cm.jet);
+                    cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet);
                     plt.xlim(-1.2, 1.2)
                     plt.ylim(-1.2, 1.2)
                     plt.colorbar(cb)
@@ -215,14 +225,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     if agent.num_actions==1:
                         figure, axis = plt.subplots(2, figsize=(20, 16))
                         sns.kdeplot(x=np.squeeze(top_warmup_actions), ax=axis[0],
-                                    color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.25, label='Warmup Parameter')
+                                    color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.5, label='Warmup Parameter')
                         sns.kdeplot(x=np.squeeze(top_warmup_actions), y=np.squeeze(top_warmup_rewards), ax=axis[1],
-                                    alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.25, label='Warmup Parameter')
+                                    alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5, label='Warmup Parameter')
                     else:
                         figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
                         for i in range(agent.num_actions):
                             sns.kdeplot(x=top_warmup_actions[:, i], ax=axis[i,0],
-                                        color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.25, label='Warmup Parameter')
+                                        color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.5, label='Warmup Parameter')
                             sns.kdeplot(x=top_warmup_actions[:, i], y=np.squeeze(top_warmup_rewards), ax=axis[i,1],
                                           alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.25,  label='Warmup Parameter')
                             if "Proxy" in env_id:
@@ -233,11 +243,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                                 axis[i, 1].set_xlim(0, 1)
 
                     plt.tight_layout()
-                    plt.savefig(logdir + f'/top{int(agent.buffer_counter)}_action_dist_{agent.buffer_counter / nsavefig}.png')
+                    plt.savefig(logdir + f'/top{int(agent.batch_size)}_action_dist_{agent.buffer_counter / nsavefig}.png')
                     plt.close()
 
                     if agent.num_actions == 2:
-                        fig = plt.figure(figsize=(6, 6))
+                        fig = plt.figure(figsize=(12, 12))
                         ax = fig.add_subplot(111)
                         ax.set_title('Top Episode {}\n{}\n{}'.format(ep, agent_id, env_id))
                         ax.set_xlabel("X")
@@ -246,7 +256,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         x = top_warmup_actions[:, 0]
                         y = top_warmup_actions[:, 1]
                         # scatter with colormap mapping to z value
-                        cb = ax.scatter(x, y, s=20, c=top_warmup_rewards, marker='o', cmap=cm.jet);
+                        cb = ax.scatter(x, y, s=35, c=top_warmup_rewards, marker='o', cmap=cm.jet);
                         plt.xlim(-1.2, 1.2)
                         plt.ylim(-1.2, 1.2)
                         plt.colorbar(cb)
