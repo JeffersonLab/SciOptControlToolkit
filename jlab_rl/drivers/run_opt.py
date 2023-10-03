@@ -209,12 +209,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                                 alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
                 else:
                     for i in range(agent.num_actions):
-                        sns.kdeplot(x=a[:, i], ax=axis[i, 0],
-                                    color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.5,label='Warmup Parameter')
+                        axis[i,0].title.set_text(f'Action #{i}: {agent.scores[i]}')
+                        sns.kdeplot(x=agent.top_actions[:,i], ax=axis[i, 0],
+                                    color='red', fill=True, alpha=.75, linewidth=1, bw_adjust=0.5,
+                                    label='Reference')
+                        sns.kdeplot(x=agent.training_actions[:,i], ax=axis[i, 0],
+                                    color='blue', fill=True, alpha=.25, linewidth=1, bw_adjust=0.5,label='Current')
                         sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
                                     alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
                 plt.title(f'Episode {ep} - Reward: {np.mean(z)}')
-                plt.savefig(logdir + '/current_action_reward_dist_{}.png'.format(agent.buffer_counter / nsavefig))
+                plt.savefig(logdir + '/training_action_reward_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
 
                 if ('ECGTD3' in agent_id or 'Generative' in agent_id) and is_ref_plot==False:
