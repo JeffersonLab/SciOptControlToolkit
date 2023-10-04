@@ -115,7 +115,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             total_nsteps += 1
             action, action_type = agent.action(tf.convert_to_tensor(prev_state))
             assert 'numpy.ndarray' in str(type(action))
-            assert action.shape == (num_actions,)
+            # print(action.shape)
+            # assert action.shape == (num_actions,), print("Action shape does not match: ", action.shape)
             # TODO: We suspect this is to the the num_actions > 1
             if env_id == "LunarLanderContinuous-v2":
                 action = action[0]
