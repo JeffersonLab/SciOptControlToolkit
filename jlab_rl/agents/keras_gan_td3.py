@@ -171,18 +171,23 @@ class KerasGenerativeTD3(KerasTD3):
 
         top_actions = tf.cast(self.top_actions, dtype=tf.float32)
         top_actions0, top_actions1 = tf.split(top_actions, num_or_size_splits=self.num_actions, axis=1)
-        top_actions0 = tf.sort(top_actions0)
-        top_actions1 = tf.sort(top_actions1)
+        top_actions0, top_actions1 = np.squeeze(top_actions0), np.squeeze(top_actions1)
+        angles = np.arctan2(top_actions1, top_actions0)
+        sorted_indices = np.argsort(angles)
+        top_actions0 = top_actions0[sorted_indices] #tf.sort(top_actions0)
+        top_actions1 = top_actions1[sorted_indices] #tf.sort(top_actions1)
 
         with tf.GradientTape() as tape:
             next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
                                              seed=time.time_ns())
             self.training_actions = self.actor_model([states, next_rdm_gaus], training=True)
 
-            #score = tf.math.reduce_mean(tf.math.squared_difference(self.training_actions, top_actions))
+            # score = tf.math.sqrt(tf.reduce_sum(tf.math.squared_difference(self.training_actions, top_actions)))
             training_actions0, training_actions1 = tf.split(self.training_actions, num_or_size_splits=self.num_actions, axis=1)
-            training_actions0 = tf.sort(training_actions0)
-            training_actions1 = tf.sort(training_actions1)
+            training_actions0, training_actions1 = tf.squeeze(training_actions0), tf.squeeze(training_actions1)
+            sorted_indices = tf.argsort(tf.math.atan2(training_actions1, training_actions0))
+            training_actions0 = tf.gather(training_actions0, sorted_indices) #tf.sort(training_actions0)
+            training_actions1 = tf.gather(training_actions1, sorted_indices) #tf.sort(training_actions1)
             self.scores[0] = tf.math.reduce_sum(tf.math.abs(training_actions0 - top_actions0))
             self.scores[1] = tf.math.reduce_sum(tf.math.abs(training_actions1 - top_actions1))
 
