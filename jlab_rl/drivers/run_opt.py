@@ -14,6 +14,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import seaborn as sns
+from scipy import stats
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -145,6 +146,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                 a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
 
+                # Only does for 2D problem(s)
                 if agent.next_state_buffer.shape[1] == 2:
                     # Latest buffer
                     action_types = agent.action_type_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
@@ -203,22 +205,32 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 #
                 figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
                 if agent.num_actions == 1:
-                    figure, axis = plt.subplots(2, figsize=(20, 16))
+                    figure, axis = plt.subplots(2, figsize=(12, 10))
+                    sns.kdeplot(x=agent.top_actions[:, 0], ax=axis[0],
+                                    color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
+                                    label='Reference')
                     sns.kdeplot(x=np.squeeze(a), ax=axis[0],
-                                color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.5, label='Warmup Parameter')
+                                color='green', fill=False, alpha=.5, linewidth=3, bw_adjust=0.5, label='Warmup Parameter')
+                    axis[0].legend()
+                    p_val = stats.ttest_ind(agent.top_actions[:, 0], np.squeeze(a)).pvalue
+                    axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
                     sns.kdeplot(x=np.squeeze(a), y=np.squeeze(z), ax=axis[1],
                                 alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
                 else:
                     for i in range(agent.num_actions):
-                        axis[i,0].title.set_text(f'Action #{i}: {agent.scores[i]}')
+                        # axis[i,0].title.set_text(f'Action #{i}: {agent.scores[i]}')
                         sns.kdeplot(x=agent.top_actions[:,i], ax=axis[i, 0],
-                                    color='red', fill=True, alpha=.75, linewidth=1, bw_adjust=0.5,
+                                    color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
                                     label='Reference')
                         sns.kdeplot(x=agent.training_actions[:,i], ax=axis[i, 0],
-                                    color='blue', fill=True, alpha=.25, linewidth=1, bw_adjust=0.5,label='Current')
+                                    color='blue', fill=False, alpha=.25, linewidth=3, bw_adjust=0.5,label='Current')
+                        axis[i, 0].legend()
+                        p_val = stats.ttest_ind(agent.top_actions[:, i], agent.training_actions[:, i]).pvalue
+                        axis[i, 0].set_title("P-value: "+str(np.round(p_val, 4)))
+                        
                         sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
                                     alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
-                plt.title(f'Episode {ep} - Reward: {np.mean(z)}')
+                plt.suptitle(f'Episode {ep}')
                 plt.savefig(logdir + '/training_action_reward_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
 
@@ -227,19 +239,42 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     top_warmup_rewards = agent.top_rewards
                     print(top_warmup_rewards.shape)
                     #print('top_warmup_actions:', top_warmup_actions)
+                    if 'sin' in env_id.lower():
+                        ref_truth = np.concatenate([[-np.pi]*333, [0]*334, [np.pi]*333])
+                    elif 'square' in env_id.lower():
+                        ref_truth = np.concatenate([[-1]*500, [1]*500])
+                    elif 'circle' in env_id.lower():
+                        theta = np.linspace(0, 2*np.pi, num=1000)
+                        r = np.array([1.]*1000)
+                        x_ref = r * np.cos(theta)
+                        y_ref = r * np.sin(theta)
+                        ref_truth = [x_ref, y_ref]
                     if agent.num_actions==1:
-                        figure, axis = plt.subplots(2, figsize=(20, 16))
+                        figure, axis = plt.subplots(2, figsize=(12, 10))
+                        sns.kdeplot(x=ref_truth, ax=axis[0],
+                                    color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
+                                    label='True Distribution')
                         sns.kdeplot(x=np.squeeze(top_warmup_actions), ax=axis[0],
-                                    color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.5, label='Warmup Parameter')
+                                    color='green', fill=False, alpha=.5, linewidth=3, bw_adjust=0.5, label='Reference')
+                        axis[0].legend()
+                        p_val = stats.ttest_ind(ref_truth, np.squeeze(top_warmup_actions)).pvalue
+                        axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
+                        
                         sns.kdeplot(x=np.squeeze(top_warmup_actions), y=np.squeeze(top_warmup_rewards), ax=axis[1],
                                     alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5, label='Warmup Parameter')
                     else:
                         figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
                         for i in range(agent.num_actions):
+                            sns.kdeplot(x=ref_truth[i], ax=axis[i, 0],
+                                    color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
+                                    label='True Distribution')
                             sns.kdeplot(x=top_warmup_actions[:, i], ax=axis[i,0],
-                                        color='green', fill=True, alpha=.5, linewidth=1, bw_adjust=0.5, label='Warmup Parameter')
+                                        color='green', fill=False, alpha=.5, linewidth=3, bw_adjust=0.5, label='Reference')
                             sns.kdeplot(x=top_warmup_actions[:, i], y=np.squeeze(top_warmup_rewards), ax=axis[i,1],
                                           alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.25,  label='Warmup Parameter')
+                            axis[i, 0].legend()
+                            p_val = stats.ttest_ind(ref_truth[i], np.squeeze(top_warmup_actions[:, i])).pvalue
+                            axis[i, 0].set_title("P-value: "+str(np.round(p_val, 4)))
                             if "Proxy" in env_id:
                                 axis[i, 0].axvline(x=env.true_params[i], color='r', label='True Parameter')
                                 axis[i, 1].axvline(x=env.true_params[i], color='r', label='True Parameter')
