@@ -137,11 +137,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             agent.train()
             prev_state = state
 
+            # if (agent.buffer_counter % agent.batch_size == 0) \
+            #         and (agent.buffer_counter >= agent.batch_size):
             if (agent.buffer_counter % agent.batch_size == 0) \
-                    and (agent.buffer_counter >= agent.batch_size):
-                # if (agent.buffer_counter % agent.batch_size == 0) \
-                #     and (agent.buffer_counter >= agent.batch_size)\
-                #     and (agent.buffer_counter >= agent.min_buffer_counter):
+                and (agent.buffer_counter >= agent.batch_size)\
+                and (agent.buffer_counter >= agent.min_buffer_counter):
                 # Plot
                 z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                 a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
@@ -227,14 +227,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         axis[i, 0].legend()
                         p_val = stats.ttest_ind(agent.top_actions[:, i], agent.training_actions[:, i]).pvalue
                         axis[i, 0].set_title("P-value: "+str(np.round(p_val, 4)))
-                        
+
                         sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
                                     alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
                 plt.suptitle(f'Episode {ep}')
                 plt.savefig(logdir + '/training_action_reward_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                 plt.close()
 
-                if ('ECGTD3' in agent_id or 'Generative' in agent_id) and is_ref_plot==False:
+                if ('ECGTD3' in agent_id or 'Generative' in agent_id) and (agent.buffer_counter >= agent.min_buffer_counter) and is_ref_plot==False:
                     top_warmup_actions = agent.top_actions
                     top_warmup_rewards = agent.top_rewards
                     print(top_warmup_rewards.shape)
@@ -259,7 +259,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         axis[0].legend()
                         p_val = stats.ttest_ind(ref_truth, np.squeeze(top_warmup_actions)).pvalue
                         axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
-                        
+
                         sns.kdeplot(x=np.squeeze(top_warmup_actions), y=np.squeeze(top_warmup_rewards), ax=axis[1],
                                     alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5, label='Warmup Parameter')
                     else:
