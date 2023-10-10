@@ -27,7 +27,7 @@ class sin_env(gym.Env):
         if self.statefull==False:
             self.states = action
 
-        y = np.sin(self.states)
+        y = np.sin(self.states[0])
         reward = 1000.0*np.exp(-5.0*np.abs(y - self.target_value)+1e-6)
         #reward = - np.sum(np.abs(y - self.target_value))
 
