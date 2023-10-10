@@ -50,7 +50,10 @@ class XSquareEnv(gym.Env):
             self.states = action
 
         # reward = - np.log(np.abs(radius - self.target_radius)) - 100 * np.square(radius - self.target_radius)
-        reward = - np.sum(np.abs(np.square(self.states) - self.target_value))
+        y = np.square(self.states)
+        #reward = - np.sum(np.abs(np.square(self.states) - self.target_value))
+        reward = 1000.0*np.exp(-5.0*np.abs(y - self.target_value)+1e-6)
+
         # if self.states.any() > 1.5:
         #     reward = -99
         # if self.states.any() < -1.5:

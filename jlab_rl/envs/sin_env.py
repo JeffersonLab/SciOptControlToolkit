@@ -28,7 +28,8 @@ class sin_env(gym.Env):
             self.states = action
 
         y = np.sin(self.states)
-        reward = - np.sum(np.abs(y - self.target_value))
+        reward = 1000.0*np.exp(-5.0*np.abs(y - self.target_value)+1e-6)
+        #reward = - np.sum(np.abs(y - self.target_value))
 
         #print('post-states:', self.states)
         # y = np.abs(np.sin(self.states))
