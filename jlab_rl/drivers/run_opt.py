@@ -220,10 +220,15 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     figure, axis = plt.subplots(nrows=agent.num_actions, ncols=1, figsize=(20, 5 * agent.num_actions))
 
                     if agent.num_actions == 1:
+                        if 'sin' in env_id.lower():
+                            set_range = [-1.5*np.pi, 1.5*np.pi]
+                        elif 'square' in env_id.lower():
+                            set_range = [-1.5, 1.5]
+
                         #figure, axis = plt.subplots(1, figsize=(12, 10))
-                        ref_counts, ref_bins, _ = plt.hist(agent.top_actions, bins=25, linewidth=3, density=True, alpha=1, histtype='step',
+                        ref_counts, ref_bins, _ = plt.hist(agent.top_actions, bins=27, linewidth=3, density=True, alpha=1, histtype='step', range=set_range,
                                          color='red', label='Reference')
-                        model_counts, model_bins, _ = plt.hist(agent.training_actions, bins=25, linewidth=3, density=True, alpha=1, histtype='step',
+                        model_counts, model_bins, _ = plt.hist(agent.training_actions, bins=27, linewidth=3, density=True, alpha=1, histtype='step', range=set_range,
                                          color='blue', label='Inference')
                         # sns.kdeplot(x=agent.top_actions[:, 0], ax=axis[0],
                         #                 color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
@@ -233,7 +238,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         #p_val = stats.ttest_ind(agent.top_actions[:, 0], np.squeeze(a)).pvalue
                         #axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
                         # rchi2 = get_rchi2(agent.top_actions[:, 0], np.squeeze(a))
-                        rchi2 = np.sum(np.square(ref_counts-model_counts)/ref_counts) #/(len(top_counts)-1)
+                        rchi2 = np.sum(np.square(ref_counts-model_counts)/(ref_counts+1)) #/(len(top_counts)-1)
                         legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
                         plt.legend(title=legend_title)
                         plt.xlabel("Action")
@@ -304,10 +309,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                         # sns.kdeplot(x=np.squeeze(top_warmup_actions), y=np.squeeze(top_warmup_rewards), ax=axis[1],
                         #             alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5, label='Warmup Parameter')
+                        if 'sin' in env_id.lower():
+                            set_range = [-1.5*np.pi, 1.5*np.pi]
+                        elif 'square' in env_id.lower():
+                            set_range = [-1.5, 1.5]
 
-                        ref_counts, ref_bins, _ = plt.hist(ref_truth, bins=25, linewidth=3, density=True, alpha=1, histtype='step',
+                        ref_counts, ref_bins, _ = plt.hist(ref_truth, bins=27, linewidth=3, density=True, alpha=1, histtype='step', range=set_range,
                                          color='black', label='Truth')
-                        top_counts, model_bins, _ = plt.hist(np.squeeze(top_warmup_actions), bins=25, linewidth=3, density=True, alpha=1, histtype='step',
+                        top_counts, model_bins, _ = plt.hist(np.squeeze(top_warmup_actions), bins=27, linewidth=3, density=True, alpha=1, histtype='step', range=set_range,
                                          color='red', label='Reference')
                         # sns.kdeplot(x=agent.top_actions[:, 0], ax=axis[0],
                         #                 color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
@@ -317,7 +326,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         #p_val = stats.ttest_ind(agent.top_actions[:, 0], np.squeeze(a)).pvalue
                         #axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
                         # rchi2 = get_rchi2(agent.top_actions[:, 0], np.squeeze(a))
-                        rchi2 = np.sum(np.square(top_counts-ref_counts)/top_counts) #/(len(top_counts)-1)
+                        rchi2 = np.sum(np.square(top_counts-ref_counts)/(top_counts+1)) #/(len(top_counts)-1)
                         legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
                         plt.legend(title=legend_title)
                         plt.xlabel("Action")
@@ -339,7 +348,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                             ref_counts, _, _ = axis[i].hist(ref_truth[i], bins=25, range=[-1, 1],
                                                             alpha=1, linewidth=3, histtype='step', color='black',
                                                             label='Truth', density=True)
-                            rchi2 = np.sum(np.square(top_counts-ref_counts)/top_counts)/(len(top_counts)-1)
+                            rchi2 = np.sum(np.square(top_counts-ref_counts)/top_counts) #/(len(top_counts)-1)
                             axis[i].set_xlabel(f'Action #{i}')
                             legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
                             # p_val = stats.ttest_ind(ref_truth[i], np.squeeze(top_warmup_actions[:, i])).pvalue
