@@ -217,18 +217,22 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
                     if agent.num_actions == 1:
                         figure, axis = plt.subplots(2, figsize=(12, 10))
-                        sns.kdeplot(x=agent.top_actions[:, 0], ax=axis[0],
-                                        color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
-                                        label='Reference')
-                        sns.kdeplot(x=np.squeeze(a), ax=axis[0],
-                                    color='green', fill=False, alpha=.5, linewidth=3, bw_adjust=0.5, label='Warmup Parameter')
+                        _ = axis[0].hist(gent.top_actions[:, 0], bins=25, alpha=.75, linewidth=3,
+                                         color='red', fill=False, label='Reference')
+                        # sns.kdeplot(x=agent.top_actions[:, 0], ax=axis[0],
+                        #                 color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
+                        #                 label='Reference')
+                        # sns.kdeplot(x=np.squeeze(a), ax=axis[0],
+                        #             color='green', fill=False, alpha=.5, linewidth=3, bw_adjust=0.5, label='Warmup Parameter')
                         axis[0].legend()
                         #p_val = stats.ttest_ind(agent.top_actions[:, 0], np.squeeze(a)).pvalue
                         #axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
                         rchi2 = get_rchi2(agent.top_actions[:, 0], np.squeeze(a))
                         axis[0].set_title(r"$\chi^{2}_{\nu}: "+str(np.round(rchi2, 4)))
-                        sns.kdeplot(x=np.squeeze(a), y=np.squeeze(z), ax=axis[1],
-                                    alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
+                        _ = axis[0].hist(gent.top_actions[:, 0], bins=25, alpha=.75, linewidth=3,
+                                         color='red', fill=False, label='Reference')
+                        # sns.kdeplot(x=np.squeeze(a), y=np.squeeze(z), ax=axis[1],
+                        #             alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
                     else:
                         for i in range(agent.num_actions):
                             # axis[i,0].title.set_text(f'Action #{i}: {agent.scores[i]}')
@@ -352,7 +356,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
         avg_reward_list.append(avg_reward)
 
-        with open(logdir+'/test.npy', 'wb') as f:
+        with open(logdir+'/results.npy', 'wb') as f:
             np.save(f, np.array(ep_reward_list))
 
 

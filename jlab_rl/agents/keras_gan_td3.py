@@ -64,7 +64,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.epsilon = 0.5
         self.min_epsilon = 0.001
         self.best_qvalue = -9999
-        self.decay_epsilon = 0.9995
+        self.decay_epsilon = 0.999
 
         # Reference distribution
         self.dynamic_ref = dynamic_ref
@@ -76,6 +76,7 @@ class KerasGenerativeTD3(KerasTD3):
         self.scores = [0] * self.num_actions #np.zeros(self.num_actions, dtype=np.float32)
 
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
+        print('max_size:', self.max_size)
 
         # Re-init models
         self.initialize_new_models()
@@ -116,6 +117,9 @@ class KerasGenerativeTD3(KerasTD3):
 
         # Train actor
         if self.buffer_counter>=self.max_size:
+            # print('Training actor ...')
+            # print('self.buffer_counter', self.buffer_counter)
+            # print('self.top_actions', self.top_actions.shape)
             self.ntrain_actor_calls += 1
             # Train
             td_loss, kl_loss = self.train_actor(state_batch)#self.top_states)
@@ -169,7 +173,11 @@ class KerasGenerativeTD3(KerasTD3):
     #@tf.function
     def train_actor(self, states):
 
-        top_actions = tf.cast(self.top_actions, dtype=tf.float32)
+        chosen_indices = np.random.choice(np.arange(self.max_size), size=self.batch_size)
+        #print('self.top_actions:', self.top_actions.shape)
+        top_actions = self.top_actions[chosen_indices]
+        top_actions = tf.cast(top_actions, dtype=tf.float32)
+        #print('top_actions:', top_actions.shape)
         if self.num_actions == 2:
             top_actions0, top_actions1 = tf.split(top_actions, num_or_size_splits=self.num_actions, axis=1)
             top_actions0, top_actions1 = np.squeeze(top_actions0), np.squeeze(top_actions1)
@@ -188,6 +196,8 @@ class KerasGenerativeTD3(KerasTD3):
             # To be used in the gradient tape
             loss_function = get_score_1d
 
+
+        # top_actions = random.choice(top_actions,k=self.batch_size)
         with tf.GradientTape() as tape:
             next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
                                              seed=time.time_ns())
@@ -524,9 +534,9 @@ class KerasGenerativeTD3(KerasTD3):
                 # isort_reward = np.argsort(np.squeeze(w_rewards))
                 # isort_top_reward = isort_reward[-self.batch_size:]
                 # sys.exit()
-                self.top_states = self.state_buffer[0:self.batch_size]
-                self.top_actions = self.action_buffer[0:self.batch_size]
-                self.top_rewards = self.reward_buffer[0:self.batch_size]
+                self.top_states = self.state_buffer[0:self.max_size]
+                self.top_actions = self.action_buffer[0:self.max_size]
+                self.top_rewards = self.reward_buffer[0:self.max_size]
             # ============ Dynamic Reference ==============================
             elif (self.dynamic_ref and obs_tuple[5]==0):
                 state = np.expand_dims(obs_tuple[0], axis=0)
@@ -539,7 +549,7 @@ class KerasGenerativeTD3(KerasTD3):
                 merged_top_actions = np.concatenate([self.top_actions, action])
                 merged_top_reward = np.concatenate([self.top_rewards, reward])
                 isort_reward = np.argsort(np.squeeze(merged_top_reward))
-                isort_top_reward = isort_reward[-self.batch_size:]
+                isort_top_reward = isort_reward[-self.max_size:]
                 self.top_states = merged_top_states[isort_top_reward]
                 self.top_actions = merged_top_actions[isort_top_reward]
                 self.top_rewards = merged_top_reward[isort_top_reward]
