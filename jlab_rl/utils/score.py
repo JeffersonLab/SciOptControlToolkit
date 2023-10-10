@@ -38,7 +38,7 @@ def get_score_1d(training_actions, top_actions, num_actions=1):
     sorted_top_actions = tf.sort(top_actions)
     score = tf.math.reduce_sum(tf.math.abs(sorted_training - sorted_top_actions))
 
-    return score
+    return score, 0, 0
 # @tf.function
 # def split_2d(training_actions, num_actions=2):
     
