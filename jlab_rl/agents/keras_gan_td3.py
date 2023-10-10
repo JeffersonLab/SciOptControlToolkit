@@ -36,7 +36,7 @@ import numpy as np
 import os
 from os.path import join
 import time
-from jlab_rl.utils.score import get_score_2d, get_score_1d
+from jlab_rl.utils.score import get_score_2d, get_score_1d, get_score
 
 class KerasGenerativeTD3(KerasTD3):
     """ Define all key variables required for all agent """
@@ -196,10 +196,10 @@ class KerasGenerativeTD3(KerasTD3):
             # score = tf.math.sqrt(tf.reduce_sum(tf.math.squared_difference(self.training_actions, top_actions)))
             # training_actions0, training_actions1 = tf.squeeze(training_actions0), tf.squeeze(training_actions1)
             score = loss_function(self.training_actions, top_actions)
-            print('score:', score)
+            #print('score:', score)
             #score = tf.math.reduce_mean(tf.losses.kl_divergence(self.top_actions, self.training_actions))
-            # q_value = self.critic_model1([states, actions], training=False)
-            # td_loss = -tf.math.reduce_mean(q_value)
+            q_value = self.critic_model1([states, self.training_actions], training=False)
+            td_loss = -tf.math.reduce_mean(q_value)
 
             # print('self.top_actions.shape:', self.top_actions.shape)
             # print('self.training_actions.shape:', self.training_actions.shape)
@@ -247,11 +247,10 @@ class KerasGenerativeTD3(KerasTD3):
             #     self.scores[i] = tf.reduce_mean(tf.math.square(tf.sort(training_actions) - tf.sort(top_actions)))
             # score = tf.math.reduce_sum(self.scores)
             # print(score)
-            total_loss = score #td_loss + score
+            total_loss = score + td_loss #+ score
             
         gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
-        td_loss = 0
         return td_loss, score
 
     def get_actor_qvalue(self, states, actions):
@@ -336,20 +335,18 @@ class KerasGenerativeTD3(KerasTD3):
         return sampled_action, sampled_q
 
     def action_inference(self, states):
-    #     nrepeats = 100
-    #     actions, rewards = [], []
-    #     for state in states:
-    #         state = tf.expand_dims(state, 0)
-    #         repeated_state = tf.repeat(state, nrepeats, axis=0)
-    #         #action, qvalue = self.get_policy_qvalue(state)
-    #         rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32,
-    #                                      seed=time.time_ns())
-    #         repeated_actions = self.actor_model([repeated_state, rdm_norms])
-    #         for action in repeated_actions:
-    #             self.env.reset()
-    #             _, reward, _, _, _ = self.env.step(action)
-    #             rewards.append(reward)
-    #             actions.append(action)
+        actions, rewards = [], []
+        # for state in states:
+        #     state = tf.expand_dims(state, 0)
+        #     repeated_state = tf.repeat(state, nrepeats, axis=0)
+        #     rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32,
+        #                                  seed=time.time_ns())
+        #     repeated_actions = self.actor_model([repeated_state, rdm_norms])
+        #     for action in repeated_actions:
+        #         self.env.reset()
+        #         _, reward, _, _, _ = self.env.step(action)
+        #         rewards.append(reward)
+        #         actions.append(action)
         #
         rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
         actions = self.actor_model([states,rdm_gaus])

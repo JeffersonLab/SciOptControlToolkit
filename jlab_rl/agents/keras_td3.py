@@ -310,6 +310,15 @@ class KerasTD3(jlab_rl.Agent):
                 self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
                 self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
+    def action_inference(self, states):
+        actions = self.actor_model(states)
+        rewards = []
+        for a in actions:
+            self.env.reset()
+            _, reward, _, _, _ = self.env.step(a)
+            rewards.append( reward )
+        return np.squeeze(actions), np.squeeze(rewards)
+
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         self.nactions.assign(self.nactions + 1)
@@ -323,17 +332,23 @@ class KerasTD3(jlab_rl.Agent):
             state = tf.expand_dims(state, 0)
 
             # else:
-            sampled_action = self.actor_model.predict_on_batch(state)
+            sampled_action = (self.actor_model(state)).numpy()
             if train:
                 #sampled_action = np.random.normal(sampled_action, 0.01, sampled_action.shape)
-                #noise = tf.random.normal(sampled_action.shape, 0, 0.1)
-                noise = np.random.normal(0, 0.05, self.num_actions)
+                noise = (tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
+                #noise = np.random.normal(0, 0.05, self.num_actions)
                 sampled_action = sampled_action + noise
             else:
                 noise = np.zeros(self.num_actions)
 
+            # print(sampled_action)
+            # print(noise)
             sampled_action = sampled_action.flatten()
             noise = noise.flatten()
+            assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
+                f"Sampled action shape is incorrect... {sampled_action.shape}"
+
+
 
         for i in range(self.num_actions):
             if self.num_actions > 1:

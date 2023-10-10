@@ -47,18 +47,14 @@ class KerasECGTD3(KerasTD3):
     def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, dynamic_ref=True, **kwargs):
         """ Define all key variables required for all agent """
 
-        self.rdm_intputs = 50
-        self.norm_sdt = 1
-        self.nactor_layers = 3
-        self.ncritic_layers = 3
+        # Standard TD3 setup
+        self.nactor_layers = 4
+        self.ncritic_layers = 4
         self.hidden_size = 256
-        self.dynamic_ref = dynamic_ref
-        self.epsilon = 1
-        self.min_epsilon = 0.01
-        self.best_qvalue = -9999
-        self.decay_epsilon = 0.999
+        self.batch_size = 1000
+        self.ntrain_actor_calls = 0
 
-        #
+        # Ensemble
         self.ncritics = 7
         self.critic_models = []
         self.target_critics = []
@@ -67,16 +63,28 @@ class KerasECGTD3(KerasTD3):
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasECGTD3 __init__')
-        self.batch_size = 500
-        self.ntrain_actor_calls = 0
 
+        # Used for random samples
+        self.rdm_intputs = 100
+        self.norm_sdt = 1
+
+        # For quantile annealing
+        self.epsilon = 0.5
+        self.min_epsilon = 0.001
+        self.best_qvalue = -9999
+        self.decay_epsilon = 0.9995
+
+        # Reference distribution
+        self.dynamic_ref = dynamic_ref
         self.top_states = None
         self.top_actions = None
         self.top_rewards = None
-        self.n_top = warmup_size
+
+        # Score
+        self.scores = [0] * self.num_actions #np.zeros(self.num_actions, dtype=np.float32)
+
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
 
-        self.ave_critic_losses = []
         # Re-init models
         self.initialize_new_models()
 
@@ -86,9 +94,11 @@ class KerasECGTD3(KerasTD3):
         state_input = tf.keras.layers.Input(shape=(self.num_states))
         # Action as input
         action_input = tf.keras.layers.Input(shape=(self.num_actions))
+        # Concatenate state + rdm
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
+        # Build layers
         for _ in range(self.ncritic_layers):
-            state_action = tf.keras.layers.Dense(self.hidden_size, activation=tf.keras.activations.selu)(state_action)
+            state_action = tf.keras.layers.Dense(self.hidden_size, activation=tf.keras.activations.relu)(state_action)
         outputs = tf.keras.layers.Dense(1, activation='linear')(state_action)
 
         # Outputs single value for give state-action
@@ -100,36 +110,21 @@ class KerasECGTD3(KerasTD3):
         return model
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
+        # Check the shapes of the training data
+        assert state_batch.shape == (self.batch_size, self.num_states), "State_batch shape incorrect in update function"
+        assert action_batch.shape == (self.batch_size, self.num_actions), "action_batch shape incorrect in update function"
+        assert reward_batch.shape == (self.batch_size, 1), "reward_batch shape incorrect in update function"
+        assert next_state_batch.shape == (self.batch_size, self.num_states), "next_state_batch shape incorrect in update function"
+        assert done_batch.shape == (self.batch_size, 1), "done_batch shape incorrect in update function"
+
         critic_losses = self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
         for i in range(self.ncritics):
             tf.summary.scalar(f'Critic #{i} Loss', data=critic_losses[i], step=int(self.buffer_counter))
 
-        # nave=25
-        # self.ave_critic_losses.append(np.array(critic_losses))
-        # np_critic_losses = np.array(critic_losses)
-        # #print('np_critic_losses:', np_critic_losses.shape)
-        # np_ave_critic_losses = np.array(self.ave_critic_losses)
-        #print('np_ave_critic_losses:', np_ave_critic_losses.shape)
-        #print('self.ave_critic_losses', np_ave_critic_losses)
-        # print('self.ave_critic_losses', np_ave_critic_losses.shape)
-        # if self.buffer_counter>3000:
-        #     #print('np_ave_critic_losses[-nave:,]', np_ave_critic_losses[-nave:,:].shape)
-        #     avg_reward = np.mean(np_ave_critic_losses[-nave:,:],axis=0)
-        #     std_reward = np.std(np_ave_critic_losses[-nave:,:],axis=0)
-        #     for i in range(self.ncritics):
-        #         tf.summary.scalar(f'Critic Mean #{i} Loss', data=avg_reward[i], step=int(self.buffer_counter))
-        #         tf.summary.scalar(f'Critic STD #{i} Loss', data=std_reward[i], step=int(self.buffer_counter))
-        #         if critic_losses[i]>0.1:
-        #             print(critic_losses[i], '>', avg_reward[i])
-        #             print(state_batch, action_batch, reward_batch, next_state_batch)
-        #             sys.exit()
-
-        if self.buffer_counter >= np.max([self.batch_size, self.min_buffer_counter]) and self.top_actions is not None:
+        if self.buffer_counter>=self.max_size:
             self.ntrain_actor_calls += 1
             # Train
-            #print('state_batch:', state_batch)
             td_loss, kl_loss = self.train_actor(state_batch)
-            #td_loss, kl_loss = self.train_actor(state_batch)
             tf.summary.scalar('Actor TD-error Loss', data=td_loss, step=int(self.ntrain_actor_calls))
             tf.summary.scalar('Actor Distance Loss', data=kl_loss, step=int(self.ntrain_actor_calls))
             tf.summary.scalar('Actor Total Loss', data=td_loss + kl_loss, step=int(self.ntrain_actor_calls))
@@ -172,47 +167,41 @@ class KerasECGTD3(KerasTD3):
         return critic_losses
 
     def train_actor(self, states):
-        next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+
+        top_actions = tf.cast(self.top_actions, dtype=tf.float32)
+        if self.num_actions == 2:
+            top_actions0, top_actions1 = tf.split(top_actions, num_or_size_splits=self.num_actions, axis=1)
+            top_actions0, top_actions1 = np.squeeze(top_actions0), np.squeeze(top_actions1)
+            angles = np.arctan2(top_actions1, top_actions0)
+            sorted_indices = np.argsort(angles)
+            top_actions0 = top_actions0[sorted_indices]  # tf.sort(top_actions0)
+            top_actions1 = top_actions1[sorted_indices]  # tf.sort(top_actions1)
+            top_actions = [top_actions0, top_actions1]
+            # define the loss function to be 2d
+            # To be used in the gradient tape
+            loss_function = get_score_2d
+        elif self.num_actions == 1:
+            top_actions = np.squeeze(top_actions)
+            top_actions = np.sort(top_actions)
+            # define the loss function to be 1d
+            # To be used in the gradient tape
+            loss_function = get_score_1d
+
         with tf.GradientTape() as tape:
-            actions = self.actor_model([states, next_rdm_gaus], training=True)
-            q_mean, q_std = self.get_ensemble_critic_predict(self.critic_models, states, actions)
-            # TODO: should include the STD
-            td_loss = -tf.math.reduce_mean(q_mean/q_std + tf.math.log(q_std), axis=0)
-            #td_loss = -tf.math.reduce_mean(q_mean+3.0*q_std, axis=0)
-            # ##################### Dist loss #################################
-            # top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
-            #                                       self.rdm_intputs], 0, self.norm_sdt, tf.float32,seed=time.time_ns())
-            # this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
-            # this_actions = tf.cast(this_actions, dtype=tf.float32)
-            # top_actions = tf.cast(self.top_actions, dtype=tf.float32)
-            # if top_actions.shape[1] > 1:
-            #     score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
-            # else:
-            #     score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
-            # total_loss = td_loss + score
-        #try:
-        gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
+            next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
+                                             seed=time.time_ns())
+            self.training_actions = self.actor_model([states, next_rdm_gaus], training=True)
+            self.training_actions = tf.squeeze(self.training_actions)
+            # score = tf.math.sqrt(tf.reduce_sum(tf.math.squared_difference(self.training_actions, top_actions)))
+            # training_actions0, training_actions1 = tf.squeeze(training_actions0), tf.squeeze(training_actions1)
+            score = loss_function(self.training_actions, top_actions)
+            print('score:', score)
+            total_loss = score  # td_loss + score
+
+        gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
-        # except:
-        #     print(q_mean)
-        #     print(q_std)
-        #     sys.exit()
-
-        top_next_rdm_gaus = tf.random.normal([self.top_states.shape[0],
-                                              self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
-        with tf.GradientTape() as tape:
-            this_actions = self.actor_model([self.top_states, top_next_rdm_gaus], training=True)
-            this_actions = tf.cast(this_actions, dtype=tf.float32)
-            top_actions = tf.cast(self.top_actions, dtype=tf.float32)
-            if top_actions.shape[1] > 1:
-                score, score1, score2 = get_score(this_actions, top_actions) # For ND problems
-            else:
-                score, score1, score2 = get_score_1d(this_actions,top_actions) # For 1D problems
-
-        gradient = tape.gradient(score, self.actor_model.trainable_variables)
-        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
-
-        return float(td_loss), float(score)
+        td_loss = 0
+        return td_loss, score
 
     def get_critic_qvalue(self, state):
         nrepeats = 100

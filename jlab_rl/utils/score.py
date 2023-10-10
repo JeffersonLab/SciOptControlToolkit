@@ -13,7 +13,9 @@ def get_score(pred:tf.Tensor, obs:tf.Tensor) -> tf.Tensor:
     # Total score
     score1 = score1
     score2 = score2
+    #score = tf.abs((score1 - score2)/score2)
     score = 2 * score1 - score2
+    #return score, score1/score2, score2/score2
     return score, score1, score2
 
 @tf.function
