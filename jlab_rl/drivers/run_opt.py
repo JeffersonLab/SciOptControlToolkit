@@ -185,8 +185,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     inference_actions, inference_rewards = agent.action_inference(inference_states)
                     policy_x = inference_actions[:, 0]
                     policy_y = inference_actions[:, 1]
-                    policy_z = inference_rewards
-
+                    policy_z = tf.abs(tf.sqrt(tf.reduce_sum(tf.square(inference_actions), axis=1))-env.target_value) #inference_rewards
+                    #policy_z = inference_rewards
                     # policy_idx = np.where(action_types == 1)[0]
                     # policy_x = x[policy_idx]
                     # policy_y = y[policy_idx]
@@ -204,9 +204,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     # a1 = actions[:,0]
                     # a2 = actions[:,1]
                     # scatter with colormap mapping to z value
-                    cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet);
-                    plt.xlim(-1.2, 1.2)
-                    plt.ylim(-1.2, 1.2)
+                    cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet.reversed(),
+                                    vmin=0, vmax=0.05);
+                    plt.xlim(-1.1, 1.1)
+                    plt.ylim(-1.1, 1.1)
+                    #plt.clim(0.9, 1.0)
                     plt.colorbar(cb)
                     plt.tight_layout
                     plt.savefig(logdir+'/inference_xy_action_reward_{}.png'.format(agent.buffer_counter / nsavefig))
@@ -214,38 +216,46 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                 #
                 if 'Generative' in agent_id:
-                    figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
+                    figure, axis = plt.subplots(nrows=agent.num_actions, ncols=1, figsize=(20, 5 * agent.num_actions))
+
                     if agent.num_actions == 1:
-                        figure, axis = plt.subplots(2, figsize=(12, 10))
-                        _ = axis[0].hist(gent.top_actions[:, 0], bins=25, alpha=.75, linewidth=3,
+                        #figure, axis = plt.subplots(1, figsize=(12, 10))
+                        _ = plt.hist(agent.top_actions[:, 0], bins=25, alpha=.75, linewidth=3,
                                          color='red', fill=False, label='Reference')
                         # sns.kdeplot(x=agent.top_actions[:, 0], ax=axis[0],
                         #                 color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
                         #                 label='Reference')
                         # sns.kdeplot(x=np.squeeze(a), ax=axis[0],
                         #             color='green', fill=False, alpha=.5, linewidth=3, bw_adjust=0.5, label='Warmup Parameter')
-                        axis[0].legend()
+                        plt.legend()
                         #p_val = stats.ttest_ind(agent.top_actions[:, 0], np.squeeze(a)).pvalue
                         #axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
                         rchi2 = get_rchi2(agent.top_actions[:, 0], np.squeeze(a))
-                        axis[0].set_title(r"$\chi^{2}_{\nu}: "+str(np.round(rchi2, 4)))
-                        _ = axis[0].hist(gent.top_actions[:, 0], bins=25, alpha=.75, linewidth=3,
+                        plt.title(r"$\chi^{2}_{\nu}: "+str(np.round(rchi2, 2)))
+                        _ = plt.hist(gent.top_actions[:, 0], bins=25, alpha=.75, linewidth=3,
                                          color='red', fill=False, label='Reference')
                         # sns.kdeplot(x=np.squeeze(a), y=np.squeeze(z), ax=axis[1],
                         #             alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
                     else:
                         for i in range(agent.num_actions):
                             # axis[i,0].title.set_text(f'Action #{i}: {agent.scores[i]}')
-                            sns.kdeplot(x=agent.top_actions[:,i], ax=axis[i, 0],
-                                        color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
-                                        label='Reference')
-                            sns.kdeplot(x=agent.training_actions[:,i], ax=axis[i, 0],
-                                        color='blue', fill=False, alpha=.25, linewidth=3, bw_adjust=0.5,label='Current')
-                            axis[i, 0].legend()
+                            # sns.kdeplot(x=agent.top_actions[:,i], ax=axis[i, 0],
+                            #             color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
+                            #             label='Reference')
+                            # sns.kdeplot(x=agent.training_actions[:,i], ax=axis[i, 0],
+                            #             color='blue', fill=False, alpha=.25, linewidth=3, bw_adjust=0.5,label='Current')
+                            ref_counts, ref_bins, _ = axis[i].hist(agent.top_actions[:, i], bins=25, range=[-1, 1],density=True,
+                                                                alpha=1, linewidth=3, histtype='step', color='red', label='Reference')
+                            model_counts, model_bins, _ = axis[i].hist(agent.training_actions[:, i], bins=25, range=[-1, 1], density=True,
+                                                                       alpha=1, linewidth=3, histtype='step', color='blue', label='Inference')
+                            rchi2 = np.sum(np.square(ref_counts-model_counts)/ref_counts)/(len(ref_counts)-1)
+                            axis[i].set_xlabel(f'Action #{i}')
+                            legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
+                            axis[i].legend(title=legend_title)
+                            plt.tight_layout()
                             # top_counts, top_bins = np.histogram(agent.top_actions[:,i], range=[-1,1], bins=25)
                             # counts, bins = np.histogram(agent.training_actions[:,i], range=[-1,1], bins=25)
-                            # chi2 = np.sum(np.square(top_counts-counts)/top_counts)/(len(top_counts)-1)
-                            rchi2 = get_rchi2(agent.top_actions[:, i], agent.training_actions[:,i])
+                            #rchi2 = get_rchi2(agent.top_actions[:, i], agent.training_actions[:,i])
                             #print('my chi2:', chi2)
                             #from scipy.stats import chisquare
                             #chi2, p = chisquare(top_counts, counts)
@@ -253,12 +263,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                             #print('stats p:', p)
                             #p_val = stats.ttest_ind(agent.top_actions[:, i], agent.training_actions[:, i]).pvalue
                             #axis[i, 0].set_title("P-value: "+str(np.round(p_val, 4)))
-                            axis[i, 0].set_title(r'$\chi^{2}_{\nu}$: '+str(np.round(rchi2, 4)) )# +\
+                            #axis[i].set_title(r'$\chi^{2}_{\nu}$: '+str(np.round(rchi2, 4)) )# +\
                             #                    r'$p-value$: ' + f'{p:.2E}')
-
-                            sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
-                                        alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
-                    plt.suptitle(f'Episode {ep}')
+                            #
+                            # sns.kdeplot(x=a[:, i], y=np.squeeze(z), ax=axis[i, 1],
+                            #             alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5,label='Warmup Parameter')
+                    #plt.suptitle(f'Episode {ep}')
                     plt.savefig(logdir + '/training_action_reward_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
 
@@ -280,38 +290,49 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     if agent.num_actions==1:
                         figure, axis = plt.subplots(2, figsize=(12, 10))
                         sns.kdeplot(x=ref_truth, ax=axis[0],
-                                    color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
+                                    color='red', fill=False, alpha=1, linewidth=3, bw_adjust=0.5,
                                     label='True Distribution')
                         sns.kdeplot(x=np.squeeze(top_warmup_actions), ax=axis[0],
-                                    color='green', fill=False, alpha=.5, linewidth=3, bw_adjust=0.5, label='Reference')
+                                    color='green', fill=False, alpha=1, linewidth=3, bw_adjust=0.5, label='Reference')
                         axis[0].legend()
                         # p_val = stats.ttest_ind(ref_truth, np.squeeze(top_warmup_actions)).pvalue
                         # axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
                         rchi2 = get_rchi2(ref_truth, np.squeeze(top_warmup_actions))
-                        axis[0].set_title(r'$\chi^{2}_{\nu}$: '+str(np.round(rchi2, 4)) )
+                        #axis[0].set_title(r'$\chi^{2}_{\nu}$: '+str(np.round(rchi2, 4)) )
+
                         sns.kdeplot(x=np.squeeze(top_warmup_actions), y=np.squeeze(top_warmup_rewards), ax=axis[1],
                                     alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.5, label='Warmup Parameter')
                     else:
-                        figure, axis = plt.subplots(nrows=agent.num_actions, ncols=2, figsize=(20, 5 * agent.num_actions))
+                        figure, axis = plt.subplots(nrows=agent.num_actions, ncols=1, figsize=(20, 5 * agent.num_actions))
                         for i in range(agent.num_actions):
-                            sns.kdeplot(x=ref_truth[i], ax=axis[i, 0],
-                                    color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
-                                    label='True Distribution')
-                            sns.kdeplot(x=top_warmup_actions[:, i], ax=axis[i,0],
-                                        color='green', fill=False, alpha=.5, linewidth=3, bw_adjust=0.5, label='Reference')
-                            sns.kdeplot(x=top_warmup_actions[:, i], y=np.squeeze(top_warmup_rewards), ax=axis[i,1],
-                                          alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.25,  label='Warmup Parameter')
-                            axis[i, 0].legend()
+                            # sns.kdeplot(x=ref_truth[i], ax=axis[i, 0],
+                            #         color='red', fill=False, alpha=.75, linewidth=3, bw_adjust=0.5,
+                            #         label='True Distribution')
+                            # sns.kdeplot(x=top_warmup_actions[:, i], ax=axis[i,0],
+                            #             color='green', fill=False, alpha=.5, linewidth=3, bw_adjust=0.5, label='Reference')
+                            # sns.kdeplot(x=top_warmup_actions[:, i], y=np.squeeze(top_warmup_rewards), ax=axis[i,1],
+                            #               alpha=.5, linewidth=1, kind="kde", cmap="Purples_d", bw_adjust=0.25,  label='Warmup Parameter')
+                            # axis[i, 0].legend()
+                            top_counts, _, _ = axis[i].hist(top_warmup_actions[:, i], bins=25, range=[-1, 1],
+                                                            alpha=1, linewidth=3, histtype='step', color='red',
+                                                            label='Reference')
+                            ref_counts, _, _ = axis[i].hist(ref_truth[i], bins=25, range=[-1, 1],
+                                                            alpha=1, linewidth=3, histtype='step', color='black',
+                                                            label='Truth')
+                            rchi2 = np.sum(np.square(top_counts-ref_counts)/top_counts)/(len(top_counts)-1)
+                            axis[i].set_xlabel(f'Action #{i}')
+                            legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
                             # p_val = stats.ttest_ind(ref_truth[i], np.squeeze(top_warmup_actions[:, i])).pvalue
                             # axis[i, 0].set_title("P-value: "+str(np.round(p_val, 4)))
-                            rchi2 = get_rchi2(ref_truth[i], np.squeeze(top_warmup_actions[:, i]))
-                            axis[i,0].set_title(r'$\chi^{2}_{\nu}$: ' + str(np.round(rchi2, 4)))
-                            if "Proxy" in env_id:
-                                axis[i, 0].axvline(x=env.true_params[i], color='r', label='True Parameter')
-                                axis[i, 1].axvline(x=env.true_params[i], color='r', label='True Parameter')
-                                axis[i, 1].set_ylabel('Reward')
-                                axis[i, 0].set_xlim(0, 1)
-                                axis[i, 1].set_xlim(0, 1)
+                            #rchi2 = get_rchi2(ref_truth[i], np.squeeze(top_warmup_actions[:, i]))
+                            axis[i].legend(title=legend_title)
+                            #axis[i].set_title(r'$\chi^{2}_{\nu}$: ' + str(np.round(rchi2, 4)))
+                            # if "Proxy" in env_id:
+                            #     axis[i].axvline(x=env.true_params[i], color='r', label='True Parameter')
+                            #     axis[i, 1].axvline(x=env.true_params[i], color='r', label='True Parameter')
+                            #     axis[i, 1].set_ylabel('Reward')
+                            #     axis[i, 0].set_xlim(0, 1)
+                            #     axis[i, 1].set_xlim(0, 1)
 
                     plt.tight_layout()
                     plt.savefig(logdir + f'/top{int(agent.batch_size)}_action_dist_{agent.buffer_counter / nsavefig}.png')

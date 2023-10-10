@@ -58,7 +58,7 @@ class KerasGenerativeTD3(KerasTD3):
 
         # Used for random samples
         self.rdm_intputs = 100
-        self.norm_sdt = 1
+        self.norm_sdt = 2.0
 
         # For quantile annealing
         self.epsilon = 0.5
@@ -205,7 +205,7 @@ class KerasGenerativeTD3(KerasTD3):
             self.training_actions = tf.squeeze(self.training_actions)
             # score = tf.math.sqrt(tf.reduce_sum(tf.math.squared_difference(self.training_actions, top_actions)))
             # training_actions0, training_actions1 = tf.squeeze(training_actions0), tf.squeeze(training_actions1)
-            score = loss_function(self.training_actions, top_actions)
+            score, score1, score2 = loss_function(self.training_actions, top_actions)
             #print('score:', score)
             #score = tf.math.reduce_mean(tf.losses.kl_divergence(self.top_actions, self.training_actions))
             q_value = self.critic_model1([states, self.training_actions], training=False)

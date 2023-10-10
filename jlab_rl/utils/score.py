@@ -13,10 +13,10 @@ def get_score(pred:tf.Tensor, obs:tf.Tensor) -> tf.Tensor:
     # Total score
     score1 = score1
     score2 = score2
-    #score = tf.abs((score1 - score2)/score2)
-    score = 2 * score1 - score2
-    #return score, score1/score2, score2/score2
-    return score, score1, score2
+    score = tf.abs((score1 - score2)/score2)
+    #score = 2 * score1 - score2
+    return score, score1/score2, score2/score2
+    #return score, score1, score2
 
 @tf.function
 def get_score_2d(training_actions, top_actions, num_actions=2):
@@ -30,8 +30,7 @@ def get_score_2d(training_actions, top_actions, num_actions=2):
     print('self.scores[0]:', scores0)
     print('self.scores[1]:', scores1)
     score = scores0+scores1
-
-    return score 
+    return score, 0, 0
 
 @tf.function
 def get_score_1d(training_actions, top_actions, num_actions=1):
