@@ -195,7 +195,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                     fig = plt.figure(figsize=(12, 12))
                     ax = fig.add_subplot(111)
-                    ax.set_title(f'Inference {policy_z.shape[0]}')
+                    #ax.set_title(f'Inference {policy_z.shape[0]}')
                     #ax.set_title(f'Inference')
                     ax.set_xlabel("X")
                     ax.set_ylabel("Y")
@@ -335,10 +335,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                             # axis[i, 0].legend()
                             top_counts, _, _ = axis[i].hist(top_warmup_actions[:, i], bins=25, range=[-1, 1],
                                                             alpha=1, linewidth=3, histtype='step', color='red',
-                                                            label='Reference')
+                                                            label='Reference', density=True)
                             ref_counts, _, _ = axis[i].hist(ref_truth[i], bins=25, range=[-1, 1],
                                                             alpha=1, linewidth=3, histtype='step', color='black',
-                                                            label='Truth')
+                                                            label='Truth', density=True)
                             rchi2 = np.sum(np.square(top_counts-ref_counts)/top_counts)/(len(top_counts)-1)
                             axis[i].set_xlabel(f'Action #{i}')
                             legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
