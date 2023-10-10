@@ -194,7 +194,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                     fig = plt.figure(figsize=(12, 12))
                     ax = fig.add_subplot(111)
-                    ax.set_title(f'Inference {policy_z.shape[0]}')
+                    #ax.set_title(f'Inference {policy_z.shape[0]}')
                     #ax.set_title(f'Inference')
                     ax.set_xlabel("X")
                     ax.set_ylabel("Y")
