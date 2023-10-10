@@ -248,7 +248,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                                                                 alpha=1, linewidth=3, histtype='step', color='red', label='Reference')
                             model_counts, model_bins, _ = axis[i].hist(agent.training_actions[:, i], bins=25, range=[-1, 1], density=True,
                                                                        alpha=1, linewidth=3, histtype='step', color='blue', label='Inference')
-                            rchi2 = np.sum(np.square(ref_counts-model_counts)/ref_counts)/(len(ref_counts)-1)
+                            rchi2 = np.sum(np.square(ref_counts-model_counts)/ref_counts)#/(len(ref_counts)-1)
                             axis[i].set_xlabel(f'Action #{i}')
                             legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
                             axis[i].legend(title=legend_title)
@@ -319,7 +319,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                             ref_counts, _, _ = axis[i].hist(ref_truth[i], bins=25, range=[-1, 1],
                                                             alpha=1, linewidth=3, histtype='step', color='black',
                                                             label='Truth', density=True)
-                            rchi2 = np.sum(np.square(top_counts-ref_counts)/top_counts)/(len(top_counts)-1)
+                            rchi2 = np.sum(np.square(top_counts-ref_counts)/top_counts)#/(len(top_counts)-1)
                             axis[i].set_xlabel(f'Action #{i}')
                             legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
                             # p_val = stats.ttest_ind(ref_truth[i], np.squeeze(top_warmup_actions[:, i])).pvalue
