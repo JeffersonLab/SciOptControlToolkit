@@ -7,7 +7,7 @@ from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
-import torch
+# import torch
 import jlab_rl.agents
 from jlab_rl.utils.git_utilts import get_git_revision_short_hash
 from tqdm import tqdm
@@ -105,6 +105,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
     # To store reward history of each episode
     ep_reward_list = []
+    ep_chi2_warmup_to_truth = []
+    ep_chi2_inference_to_warmup = []
     # To store average reward history of last few episodes
     avg_reward_list = []
 
@@ -238,8 +240,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         #p_val = stats.ttest_ind(agent.top_actions[:, 0], np.squeeze(a)).pvalue
                         #axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
                         # rchi2 = get_rchi2(agent.top_actions[:, 0], np.squeeze(a))
-                        rchi2 = np.sum(np.square(ref_counts-model_counts)/(ref_counts+1)) #/(len(top_counts)-1)
-                        legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
+                        inf_rchi2 = np.sum(np.square(ref_counts-model_counts)/(ref_counts+1)) #/(len(top_counts)-1)
+                        legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(inf_rchi2, 2))
                         plt.legend(title=legend_title)
                         plt.xlabel("Action")
                         plt.tight_layout()
@@ -255,9 +257,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                                                                 alpha=1, linewidth=3, histtype='step', color='red', label='Reference')
                             model_counts, model_bins, _ = axis[i].hist(agent.training_actions[:, i], bins=25, range=[-1, 1], density=True,
                                                                        alpha=1, linewidth=3, histtype='step', color='blue', label='Inference')
-                            rchi2 = np.sum(np.square(ref_counts-model_counts)/ref_counts)#/(len(ref_counts)-1)
+                            inf_rchi2 = np.sum(np.square(ref_counts-model_counts)/ref_counts)#/(len(ref_counts)-1)
                             axis[i].set_xlabel(f'Action #{i}')
-                            legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
+                            legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(inf_rchi2, 2))
                             axis[i].legend(title=legend_title)
                             plt.tight_layout()
                             # top_counts, top_bins = np.histogram(agent.top_actions[:,i], range=[-1,1], bins=25)
@@ -295,6 +297,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         y_ref = r * np.sin(theta)
                         ref_truth = [x_ref, y_ref]
                     if agent.num_actions==1:
+                        figure, axis = plt.subplots(nrows=agent.num_actions, ncols=1, figsize=(20, 5 * agent.num_actions))
                         # figure, axis = plt.subplots(2, figsize=(12, 10))
                         # sns.kdeplot(x=ref_truth, ax=axis[0],
                         #             color='red', fill=False, alpha=1, linewidth=3, bw_adjust=0.5,
@@ -326,8 +329,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         #p_val = stats.ttest_ind(agent.top_actions[:, 0], np.squeeze(a)).pvalue
                         #axis[0].set_title("P-value: "+str(np.round(p_val, 4)))
                         # rchi2 = get_rchi2(agent.top_actions[:, 0], np.squeeze(a))
-                        rchi2 = np.sum(np.square(top_counts-ref_counts)/(top_counts+1)) #/(len(top_counts)-1)
-                        legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
+                        warmup_rchi2 = np.sum(np.square(top_counts-ref_counts)/(top_counts+1)) #/(len(top_counts)-1)
+                        legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(warmup_rchi2, 2))
                         plt.legend(title=legend_title)
                         plt.xlabel("Action")
                         plt.tight_layout()
@@ -348,9 +351,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                             ref_counts, _, _ = axis[i].hist(ref_truth[i], bins=25, range=[-1, 1],
                                                             alpha=1, linewidth=3, histtype='step', color='black',
                                                             label='Truth', density=True)
-                            rchi2 = np.sum(np.square(top_counts-ref_counts)/top_counts)#/(len(top_counts)-1)
+                            warmup_rchi2 = np.sum(np.square(top_counts-ref_counts)/top_counts)#/(len(top_counts)-1)
                             axis[i].set_xlabel(f'Action #{i}')
-                            legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(rchi2, 2))
+                            legend_title=r'$\chi^{2}_{\nu}$ Fit: '+str(np.round(warmup_rchi2, 2))
                             # p_val = stats.ttest_ind(ref_truth[i], np.squeeze(top_warmup_actions[:, i])).pvalue
                             # axis[i, 0].set_title("P-value: "+str(np.round(p_val, 4)))
                             #rchi2 = get_rchi2(ref_truth[i], np.squeeze(top_warmup_actions[:, i]))
@@ -384,6 +387,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         plt.savefig(logdir + f'/top{int(agent.batch_size)}_xy_action_reward_{agent.buffer_counter / nsavefig}.png')
                         plt.close()
                     # is_ref_plot=True
+                    
+                    # Append chi2 to list
+                    ep_chi2_warmup_to_truth.append(warmup_rchi2)
+                    ep_chi2_inference_to_warmup.append(inf_rchi2)
 
             # End this episode when `done` is True
             if done_old:
@@ -394,6 +401,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 break
 
         ep_reward_list.append(episodic_reward)
+        
         tf.summary.scalar('Reward', data=episodic_reward, step=int(ep))
 
         # Mean of last 40 episodes
@@ -408,6 +416,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
         with open(logdir+'/results.npy', 'wb') as f:
             np.save(f, np.array(ep_reward_list))
+        with open(logdir+'/inf_chi2.npy', 'wb') as f:
+            np.save(f, np.array(ep_chi2_inference_to_warmup))
+        with open(logdir+'/warmup_chi2.npy', 'wb') as f:
+            np.save(f, np.array(ep_chi2_warmup_to_truth))
 
 
 
