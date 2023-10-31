@@ -33,9 +33,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                  + datetime.now().strftime("%Y%m%d-%H%M%S")
 
     try:
-        os.mkdir(logdir)
+        os.makedirs(logdir)
     except OSError as error:
-        run_openai_log.error('Error:', error)
+        run_openai_log.error('Error making file:', error)
 
     #
     # Environment
@@ -59,11 +59,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     run_openai_log.info("Max Value of Action ->  {}".format(upper_bound))
     run_openai_log.info("Min Value of Action ->  {}".format(lower_bound))
 
-    file_writer = tf.summary.create_file_writer(logdir + '/metrics')
+    run_openai_log.info(f'Log Path: {logdir}')
+    tfb_path = os.path.join(logdir, 'metrics')
+    run_openai_log.info(f'TFB Path: {tfb_path}')
+    file_writer = tf.summary.create_file_writer(tfb_path)
     file_writer.set_as_default()
 
     # Agent
-    agent = jlab_opt_control.agents.make(agent_id, env=env)
+    agent = jlab_opt_control.agents.make(agent_id, env=env, logdir=logdir)
 
     # To store reward history of each episode
     ep_reward_list = []
@@ -107,7 +110,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 break
 
         ep_reward_list.append(episodic_reward)
-
         tf.summary.scalar('Reward', data=episodic_reward, step=int(ep))
 
         # Mean of last 40 episodes
@@ -115,7 +117,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
         time_end = time.process_time()
         if total_nsteps % 1000 == 0:
-            run_openai_log.info("\nEpisode Elapsed Time {}".format((time_end - time_start)))
+            run_openai_log.info("Episode Elapsed Time {}".format((time_end - time_start)))
             run_openai_log.info("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
             run_openai_log.info("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
         avg_reward_list.append(avg_reward)

@@ -47,7 +47,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 class KerasTD3(jlab_opt_control.Agent):
 
-    def __init__(self, env, cfg='keras_td3.json'):
+    def __init__(self, env, logdir, cfg='keras_td3.json'):
         """ Define all key variables required for all agent """
 
         # Get env info
@@ -83,9 +83,10 @@ class KerasTD3(jlab_opt_control.Agent):
         self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 5000000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 1000))
 
-        self.logdir = cfg_utils.cfg_get(data, 'logdir', './logs')
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
         self.model_save_path = cfg_utils.cfg_get(data, 'save_model', None)
+
+        self.logdir = logdir
 
         # Buffer
 
@@ -134,7 +135,7 @@ class KerasTD3(jlab_opt_control.Agent):
         try:
             os.mkdir(self.logdir)
         except OSError as error:
-            td3_log.error(error)
+            td3_log.warning(error)
         file_writer = tf.summary.create_file_writer(self.logdir + '/metrics')
         file_writer.set_as_default()
         self.nactions = 0
@@ -273,8 +274,6 @@ class KerasTD3(jlab_opt_control.Agent):
 
         if self.buffer_counter < np.max([self.batch_size, self.min_buffer_counter]):
             sampled_action = self.env.action_space.sample()
-            print('sampled_action', sampled_action)
-            print('sampled_action', type(sampled_action))
             noise = np.zeros(self.num_actions)
         else:
             state = tf.expand_dims(state, 0)
