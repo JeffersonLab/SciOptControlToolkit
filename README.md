@@ -3,7 +3,7 @@
 ## Software Requirement
 
 - Python 3.10
-- The optimization toolkit framework is built on [OpenAI Gymnasium] ([https://gym.openai.com](https://github.com/Farama-Foundation/Gymnasium](https://github.com/Farama-Foundation/Gymnasium)
+- The optimization toolkit framework is built on [OpenAI Gymnasium] (https://github.com/Farama-Foundation/Gymnasium)
 
 
 ## Directory Organization
