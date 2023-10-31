@@ -1,6 +1,8 @@
 import logging
+
 cfg_log = logging.getLogger("CfgLogger")
 cfg_log.setLevel(logging.INFO)
+
 
 def cfg_get(obj, key, default=None):
     try:

@@ -72,7 +72,7 @@ class AgentRegistry(object):
 
     def register(self, id, **kwargs):
         if id in self.disc_specs:
-            raise exp_log.error('Cannot re-register id: {}'.format(id))
+            raise disc_log.error('Cannot re-register id: {}'.format(id))
         self.disc_specs[id] = AgentSpec(id, **kwargs)
 
 
@@ -90,6 +90,7 @@ def make(id, **kwargs):
 
 def spec(id):
     return disc_registry.spec(id)
+
 
 def list_registered_modules():
     return list(disc_registry.disc_specs.keys())

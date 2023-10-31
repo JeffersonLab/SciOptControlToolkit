@@ -21,6 +21,7 @@ run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
+
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
     githash = get_git_revision_short_hash()
     run_openai_log.debug(githash)
@@ -95,18 +96,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             assert 'numpy.ndarray' in str(type(state))
             assert state.shape == (num_states,)
             assert 'float' in str(type(reward)), str(type(reward))
-
-            agent.memory((prev_state, action, reward, state, truncate))
+            done = (terminate or truncate)
+            agent.memory((prev_state, action, reward, state, done))
             episodic_reward += reward
             agent.train()
             prev_state = state
 
             # End this episode when `done` is True
-            if terminate:
-                break
-
-            # End this episode when `done` is True
-            if truncate:
+            if done:
                 break
 
         ep_reward_list.append(episodic_reward)
