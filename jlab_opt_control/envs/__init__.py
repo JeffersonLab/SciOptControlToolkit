@@ -1,0 +1,8 @@
+from jlab_opt_control.envs.registration import register, make, list_registered_modules
+from jlab_opt_control.envs.circle_env import Circle2D
+
+register(
+    id='DnC2s-Circle2D-v1',
+    entry_point='jlab_opt_control.envs:Circle2D',
+    kwargs={'rdm_reset_mode': 'fixed', 'statefull': True, 'max_episode_steps':1}
+)
