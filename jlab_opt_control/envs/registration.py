@@ -108,7 +108,7 @@ class EnvRegistry(object):
 env_registry = EnvRegistry()
 
 
-def register(id, **kwargs):
+def register(id: object, **kwargs: object) -> object:
     return env_registry.register(id, **kwargs)
 
 
