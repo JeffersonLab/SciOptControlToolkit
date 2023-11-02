@@ -45,10 +45,9 @@ class RegistryTests(unittest.TestCase):
         registered_envs = envs.list_registered_modules()
         for env_id in registered_envs:
             print('Testing env:', env_id)
-            envs.make(env_id)
+            env = envs.make(env_id)
 
-
-    def test_agents(self):
+    def test_continuous_agents(self):
         """
         Test each agent using a OpenAI gym env
         :return: No return value
@@ -56,8 +55,20 @@ class RegistryTests(unittest.TestCase):
         env = gym.make('MountainCarContinuous-v0')
         registered_agents = agents.list_registered_modules()
         for agent_id in registered_agents:
-            print('Testing agent:', agent_id)
+            print('Continuous env test agent:', agent_id)
             agents.make(agent_id, env=env, logdir='./')
+
+    def test_discrete_agents(self):
+        """
+        Test each agent using a OpenAI gym env
+        :return: No return value
+        """
+        env = gym.make('CartPole-v0')
+        registered_agents = agents.list_registered_modules()
+        for agent_id in registered_agents:
+            print('Discrete env test agent:', agent_id)
+            agents.make(agent_id, env=env, logdir='./')
+
 
     def test_registered_agents(self):
         """

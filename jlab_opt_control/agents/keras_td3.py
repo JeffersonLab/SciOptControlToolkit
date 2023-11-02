@@ -35,7 +35,7 @@ from os.path import join
 import time
 import json
 import platform
-
+import sys
 processor = platform.processor()
 
 import logging
@@ -62,12 +62,19 @@ class KerasTD3(jlab_opt_control.Agent):
 
         # Environment setup
         self.env = env
-        self.num_states = env.observation_space.shape[0]
-        self.num_actions = env.action_space.shape[0]
-        self.upper_bound = env.action_space.high
-        self.lower_bound = env.action_space.low
-        td3_log.info(f'Action upper bound: {self.upper_bound}')
-        td3_log.info(f'Action lower bound: {self.lower_bound}')
+        try:
+            assert "Box" in str(type(env.action_space)), 'Invalid action space'
+            self.num_states = env.observation_space.shape[0]
+            self.num_actions = env.action_space.shape[0]
+            self.upper_bound = env.action_space.high
+            self.lower_bound = env.action_space.low
+            td3_log.info(f'Action upper bound: {self.upper_bound}')
+            td3_log.info(f'Action lower bound: {self.lower_bound}')
+        except:
+            td3_log.error('Action space not valid for this agent.')
+            sys.exit(0)
+
+
 
         # Load configuration
         absolute_path = os.path.dirname(__file__)
