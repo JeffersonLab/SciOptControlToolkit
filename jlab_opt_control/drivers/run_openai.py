@@ -139,7 +139,22 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 break
 
         ep_reward_list.append(episodic_reward)
-        tf.summary.scalar('Reward', data=episodic_reward, step=int(ep))
+        tf.summary.scalar('Training Reward', data=episodic_reward, step=int(ep))
+
+        # Run inference test
+        if ep % 10 == 0:
+            inference_episodic_reward = 0
+            prev_state, _ = env.reset()
+            for estep in range(max_nsteps):
+                action, action_noise = agent.action(tf.convert_to_tensor(prev_state), train=False)
+                state, reward, terminate, truncate, info = env.step(action)
+                inference_episodic_reward += reward
+                prev_state = state
+                done = (terminate or truncate)
+                if done:
+                    break
+
+        tf.summary.scalar('Inference Reward', data=inference_episodic_reward, step=int(ep))
 
         # Mean of last 40 episodes
         nepisode_mod = 10

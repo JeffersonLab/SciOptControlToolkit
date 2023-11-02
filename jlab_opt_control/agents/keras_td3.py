@@ -298,8 +298,10 @@ class KerasTD3(jlab_opt_control.Agent):
             assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
                 f"Sampled action shape is incorrect... {sampled_action.shape}"
 
-        for i in range(self.num_actions):
-            if self.num_actions > 1:
+        if self.num_actions == 0:
+            tf.summary.scalar('Action', data=sampled_action, step=int(self.nactions))
+        else:
+            for i in range(self.num_actions):
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
