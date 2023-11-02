@@ -32,7 +32,6 @@ import os
 import time
 from datetime import datetime
 
-import gymnasium as gym
 import tensorflow as tf
 
 import numpy as np
@@ -160,12 +159,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--index", help="Index for tracking", type=int, default=0)
     parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=1000)
-    parser.add_argument("--nsteps", help="Number of steps", type=int, default=200)
+    parser.add_argument("--nsteps", help="Number of steps", type=int, default=1000)
     parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
     parser.add_argument("--nwarmup", help="Agent warm-up size", type=int, default=0)
     parser.add_argument("--env", help="Environment used for RL", type=str, default='MountainCarContinuous-v0')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
-    parser.add_argument("--profile", help="Profiling overrides all setting", type=bool, default=False)
 
     # Get input arguments
     args = parser.parse_args()
