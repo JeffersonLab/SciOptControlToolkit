@@ -48,8 +48,12 @@ run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
+seed = 1#time.time_ns()
+tf.random.set_seed(seed)
+np.random.seed(seed)
+#run_openai_log.info(f'seeds {tf.random.}')
 
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, logdir):
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
     githash = get_git_revision_short_hash()
     run_openai_log.debug(githash)
     run_openai_log.debug(logdir)
@@ -78,7 +82,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         import gymnasium as gym
         env = gym.make(env_id)
 
-    env._max_episode_steps = max_nsteps
+    if max_nsteps!=-1:
+        env._max_episode_steps = max_nsteps
     run_openai_log.info("Environment max steps ->  {}".format(env._max_episode_steps))
 
     num_states = env.observation_space.shape[0]
@@ -112,7 +117,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         time_start = time.process_time()
         prev_state, _ = env.reset()
         episodic_reward = 0
-        for estep in range(max_nsteps):
+        done = False
+        while (done==False):
             total_nsteps += 1
             action, action_noise = agent.action(tf.convert_to_tensor(prev_state))
             assert 'numpy.ndarray' in str(type(action))
@@ -135,24 +141,25 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             prev_state = state
 
             # End this episode when `done` is True
-            if done:
-                break
+            # if done:
+            #     break
 
         ep_reward_list.append(episodic_reward)
         tf.summary.scalar('Training Reward', data=episodic_reward, step=int(ep))
 
         # Run inference test
-        if ep % 10 == 0:
+        if ep % 1 == 0:
             inference_episodic_reward = 0
-            prev_state, _ = env.reset()
-            for estep in range(max_nsteps):
-                action, action_noise = agent.action(tf.convert_to_tensor(prev_state), train=False)
-                state, reward, terminate, truncate, info = env.step(action)
-                inference_episodic_reward += reward
-                prev_state = state
-                done = (terminate or truncate)
-                if done:
-                    break
+            inference_prev_state, _ = env.reset()
+            inference_done = False
+            while (inference_done==False):
+                inference_action, inference_action_noise = agent.action(tf.convert_to_tensor(inference_prev_state), train=False)
+                inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(inference_action)
+                inference_episodic_reward += inference_reward
+                inference_prev_state = inference_state
+                inference_done = (inference_terminate or inference_truncate)
+                # if done:
+                #     break
 
         tf.summary.scalar('Inference Reward', data=inference_episodic_reward, step=int(ep))
 
@@ -174,9 +181,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--index", help="Index for tracking", type=int, default=0)
     parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=1000)
-    parser.add_argument("--nsteps", help="Number of steps", type=int, default=1000)
+    parser.add_argument("--nsteps", help="Number of steps", type=int, default=-1)
     parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
-    parser.add_argument("--nwarmup", help="Agent warm-up size", type=int, default=0)
     parser.add_argument("--env", help="Environment used for RL", type=str, default='MountainCarContinuous-v0')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
 
@@ -186,8 +192,7 @@ if __name__ == "__main__":
     args_nepisodes = args.nepisodes
     args_nsteps = args.nsteps
     args_agent_id = args.agent
-    args_warmup_size = args.nwarmup
     args_env_id = args.env
     args_logdir = args.logdir
 
-    run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id, args_warmup_size, args_env_id, args_logdir)
+    run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id, args_env_id, args_logdir)

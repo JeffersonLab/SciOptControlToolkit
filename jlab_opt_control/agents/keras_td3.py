@@ -41,7 +41,7 @@ processor = platform.processor()
 import logging
 
 td3_log = logging.getLogger("TD3-Agent")
-td3_log.setLevel(logging.INFO)
+td3_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
@@ -70,6 +70,8 @@ class KerasTD3(jlab_opt_control.Agent):
             self.lower_bound = env.action_space.low
             td3_log.info(f'Action upper bound: {self.upper_bound}')
             td3_log.info(f'Action lower bound: {self.lower_bound}')
+            self.range = self.upper_bound - self.lower_bound
+            td3_log.info(f'Action range: {self.range}')
         except:
             td3_log.error('Action space not valid for this agent.')
             sys.exit(0)
@@ -81,7 +83,7 @@ class KerasTD3(jlab_opt_control.Agent):
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
         pfn_json_file = os.path.join(full_path, cfg)
-        td3_log.debug('pfn_json_file:', pfn_json_file)
+        td3_log.debug(f'pfn_json_file:{pfn_json_file}')
         with open(pfn_json_file) as json_file:
             data = json.load(json_file)
         self.buffer_counter = 0
@@ -108,8 +110,8 @@ class KerasTD3(jlab_opt_control.Agent):
         self.use_priority = 0
 
         # Used to update target networks
-        self.tau = 0.01
-        self.gamma = 0.99
+        self.tau = float(cfg_utils.cfg_get(data, 'tau', 0.005))
+        self.gamma = float(cfg_utils.cfg_get(data, 'discount', 0.99))
 
         # Setup Optimizers
         self.critic_lr = 5e-3
@@ -126,8 +128,7 @@ class KerasTD3(jlab_opt_control.Agent):
             self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
         self.hidden_size = 256
-        self.layer_std = 1.0 / np.sqrt(self.num_actions)
-        self.ncritic_layers = 4
+        self.ncritic_layers = 2
 
         self.initialize_new_models()
         # Load models for retraining
@@ -155,22 +156,24 @@ class KerasTD3(jlab_opt_control.Agent):
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
         for _ in range(self.ncritic_layers):
             state_action = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
-        outputs = tf.keras.layers.Dense(1)(state_action)
+        outputs = tf.keras.layers.Dense(1, activation="linear")(state_action)
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)
         return model
 
     def get_actor(self):
 
+        seed = time.time_ns()
+        init = tf.keras.initializers.GlorotUniform(seed)
         inputs = tf.keras.layers.Input(shape=self.num_states)
         #
-        out = tf.keras.layers.Dense(self.hidden_size)(inputs)
+        out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=init)(inputs)
         out = tf.keras.layers.Activation(tf.nn.relu)(out)
         #
-        out = tf.keras.layers.Dense(self.hidden_size)(out)
+        out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=init)(out)
         out = tf.keras.layers.Activation(tf.nn.relu)(out)
         #
-        out = tf.keras.layers.Dense(self.num_actions)(out)
+        out = tf.keras.layers.Dense(self.num_actions, kernel_initializer=init)(out)
         out = tf.keras.layers.Activation(tf.nn.tanh)(out)
         #
         outputs = out
@@ -190,15 +193,18 @@ class KerasTD3(jlab_opt_control.Agent):
         self.target_actor.set_weights(self.actor_model.get_weights())
 
         seed1 = time.time_ns()
-
-        td3_log.debug('seed1:', seed1)
+        str_seed1 = str(seed1)
+        seed1 = int(str_seed1[9:-3])
+        td3_log.debug(f'seed1:{seed1}')
         tf.random.set_seed(seed1)
         self.critic_model1 = self.get_critic()
         self.target_critic1 = self.get_critic()
         self.target_critic1.set_weights(self.critic_model1.get_weights())
         time.sleep(1 / 10)
         seed2 = time.time_ns()
-        td3_log.debug('seed2:', seed2)
+        str_seed2 = str(seed2)
+        seed2 = int(str_seed2[9:-3])
+        td3_log.debug(f'seed2:{seed2}')
         tf.random.set_seed(seed2)
         self.critic_model2 = self.get_critic()
         self.target_critic2 = self.get_critic()
@@ -210,11 +216,11 @@ class KerasTD3(jlab_opt_control.Agent):
         noises = tf.random.normal(next_actions.shape, 0, 0.2)
         noises = tf.clip_by_value(noises, -0.5, 0.5)
         next_actions = next_actions + noises
-        new_q1 = self.target_critic1([next_states, next_actions], training=False)
-        new_q2 = self.target_critic2([next_states, next_actions], training=False)
-        new_q = tf.math.minimum(new_q1, new_q2)
+        target_q1 = self.target_critic1([next_states, next_actions], training=False)
+        target_q2 = self.target_critic2([next_states, next_actions], training=False)
+        target_q = tf.math.minimum(target_q1, target_q2)
         # Bellman equation for the q value
-        q_targets = rewards + self.gamma * new_q * (1.0 - dones)
+        q_targets = rewards + self.gamma * target_q * (1.0 - dones)
         # Critic 1
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
@@ -230,6 +236,7 @@ class KerasTD3(jlab_opt_control.Agent):
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
+        return critic_loss1, critic_loss2
 
     @tf.function
     def train_actor(self, states):
@@ -240,6 +247,7 @@ class KerasTD3(jlab_opt_control.Agent):
             loss = -tf.math.reduce_mean(q_value)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        return loss
 
     @tf.function
     def soft_update(self, target_weights, weights):
@@ -247,8 +255,11 @@ class KerasTD3(jlab_opt_control.Agent):
             target_weight.assign(weight * self.tau + target_weight * (1.0 - self.tau))
 
     def update(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
-        self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
-        self.train_actor(state_batch)
+        critic_loss1, critic_loss2 = self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
+        tf.summary.scalar('Critic Loss 1', data=critic_loss1, step=int(self.ntrain_calls))
+        tf.summary.scalar('Critic Loss 2', data=critic_loss2, step=int(self.ntrain_calls))
+        actor_loss = self.train_actor(state_batch)
+        tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
 
     def train(self):
         """ Method used to train """
@@ -277,9 +288,10 @@ class KerasTD3(jlab_opt_control.Agent):
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
-        self.nactions = self.nactions + 1
+        if train:
+            self.nactions = self.nactions + 1
 
-        if self.buffer_counter < np.max([self.batch_size, self.min_buffer_counter]):
+        if self.buffer_counter < np.max([self.batch_size, self.warmup_size]):
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
         else:
@@ -288,7 +300,7 @@ class KerasTD3(jlab_opt_control.Agent):
             # else:
             sampled_action = (self.actor_model(state)).numpy()
             if train:
-                noise = (tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
+                noise = self.range*(tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
                 sampled_action = sampled_action + noise
             else:
                 noise = np.zeros(self.num_actions)
@@ -298,11 +310,12 @@ class KerasTD3(jlab_opt_control.Agent):
             assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
                 f"Sampled action shape is incorrect... {sampled_action.shape}"
 
-        if self.num_actions == 0:
-            tf.summary.scalar('Action', data=sampled_action, step=int(self.nactions))
-        else:
-            for i in range(self.num_actions):
-                tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
+        if train:
+            if self.num_actions == 0:
+                tf.summary.scalar('Action', data=sampled_action, step=int(self.nactions))
+            else:
+                for i in range(self.num_actions):
+                    tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         return legal_action, noise
