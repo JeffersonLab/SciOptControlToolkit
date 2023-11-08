@@ -40,4 +40,4 @@ conda activate SciOptControlToolkit (required every time you use the package)
 pip install -e . (only once)
 ```
 ## Overview 
-``` https://github.com/JeffersonLab/SciOptControlToolkit/wiki/Overview ``
+https://github.com/JeffersonLab/SciOptControlToolkit/wiki/Overview
