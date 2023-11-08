@@ -11,14 +11,14 @@
 ├── env.yaml                          : Conda setup file with package requirements
 ├── setup.py                          : Python setup file with requirements files
 ├── README.md                         : Readme documentation
-├── utests                            : Readme documentation
+├── utests                            : Folder containing a collection of unit tests
 ├── SciOptControlToolkit
-    ├── agents                        : folder containing different agents
-    ├── cfgs                          : folder containing configuration filesfor agents and environments
-    ├── core                          : folder containing base classes
-    ├── drivers                       : folder containing workflow modules / drivers
-    ├── envs                          : folder containing different environemments 
-    ├── utils                         : folder containing supporting tools (e.g. monitoring)
+    ├── agents                        : Folder containing different agents
+    ├── cfgs                          : Folder containing configuration filesfor agents and environments
+    ├── core                          : Folder containing base classes
+    ├── drivers                       : Folder containing workflow modules / drivers
+    ├── envs                          : Folder containing different environemments 
+    ├── utils                         : Folder containing supporting tools (e.g. monitoring)
 ```
 
 ## Installing
