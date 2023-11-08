@@ -12,7 +12,7 @@
 ├── setup.py                          : Python setup file with requirements files
 ├── README.md                         : Readme documentation
 ├── utests                            : Folder containing a collection of unit tests
-├── SciOptControlToolkit
+├── jlab_opt_control
     ├── agents                        : Folder containing different agents
     ├── cfgs                          : Folder containing configuration filesfor agents and environments
     ├── core                          : Folder containing base classes
