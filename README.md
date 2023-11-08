@@ -13,11 +13,11 @@
 ├── README.md                         : Readme documentation
 ├── utests                            : Readme documentation
 ├── SciOptControlToolkit
-    ├── core                          : folder containing base classes
-    ├── envs                          : folder containing different environemments 
     ├── agents                        : folder containing different agents
-    ├── workflow                      : folder containing workflow modules / drivers
-    ├── cfg                           : folder containing configuration filesfor agents and environments
+    ├── cfgs                          : folder containing configuration filesfor agents and environments
+    ├── core                          : folder containing base classes
+    ├── drivers                       : folder containing workflow modules / drivers
+    ├── envs                          : folder containing different environemments 
     ├── utils                         : folder containing supporting tools (e.g. monitoring)
 ```
 
