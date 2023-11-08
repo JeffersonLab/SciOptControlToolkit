@@ -114,8 +114,8 @@ class KerasTD3(jlab_opt_control.Agent):
         self.gamma = float(cfg_utils.cfg_get(data, 'discount', 0.99))
 
         # Setup Optimizers
-        self.critic_lr = 5e-3
-        self.actor_lr = 1e-3
+        self.critic_lr = float(cfg_utils.cfg_get(data, 'critic_learning_rate', 5e-4))
+        self.actor_lr = float(cfg_utils.cfg_get(data, 'actor_learning_rate', 1e-4))
 
         if processor == 'arm':
             td3_log.info('Using legacy Adam')
@@ -137,8 +137,8 @@ class KerasTD3(jlab_opt_control.Agent):
 
         # update counting
         self.ntrain_calls = 0
-        self.actor_update_freq = 2
-        self.critic_update_freq = 2
+        self.actor_update_freq = int(cfg_utils.cfg_get(data, 'actor_update_freq', 2))
+        self.critic_update_freq = int(cfg_utils.cfg_get(data, 'critic_update_freq', 2))
 
         try:
             os.mkdir(self.logdir)
@@ -254,13 +254,6 @@ class KerasTD3(jlab_opt_control.Agent):
         for (target_weight, weight) in zip(target_weights, weights):
             target_weight.assign(weight * self.tau + target_weight * (1.0 - self.tau))
 
-    def update(self, state_batch, action_batch, reward_batch, next_state_batch, done_batch):
-        critic_loss1, critic_loss2 = self.train_critic(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
-        tf.summary.scalar('Critic Loss 1', data=critic_loss1, step=int(self.ntrain_calls))
-        tf.summary.scalar('Critic Loss 2', data=critic_loss2, step=int(self.ntrain_calls))
-        actor_loss = self.train_actor(state_batch)
-        tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
-
     def train(self):
         """ Method used to train """
         self.ntrain_calls += 1
@@ -268,20 +261,27 @@ class KerasTD3(jlab_opt_control.Agent):
         if self.buffer_counter >= self.batch_size:
             # Get sampling range
             record_range = min(self.buffer_counter, self.buffer_capacity)
-            self.batch_indices = np.random.choice(record_range, self.batch_size)
-
+            batch_indices = np.random.choice(record_range, self.batch_size)
             # Convert to tensors
-            state_batch = tf.convert_to_tensor(self.state_buffer[self.batch_indices])
-            action_batch = tf.convert_to_tensor(self.action_buffer[self.batch_indices])
-            reward_batch = tf.convert_to_tensor(self.reward_buffer[self.batch_indices])
+            state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
+            action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
+            reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
             reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[self.batch_indices])
-            done_batch = tf.convert_to_tensor(self.done_buffer[self.batch_indices])
+            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
+            done_batch = tf.convert_to_tensor(self.done_buffer[batch_indices])
             done_batch = tf.cast(done_batch, dtype=tf.float32)
 
-            self.update(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
+            # Train critic
+            critic_loss1, critic_loss2 = self.train_critic(state_batch, action_batch, reward_batch,
+                                                           next_state_batch,done_batch)
+            tf.summary.scalar('Critic Loss 1', data=critic_loss1, step=int(self.ntrain_calls))
+            tf.summary.scalar('Critic Loss 2', data=critic_loss2, step=int(self.ntrain_calls))
+
             if self.ntrain_calls % self.actor_update_freq == 0:
+                actor_loss = self.train_actor(state_batch)
+                tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
                 self.soft_update(self.target_actor.variables, self.actor_model.variables)
+
             if self.ntrain_calls % self.critic_update_freq == 0:
                 self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
                 self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
@@ -300,7 +300,7 @@ class KerasTD3(jlab_opt_control.Agent):
             # else:
             sampled_action = (self.actor_model(state)).numpy()
             if train:
-                noise = self.range*(tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
+                noise = self.upper_bound*(tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
                 sampled_action = sampled_action + noise
             else:
                 noise = np.zeros(self.num_actions)
