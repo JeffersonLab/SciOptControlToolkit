@@ -180,10 +180,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--index", help="Index for tracking", type=int, default=0)
-    parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=1000)
+    parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=100)
     parser.add_argument("--nsteps", help="Number of steps", type=int, default=-1)
     parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
-    parser.add_argument("--env", help="Environment used for RL", type=str, default='MountainCarContinuous-v0')
+    parser.add_argument("--env", help="Environment used for RL", type=str, default='Pendulum-v1')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
 
     # Get input arguments
