@@ -25,7 +25,7 @@
 
 - Clone code from repo
 ```
-git clone https://github.com/quantom-collab/SciOptControlToolkit.git
+git clone https://github.com/JeffersonLab/SciOptControlToolkit.git
 cd SciOptControlToolkit
 ```
 
