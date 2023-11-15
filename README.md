@@ -32,7 +32,7 @@ cd SciOptControlToolkit
 * Create default conda environment setup:
 ```
 conda env create --file env.yaml (only once)
-conda activate SciOptControlToolkit (required every time you use the package)
+conda activate jlab_opt_control_env (required every time you use the package)
 ```
 
 - Install package in environment
