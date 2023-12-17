@@ -207,8 +207,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     # a1 = actions[:,0]
                     # a2 = actions[:,1]
                     # scatter with colormap mapping to z value
-                    cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet.reversed(),
-                                    vmin=0, vmax=0.05);
+                    cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet.reversed());
+                    # cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet.reversed(),
+                    #                 vmin=0, vmax=0.05);
                     plt.xlim(-1.1, 1.1)
                     plt.ylim(-1.1, 1.1)
                     #plt.clim(0.9, 1.0)
@@ -218,7 +219,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.close()
 
                 #
-                if 'Generative' in agent_id:
+                if 'KerasGenerative' in agent_id:
                     figure, axis = plt.subplots(nrows=agent.num_actions, ncols=1, figsize=(20, 5 * agent.num_actions))
 
                     if agent.num_actions == 1:
@@ -281,7 +282,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     plt.savefig(logdir + '/training_action_reward_dist_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
 
-                if ('ECGTD3' in agent_id or 'Generative' in agent_id) and (agent.buffer_counter >= agent.min_buffer_counter) and is_ref_plot==False:
+                if ('ECGTD3' in agent_id or 'KerasGenerative' in agent_id) and (agent.buffer_counter >= agent.min_buffer_counter) and is_ref_plot==False:
                     top_warmup_actions = agent.top_actions
                     top_warmup_rewards = agent.top_rewards
                     print(top_warmup_rewards.shape)
