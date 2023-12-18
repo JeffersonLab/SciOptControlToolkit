@@ -25,6 +25,7 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+import sys
 
 import tensorflow as tf
 from jlab_rl.models.state_generator import Generator_v3 as Generator
@@ -40,19 +41,19 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         """ Define all key variables required for all agent """
 
         self.ntrain_actor_calls = 0
-        self.nactor_layers = 5
-        self.ncritic_layers = 2
+        self.nactor_layers = 3
+        self.ncritic_layers = 3
 
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
         print('Running KerasKernelGenerativeTD3 __init__')
 
         # Standard TD3 setup
-        self.hidden_size = 128
-        self.batch_size = 1000
+        self.hidden_size = 256
+        self.batch_size = 512
 
         # Used for random samples
-        self.rdm_intputs = 25
+        self.rdm_intputs = 77
         self.norm_sdt = 1.0
 
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
@@ -239,20 +240,66 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
     #     #     rewards.append( reward )
     #     # return np.squeeze(actions), np.squeeze(rewards)
 
-    def action_inference(self, states):
-        rdm_norms = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32)
-        sampled_actions = self.actor_model([states, rdm_norms])
-        # print(f'inf shapes: {states.shape}, {rdm_norms.shape}, {sampled_actions.shape}')
-        # print(f'inf act: {sampled_actions}')
+    def get_best_qvalue_action(self, states, sampled_actions):
+        new_q1 = self.target_critic1([states, sampled_actions])
+        new_q2 = self.target_critic2([states, sampled_actions])
+        q_mean = tf.math.minimum(new_q1, new_q2)
+        max_q_idx = tf.argmax(q_mean)
+        return max_q_idx
 
-        #rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
-        #actions = self.actor_model([states, rdm_gaus])
+    # def action_inference(self, states):
+    #
+    #     rdm_norms = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32)
+    #     sampled_actions = self.actor_model([states, rdm_norms])
+    #     # print(f'inf shapes: {states.shape}, {rdm_norms.shape}, {sampled_actions.shape}')
+    #     # print(f'inf act: {sampled_actions}')
+    #
+    #     #rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+    #     #actions = self.actor_model([states, rdm_gaus])
+    #     rewards = []
+    #     for a in sampled_actions:
+    #         prev_state, _ = env.reset()
+    #         _, reward, _, _, _ = self.env.step(a)
+    #         rewards.append( reward )
+    #     return np.squeeze(sampled_actions), np.squeeze(rewards)
+
+    def action_inference(self, nrepeats=1000000):
+
+        prev_state, _ = self.env.reset()
+        prev_state = tf.expand_dims(prev_state, 0)
+        states = tf.repeat(prev_state, nrepeats, axis=0)
+        rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32)
+        #print(f'shapes: {states.shape}, {rdm_norms.shape}')
+        actions = self.actor_model.predict_on_batch([states, rdm_norms])
         rewards = []
-        for a in sampled_actions:
-            self.env.reset()
+        for a in actions:
+            prev_state, _ = self.env.reset()
             _, reward, _, _, _ = self.env.step(a)
             rewards.append( reward )
-        return np.squeeze(sampled_actions), np.squeeze(rewards)
+        rewards = np.array(rewards)
+        sampled_rewards, sampled_actions = [], []
+        for i in range(int(nrepeats/1000)):
+            sub_states = states[i*1000:(i+1)*1000]
+            sub_reward = rewards[i*1000:(i+1)*1000]
+            sub_action = actions[i*1000:(i+1)*1000]
+            idx = self.get_best_qvalue_action(sub_states,sub_action)
+            #idx = np.argmax(sub_reward)
+            sampled_rewards.append(sub_reward[idx])
+            sampled_actions.append(sub_action[idx])
+
+        # rewards = rewards.reshape(-1, 1000)
+        # sampled_actions = sampled_actions.reshape(-1, 1000, 2)
+        # #print(f'rewards reshape: {rewards.shape}')
+        # idx_rewards = np.argmax(rewards, axis=1)
+        # # print(f'idx_rewards max shape: {idx_rewards.shape}')
+        # # print(f'idx_rewards max: {idx_rewards}')
+        # rewards = np.take_along_axis(rewards, np.expand_dims(idx_rewards, axis=-1), axis=-1).squeeze(axis=-1)
+        # sampled_actions = np.take_along_axis(sampled_actions, np.expand_dims(idx_rewards, axis=-1), axis=-1).squeeze(axis=-1)
+        # #print(f'rewards reshape: {rewards.shape}')
+        # #sys.exit(0)
+        # #print(f'rewards max: {rewards}')
+        return np.squeeze(sampled_actions), np.squeeze(sampled_rewards)
+
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """

@@ -27,21 +27,6 @@ plt.rcParams['ytick.labelsize'] = 18
 plt.rcParams['font.family'] = [u'serif']
 plt.rcParams['font.size'] = 18
 plt.rcParams['figure.figsize'] = 10, 7
-#plt.rcParams['text.usetex'] = True
-
-# import mujoco_py
-# import os
-# mj_path = mujoco_py.utils.discover_mujoco()
-# print('mj_path:{}'.format(mj_path))
-# xml_path = os.path.join(mj_path, 'model', 'humanoid.xml')
-
-
-# Seed value
-# seed_value = 0
-# os.environ['PYTHONHASHSEED'] = str(seed_value)
-# random.seed(seed_value)
-# np.random.seed(seed_value)
-# tf.random.set_seed(seed_value)
 
 plasma = plt.get_cmap('GnBu_r')
 
@@ -79,10 +64,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
         env = gym.make(env_id, exclude_current_positions_from_observation=False)
     elif 'Proxy' in env_id:
         env = gym.make(env_id,logdir=logdir)
-        #test_env = gym.make(env_id, logdir=logdir)
     else:
         env = gym.make(env_id)
-        #test_env = gym.make(env_id)
 
     env._max_episode_steps = max_nsteps
 
@@ -125,7 +108,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             total_nsteps += 1
             action, action_type = agent.action(tf.convert_to_tensor(prev_state))
             assert 'numpy.ndarray' in str(type(action))
-            # print(action.shape)
             # assert action.shape == (num_actions,), print("Action shape does not match: ", action.shape)
             # TODO: We suspect this is to the the num_actions > 1
             if env_id == "LunarLanderContinuous-v2":
@@ -142,7 +124,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             # Check shapes and data types
             assert 'numpy.ndarray' in str(type(state))
             assert state.shape == (num_states,)
-            # print(reward)
             assert 'numpy.float' in str(type(reward)), str(type(reward))
 
             agent.memory((prev_state, action, reward, state, done, action_type))
@@ -150,21 +131,19 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             agent.train()
             prev_state = state
 
-            # if (agent.buffer_counter % agent.batch_size == 0) \
-            #         and (agent.buffer_counter >= agent.batch_size):
             if (agent.buffer_counter % agent.batch_size == 0) \
                 and (agent.buffer_counter >= agent.batch_size)\
                 and (agent.buffer_counter >= agent.min_buffer_counter):
                 # Plot
                 z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                 a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
-
+                #print(f'shape {a.shape}')
                 # Only does for 2D problem(s)
                 if agent.next_state_buffer.shape[1] == 2:
                     # Latest buffer
                     action_types = agent.action_type_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
-                    x = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 0]
-                    y = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter, 1]
+                    x = a[:,0]
+                    y = a[:,1]
                     sample_idx = np.where(action_types==0)[0]
                     sample_x = x[sample_idx]
                     sample_y = y[sample_idx]
@@ -178,44 +157,37 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     ax.grid(True, linestyle='-', color='0.75')
                     # scatter with colormap mapping to z value
                     cb = ax.scatter(sample_x, sample_y, s=35, c=sample_z, marker='o', cmap=cm.jet);
-                    plt.xlim(-1.2, 1.2)
-                    plt.ylim(-1.2, 1.2)
+                    plt.xlim(-1.1, 1.1)
+                    plt.ylim(-1.1, 1.1)
                     plt.colorbar(cb)
                     plt.savefig(logdir+'/sampled_xy_action_reward_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
 
                     # Inference
-                    #self.batch_indices = np.random.choice(record_range, self.batch_size)
-                    #agent.buffer_counter - nsavefig: agent.buffer_counter
+
                     inference_states = agent.state_buffer[0:agent.batch_size]
-                    inference_actions, inference_rewards = agent.action_inference(inference_states)
+                    inference_actions, inference_rewards = agent.action_inference(1000000)
+
+                    #sys.exit()
+#                    inference_actions, inference_rewards = agent.action_inference(inference_states)
                     policy_x = inference_actions[:, 0]
                     policy_y = inference_actions[:, 1]
-                    policy_z = tf.abs(tf.sqrt(tf.reduce_sum(tf.square(inference_actions), axis=1))-env.target_value) #inference_rewards
-                    #policy_z = inference_rewards
-                    # policy_idx = np.where(action_types == 1)[0]
-                    # policy_x = x[policy_idx]
-                    # policy_y = y[policy_idx]
-                    # policy_z = z[policy_idx]
+                    policy_z = inference_rewards
+                    # print(f'policy_x: {policy_x.shape}')
+                    # print(f'policy_y: {policy_y.shape}')
+                    # print(f'policy_z: {policy_z.shape}')
 
+                    #tf.abs(tf.sqrt(tf.reduce_sum(tf.square(inference_actions), axis=1))-env.target_value)
+                    #print(f'inference_rewards: {inference_rewards}')
                     fig = plt.figure(figsize=(12, 12))
                     ax = fig.add_subplot(111)
-                    #ax.set_title(f'Inference {policy_z.shape[0]}')
-                    #ax.set_title(f'Inference')
                     ax.set_xlabel("X")
                     ax.set_ylabel("Y")
                     ax.grid(True, linestyle='-', color='0.75')
-                    #inference_states = agent.state_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
-                    #actions, rewards = agent.action_inference(inference_states)
-                    # a1 = actions[:,0]
-                    # a2 = actions[:,1]
                     # scatter with colormap mapping to z value
-                    cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet.reversed());
-                    # cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet.reversed(),
-                    #                 vmin=0, vmax=0.05);
+                    cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet);
                     plt.xlim(-1.1, 1.1)
                     plt.ylim(-1.1, 1.1)
-                    #plt.clim(0.9, 1.0)
                     plt.colorbar(cb)
                     plt.tight_layout
                     plt.savefig(logdir+'/inference_xy_action_reward_{}.png'.format(agent.buffer_counter / nsavefig))
