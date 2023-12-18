@@ -39,20 +39,21 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
     def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, dynamic_ref=True, **kwargs):
         """ Define all key variables required for all agent """
 
-        # Standard TD3 setup
+        self.ntrain_actor_calls = 0
         self.nactor_layers = 5
         self.ncritic_layers = 2
-        self.hidden_size = 128
-        self.batch_size = 128
-        self.ntrain_actor_calls = 0
 
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
-        print('Running KerasGenerativeTD3 __init__')
+        print('Running KerasKernelGenerativeTD3 __init__')
+
+        # Standard TD3 setup
+        self.hidden_size = 128
+        self.batch_size = 1000
 
         # Used for random samples
-        self.rdm_intputs = 77
-        self.norm_sdt = 2.0
+        self.rdm_intputs = 25
+        self.norm_sdt = 1.0
 
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
         self.nmatrix = self.batch_size*self.batch_size
@@ -147,90 +148,39 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             training_actions = self.actor_model([states, next_rdm_gaus], training=True)
             training_actions = tf.squeeze(training_actions)
             training_actions = tf.clip_by_value(training_actions, self.lower_bound, self.upper_bound)
+            q_values = self.critic_model1([states, training_actions], training=False)
+
             # Calculate the original TD3 loss
             td_loss = 0
             if train_tde:
-                q_values = self.critic_model1([states, training_actions], training=False)
-                td_loss = -tf.math.reduce_mean(q_values)/10.0
-            #
+                td_loss = -tf.math.reduce_mean(q_values)
 
-            # Calculate the distance between rewards
-            # action_diff = tf.math.squared_difference(tf.expand_dims(training_actions, axis=2),
-            #                                             tf.expand_dims(training_actions, axis=1))
-            # action_rbf = tf.exp(-action_diff)
+            # Dissipative term - should optimize code
+            total_reshaped_a_sd = 0
+            if self.num_actions == 1:
+                total_reshaped_a_sd = tf.math.squared_difference(
+                    tf.expand_dims(training_actions, axis=1),
+                    tf.expand_dims(training_actions, axis=0))
+            else:
+                for a in range(self.num_actions):
+                    ra = tf.reshape(training_actions[:, a], [-1])
+                    ra_sd = tf.math.squared_difference(
+                        tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
+                    total_reshaped_a_sd += ra_sd
 
-
-            # # Flatten action space
-            a1 = tf.reshape(training_actions[:, 0], [-1])
-            # Calculate the distance between actions
-            all_diff1 = tf.math.squared_difference(tf.expand_dims(a1, axis=1),
-                                                   tf.expand_dims(a1, axis=0))
-            #inv_diff1 = 1.0/(all_diff1+1e-7)
-            #all_loss1 = tf.math.reduce_sum(inv_diff1)/self.nmatrix
-            #all_loss1 = -tf.math.reduce_sum(all_diff1)/self.nmatrix
-            # nnzeros1 = tf.math.count_nonzero(all_diff1)
-            # nzeros1 = self.nmatrix-nnzeros1-self.batch_size
-            # all_loss1 = 1/rsad1 if rsad1 > 0 else 9e+8
-            # all_loss1 += 2.0*tf.cast(nzeros1, tf.float32)
-            # RBF
-            # rbf_diff1 = tf.exp(-all_diff1)/self.nmatrix
-            # all_loss1 = tf.math.reduce_sum(rbf_diff1)
-            # all_loss1 += tf.cast(nzeros1, tf.float32)
-
-            # if nzeros1>0:
-            #     print(f'nmatrix1: {self.nmatrix} nnzeros1: {nnzeros1} - nzeros1: {nzeros1}- loss1: {all_loss1}')
-            # rsad1 = tf.math.reduce_sum(all_diff1)/self.nmatrix
-            # all_loss1 = 1/rsad1 if rsad1 > 0 else 9e+8
-            # all_loss1 += tf.cast(nzeros1, tf.float32)
-            #all_loss1 = -tf.math.reduce_sum(all_diff1)
-
-
-            a2 = tf.reshape(training_actions[:, 1], [-1])
-            # Calculate the distance between actions
-            all_diff2 = tf.math.squared_difference(tf.expand_dims(a2, axis=1),
-                                                   tf.expand_dims(a2, axis=0))
-            #inv_diff2 = 1.0 / (all_diff2 + 1e-7)
-
-            all_diff = all_diff1 + all_diff2
-            inv_diff = 1.0 / (all_diff + 1e-7)
-            rs_inv_diff = tf.math.reduce_sum(inv_diff) / self.nmatrix / self.batch_size
-            #all_loss2 = tf.math.reduce_sum(inv_diff2) / self.nmatrix
-            # all_diff2 = 1.0/(all_diff2+1e-7)
-            #all_loss2 = tf.math.reduce_sum(1.0/(all_diff2+1e-7))/self.nmatrix
-            #all_loss2 = -tf.math.reduce_sum(all_diff2)/self.nmatrix
-
-            # nnzeros2 = tf.math.count_nonzero(all_diff2)
-            # nzeros2 = tf.cast(self.nmatrix-nnzeros2-self.batch_size,tf.float32)
-            # # RBF
-            # # rbf_diff2 = tf.exp(all_diff2)/self.nmatrix
-            # # all_loss2 = tf.math.reduce_sum(rbf_diff2)
-            # # all_loss2 += tf.cast(nzeros2, tf.float32)
-            # OLD WAY --
-            # rsad2 = tf.math.reduce_sum(all_diff2)/self.nmatrix
-            #
-            # all_loss2 = 1/rsad2 if rsad2 > 0 else 9e+8
-            # all_loss2 += 2.0*tf.cast(nzeros1, tf.float32)
-            #all_loss2 += tf.abs(tf.random.normal(nzeros2, 1.0))
-            # if nzeros2>0:
-            #     print(f'all_diff2: {all_diff2.shape} - nzeros2: {nzeros2} - loss2: {all_loss2}')
-
-
-            #all_loss = inv_diff
-            # # Sum all per
-            # rbf_diff2 = tf.exp(-all_diff2)
-            # rsad_loss2 = tf.math.reduce_sum(rbf_diff2)
-            # all_diff = all_diff1 + all_diff2
-            # matrix_id = tf.eye(all_diff1.shape[0])
-            # all_rbf = tf.exp(-all_diff) - matrix_id
-            #rsad_loss = rsad_loss1 + rsad_loss2 #tf.math.reduce_sum(all_rbf) #(rsad_loss1 + rsad_loss2)#/self.batch_size
-            # Calculate the loss
-            # 1) td_loss: the same as in TD3
-            # 2) sad_loss: reduce sum of all the distance between action --> encourage broader possible actions
-            total_loss = rs_inv_diff + td_loss
+            # Distance
+            inv_diff = 1.0 / (total_reshaped_a_sd + 1e-7)
+            rs_inv_diff = tf.math.reduce_sum(inv_diff)
+            # RBF (closer point == larger rbf loss)
+            # rbf_loss = tf.math.reduce_sum(tf.exp(-total_reshaped_a_sd))
+            extra_loss = rs_inv_diff#rbf_loss
+            # Normalize
+            extra_loss = extra_loss/(self.nmatrix*self.num_actions)
+            total_loss = td_loss + extra_loss
 
         gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
-        return td_loss, rs_inv_diff
+        return td_loss, extra_loss
 
     #@tf.function
     # def train_actor(self, states):
@@ -337,7 +287,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             if self.num_actions > 1:
                 tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
             else:
-                tf.summary.scalar('Action #0', data=sampled_action, step=int(self.nactions))
+                tf.summary.scalar('Action #0', data=sampled_action[0], step=int(self.nactions))
 
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         return np.squeeze(legal_action), action_type

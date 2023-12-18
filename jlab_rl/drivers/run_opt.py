@@ -132,8 +132,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 action = action[0]
 
             # Receive state and reward from environment.
-            if 'Pendulum' not in env_id:
+            if 'Pendulum' in env_id:
+                action = [action]
+            else:
                 action = np.squeeze(action)
+
             state, reward, done_old, done, info = env.step(action)
 
             # Check shapes and data types
