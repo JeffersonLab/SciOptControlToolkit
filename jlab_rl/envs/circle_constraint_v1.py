@@ -26,7 +26,7 @@ class circle_constraint_env(gym.Env):
         #reward = - np.log(np.abs(radius - self.target_radius)) - 100 * np.square(radius - self.target_radius)
         #reward = - np.abs(radius - self.target_radius)+100
         #reward = - - np.log(np.abs(radius - self.target_radius)+1.1)
-        reward = 1000.0*np.exp(-5.0*np.abs(radius - self.target_value)+1e-6)
+        reward = 1.0*np.exp(-5.0*np.abs(radius - self.target_value)+1e-6)
         # if self.states.any() > 1:
         #     reward = -99
         # if self.states.any() < -1:

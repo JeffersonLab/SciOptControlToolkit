@@ -214,7 +214,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         max_q_idx = tf.argmax(q_mean)
         return max_q_idx
 
-    def action_inference(self, nrepeats=1000000):
+    def action_inference(self, nrepeats=10000):
         prev_state, _ = self.env.reset()
         prev_state = tf.expand_dims(prev_state, 0)
         states = tf.repeat(prev_state, nrepeats, axis=0)
