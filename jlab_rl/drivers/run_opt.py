@@ -145,9 +145,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     x = a[:,0]
                     y = a[:,1]
                     sample_idx = np.where(action_types==0)[0]
-                    sample_x = x[sample_idx]
-                    sample_y = y[sample_idx]
-                    sample_z = z[sample_idx]
+                    sample_x = x#[sample_idx]
+                    sample_y = y#[sample_idx]
+                    sample_z = z#[sample_idx]
 
                     fig = plt.figure(figsize=(12, 12))
                     ax = fig.add_subplot(111)
@@ -167,9 +167,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                     inference_states = agent.state_buffer[0:agent.batch_size]
                     # Long test
-                    #inference_actions, inference_rewards = agent.action_inference(1000000)
+                    inference_actions, inference_rewards = agent.action_inference(1000000)
                     # Quick test
-                    inference_actions, inference_rewards = agent.action_inference(10000)
+                    #inference_actions, inference_rewards = agent.action_inference(10000)
 
                     #sys.exit()
 #                    inference_actions, inference_rewards = agent.action_inference(inference_states)
@@ -178,7 +178,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     policy_z = inference_rewards
                     # print(f'policy_x: {policy_x.shape}')
                     # print(f'policy_y: {policy_y.shape}')
-                    # print(f'policy_z: {policy_z.shape}')
+                    #print(f'policy_z: {policy_z.shape}')
 
                     #tf.abs(tf.sqrt(tf.reduce_sum(tf.square(inference_actions), axis=1))-env.target_value)
                     #print(f'inference_rewards: {inference_rewards}')

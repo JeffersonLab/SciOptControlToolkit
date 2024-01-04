@@ -50,7 +50,7 @@ class GCRMSprop(RMSprop):
 
         return grads
 
-class KerasKernelDistGenerativeTD3(KerasTD3):
+class KerasKernelSamplingGenerativeTD3(KerasTD3):
     """ Define all key variables required for all agent """
 
     def __init__(self, env, warmup_size, nrff=0, logdir=None, model_load_path=None, model_save_path=None, dynamic_ref=True, **kwargs):
@@ -123,10 +123,8 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
             self.ntrain_actor_calls += 1
             # Train
-            td_loss, extra_loss = self.train_actor(state_batch, train_tde=True)#(self.buffer_counter >= self.max_size))
+            td_loss = self.train_actor(state_batch, train_tde=True)#(self.buffer_counter >= self.max_size))
             tf.summary.scalar('Actor TD-error Loss', data=td_loss, step=int(self.ntrain_actor_calls))
-            tf.summary.scalar('Actor Kernel Loss', data=extra_loss, step=int(self.ntrain_actor_calls))
-            tf.summary.scalar('Actor Total Loss', data=(td_loss+extra_loss), step=int(self.ntrain_actor_calls))
 
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
@@ -171,48 +169,14 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             training_actions = tf.squeeze(training_actions)
             training_actions = tf.clip_by_value(training_actions, self.lower_bound, self.upper_bound)
             q_values = self.critic_model1([states, training_actions], training=False)
-
             # Calculate the original TD3 loss
-            td_loss = 0
-            if train_tde:
-                td_loss = -tf.math.reduce_mean(q_values)/1000.0
+            td_loss = -tf.math.reduce_mean(q_values)
 
-            # Dissipative term - should optimize code
-            total_reshaped_a_sd = 0
-            if self.num_actions == 1:
-                total_reshaped_a_sd = tf.math.squared_difference(
-                    tf.expand_dims(training_actions, axis=1),
-                    tf.expand_dims(training_actions, axis=0))
-            else:
-                for a in range(self.num_actions):
-                    ra = tf.reshape(training_actions[:, a], [-1])
-                    ra_sd = tf.math.squared_difference(
-                        tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
-                    total_reshaped_a_sd += ra_sd
 
-            # RBF (length scale depends on the range anf number of actions
-            length_scale = 1.0*self.num_actions
-            rbf = tf.exp(-total_reshaped_a_sd /length_scale)
-            rbf = rbf - tf.eye(total_reshaped_a_sd.shape[0])
-            extra_loss = tf.math.reduce_sum(rbf)/(self.nmatrix-self.batch_size)
-            #sum_rbf = tf.reduce_sum(rbf)/(all_dff.shape[0]*all_dff.shape[0]-all_dff.shape[0])
-
-            # Distance
-            # inv_diff = 1.0 / (total_reshaped_a_sd + 1e-7)
-            # rs_inv_diff = tf.math.reduce_sum(inv_diff)
-            # # # RBF (closer point == larger rbf loss)
-            # # # rbf_loss = tf.math.reduce_sum(tf.exp(-total_reshaped_a_sd))
-            # extra_loss = rs_inv_diff#rbf_loss
-            # # Normalize
-            # extra_loss = extra_loss/(self.nmatrix)
-            # extra_loss = extra_loss/(self.num_actions*self.num_actions)
-            # extra_loss = extra_loss/(self.num_states*self.num_states)
-            total_loss = td_loss + extra_loss
-
-        gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
+        gradient = tape.gradient(td_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
-        return td_loss, extra_loss
+        return td_loss
 
     #@tf.function
     # def train_actor(self, states):
@@ -271,36 +235,47 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
     #     #     rewards.append( reward )
     #     # return np.squeeze(actions), np.squeeze(rewards)
 
-    def get_best_qvalue_action(self, states, sampled_actions):
+    def get_distance_qvalue_action(self, states, sampled_actions):
+
+        # Get qvalue estimation
         new_q1 = self.target_critic1([states, sampled_actions])
         new_q2 = self.target_critic2([states, sampled_actions])
         q_mean = tf.math.minimum(new_q1, new_q2)
+
+        # Calculate action distances
+        total_reshaped_a_sd = 0
+        if self.num_actions == 1:
+            total_reshaped_a_sd = tf.math.squared_difference(
+                tf.expand_dims(sampled_actions, axis=1),
+                tf.expand_dims(sampled_actions, axis=0))
+        else:
+            for a in range(self.num_actions):
+                ra = tf.reshape(sampled_actions[:, a], [-1])
+                ra_sd = tf.math.squared_difference(
+                    tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
+                total_reshaped_a_sd += ra_sd
+        # Sum all distances per action
+        total_reshaped_a_sd = total_reshaped_a_sd/self.num_actions
+        #print(f'total_reshaped_a_sd: {total_reshaped_a_sd.shape}')
+        sum_reshaped_a_sd = tf.reduce_sum(total_reshaped_a_sd, axis=0)/q_mean.shape[0]
+        #print(f'sum_reshaped_a_sd: {sum_reshaped_a_sd.shape}')
+        #print(f'q_mean: {q_mean.shape}')
+        q_mean = tf.squeeze(q_mean)
+        q_with_distance = q_mean*(1.0+sum_reshaped_a_sd)
+        #print(f'q_mean: {q_mean.shape}')
+        #print(f'q_with_distance: {q_with_distance.shape}')
         max_q_idx = tf.argmax(q_mean)
-        return max_q_idx
+        max_q_distance_idx = tf.argmax(q_with_distance)
+        print()
+        #print(f'max_q_idx: {max_q_idx}')
+        return max_q_distance_idx, q_mean[max_q_idx], q_with_distance[max_q_idx], sum_reshaped_a_sd[max_q_idx]
 
-    # def action_inference(self, states):
-    #
-    #     rdm_norms = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32)
-    #     sampled_actions = self.actor_model([states, rdm_norms])
-    #     # print(f'inf shapes: {states.shape}, {rdm_norms.shape}, {sampled_actions.shape}')
-    #     # print(f'inf act: {sampled_actions}')
-    #
-    #     #rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
-    #     #actions = self.actor_model([states, rdm_gaus])
-    #     rewards = []
-    #     for a in sampled_actions:
-    #         prev_state, _ = env.reset()
-    #         _, reward, _, _, _ = self.env.step(a)
-    #         rewards.append( reward )
-    #     return np.squeeze(sampled_actions), np.squeeze(rewards)
-
-    def action_inference(self, nrepeats=1000000):
+    def action_inference(self, nrepeats=10000):
 
         prev_state, _ = self.env.reset()
         prev_state = tf.expand_dims(prev_state, 0)
         states = tf.repeat(prev_state, nrepeats, axis=0)
         rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32)
-        #print(f'shapes: {states.shape}, {rdm_norms.shape}')
         actions = self.actor_model.predict_on_batch([states, rdm_norms])
         rewards = []
         for a in actions:
@@ -308,30 +283,17 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             _, reward, _, _, _ = self.env.step(a)
             rewards.append( reward )
         rewards = np.array(rewards)
-        return np.squeeze(actions), np.squeeze(rewards)
-
-        # sampled_rewards, sampled_actions = [], []
+        sampled_rewards, sampled_actions = [], []
         # for i in range(int(nrepeats/1000)):
         #     sub_states = states[i*1000:(i+1)*1000]
         #     sub_reward = rewards[i*1000:(i+1)*1000]
         #     sub_action = actions[i*1000:(i+1)*1000]
-        #     idx = self.get_best_qvalue_action(sub_states,sub_action)
+        #     idx, _, _, _ = self.action(sub_states)
         #     #idx = np.argmax(sub_reward)
         #     sampled_rewards.append(sub_reward[idx])
         #     sampled_actions.append(sub_action[idx])
 
-        # rewards = rewards.reshape(-1, 1000)
-        # sampled_actions = sampled_actions.reshape(-1, 1000, 2)
-        # #print(f'rewards reshape: {rewards.shape}')
-        # idx_rewards = np.argmax(rewards, axis=1)
-        # # print(f'idx_rewards max shape: {idx_rewards.shape}')
-        # # print(f'idx_rewards max: {idx_rewards}')
-        # rewards = np.take_along_axis(rewards, np.expand_dims(idx_rewards, axis=-1), axis=-1).squeeze(axis=-1)
-        # sampled_actions = np.take_along_axis(sampled_actions, np.expand_dims(idx_rewards, axis=-1), axis=-1).squeeze(axis=-1)
-        # #print(f'rewards reshape: {rewards.shape}')
-        # #sys.exit(0)
-        # #print(f'rewards max: {rewards}')
-        # return np.squeeze(sampled_actions), np.squeeze(sampled_rewards)
+        return np.squeeze(actions), np.squeeze(rewards)
 
 
     def action(self, state, train=True):
@@ -342,29 +304,30 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         self.nactions.assign(self.nactions + 1)
         state = tf.expand_dims(state, 0)
         action_type = 0
-        # Random samples (not very efficient)
-        if self.buffer_counter <= self.max_size:
-            sampled_action = self.env.action_space.sample()
-        # Use the policy
+        if train==False:
+            rdm_norms = tf.random.normal([1, self.rdm_intputs], 0, self.norm_sdt, tf.float32)
+            sampled_action = self.actor_model.predict_on_batch([state, rdm_norms])
         else:
-            nrepeats = 1
-            states = tf.repeat(state, nrepeats, axis=0)
-            rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32)
-            sampled_actions = self.actor_model.predict_on_batch([states, rdm_norms])
-            # Use critic models to steer action selection
-            max_id = self.get_best_qvalue_action(states, sampled_actions)
-            sampled_actions = sampled_actions[max_id]
-            #print(f' act: {sampled_actions}')
-            noise = (tf.random.normal(sampled_actions.shape, 0, 0.1)).numpy()
-            sampled_actions = sampled_actions + noise
-            # print(f'shapes: {states.shape}, {rdm_norms.shape}, {sampled_actions.shape}')
-            #print(f' noise: {noise}')
-            #print(f' act w/ noise: {sampled_actions}')
-            # new_q1 = self.target_critic1([states, sampled_actions])
-            # new_q2 = self.target_critic2([states, sampled_actions])
-            # q_mean = tf.math.minimum(new_q1, new_q2)
-            # max_q_idx = tf.argmax(q_mean)
-            sampled_action = sampled_actions[0]
+            # Random samples (not very efficient)
+            if self.buffer_counter <= self.max_size:
+                sampled_action = self.env.action_space.sample()
+            # Use the policy
+            else:
+                nrepeats = 1000
+                states = tf.repeat(state, nrepeats, axis=0)
+                rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32)
+                sampled_actions = self.actor_model.predict_on_batch([states, rdm_norms])
+                # Use critic models to steer action selection
+                max_id, max_qvalue, max_q_distance, max_distance = self.get_distance_qvalue_action(states, sampled_actions)
+                tf.summary.scalar('max q_value ', data=max_qvalue, step=int(self.nactions))
+                tf.summary.scalar('max q_with_distance ', data=max_q_distance, step=int(self.nactions))
+                tf.summary.scalar('max distance ', data=max_distance, step=int(self.nactions))
+
+                sampled_action = sampled_actions[max_id]
+                #print(f'sampled_action {sampled_action.shape}')
+                # noise = (tf.random.normal(sampled_actions.shape, 0, 0.1)).numpy()
+                # sampled_actions = sampled_actions + noise
+                # sampled_action = sampled_actions[0]
 
         #print(f'selected act: {sampled_action}')
         sampled_action = sampled_action.flatten()
