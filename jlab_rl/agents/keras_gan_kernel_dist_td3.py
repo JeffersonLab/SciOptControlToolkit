@@ -123,7 +123,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
             self.ntrain_actor_calls += 1
             # Train
-            td_loss, extra_loss = self.train_actor(state_batch, train_tde=True)#(self.buffer_counter >= self.max_size))
+            td_loss, extra_loss = self.train_actor(state_batch)#(self.buffer_counter >= self.max_size))
             tf.summary.scalar('Actor TD-error Loss', data=td_loss, step=int(self.ntrain_actor_calls))
             tf.summary.scalar('Actor Kernel Loss', data=extra_loss, step=int(self.ntrain_actor_calls))
             tf.summary.scalar('Actor Total Loss', data=(td_loss+extra_loss), step=int(self.ntrain_actor_calls))
@@ -163,7 +163,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
         return critic_loss1, critic_loss2
 
-    def train_actor(self, states, train_tde):
+    def train_actor(self, states):
         next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
                                          seed=time.time_ns())
         with tf.GradientTape() as tape:
@@ -173,9 +173,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             q_values = self.critic_model1([states, training_actions], training=False)
 
             # Calculate the original TD3 loss
-            td_loss = 0
-            if train_tde:
-                td_loss = -tf.math.reduce_mean(q_values)/1000.0
+            td_loss = -tf.math.reduce_mean(q_values)
 
             # Dissipative term - should optimize code
             total_reshaped_a_sd = 0
