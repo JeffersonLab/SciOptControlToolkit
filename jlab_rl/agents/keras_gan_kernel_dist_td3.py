@@ -30,9 +30,25 @@ import sys
 import tensorflow as tf
 from jlab_rl.models.state_generator import Generator_v3 as Generator
 from jlab_rl.agents.keras_td3 import KerasTD3
-from tensorflow.keras.optimizers.legacy import Adam
+from tensorflow.keras.optimizers.legacy import Adam, RMSprop
 import numpy as np
 import time
+
+class GCRMSprop(RMSprop):
+    def get_gradients(self, loss, params):
+        # We here just provide a modified get_gradients() function since we are
+        # trying to just compute the centralized gradients.
+
+        grads = []
+        gradients = super().get_gradients()
+        for grad in gradients:
+            grad_len = len(grad.shape)
+            if grad_len > 1:
+                axis = list(range(grad_len - 1))
+                grad -= ops.mean(grad, axis=axis, keep_dims=True)
+            grads.append(grad)
+
+        return grads
 
 class KerasKernelDistGenerativeTD3(KerasTD3):
     """ Define all key variables required for all agent """
@@ -59,6 +75,10 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
         self.nmatrix = self.batch_size*self.batch_size
         print('max_size:', self.max_size)
+
+        self.critic_optimizer1 = GCRMSprop(learning_rate=self.critic_lr)
+        self.critic_optimizer2 = GCRMSprop(learning_rate=self.critic_lr)
+        self.actor_optimizer = GCRMSprop(learning_rate=self.actor_lr)
 
         # Re-init models
         self.initialize_new_models()
@@ -103,9 +123,10 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
             self.ntrain_actor_calls += 1
             # Train
-            td_loss, rsad_loss = self.train_actor(state_batch, train_tde=(self.buffer_counter >= self.max_size))
-            tf.summary.scalar('Actor TD-error Loss (Opt)', data=td_loss, step=int(self.ntrain_actor_calls))
-            tf.summary.scalar('Actor Distance Loss (Disperse)', data=rsad_loss, step=int(self.ntrain_actor_calls))
+            td_loss, extra_loss = self.train_actor(state_batch, train_tde=True)#(self.buffer_counter >= self.max_size))
+            tf.summary.scalar('Actor TD-error Loss', data=td_loss, step=int(self.ntrain_actor_calls))
+            tf.summary.scalar('Actor Kernel Loss', data=extra_loss, step=int(self.ntrain_actor_calls))
+            tf.summary.scalar('Actor Total Loss', data=(td_loss+extra_loss), step=int(self.ntrain_actor_calls))
 
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
@@ -169,18 +190,28 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
                         tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
                     total_reshaped_a_sd += ra_sd
 
+            # RBF (length scale depends on the range anf number of actions
+            length_scale = 1.0*self.num_actions
+            rbf = tf.exp(-total_reshaped_a_sd /length_scale)
+            rbf = rbf - tf.eye(total_reshaped_a_sd.shape[0])
+            extra_loss = tf.math.reduce_sum(rbf)/(self.nmatrix-self.batch_size)
+            #sum_rbf = tf.reduce_sum(rbf)/(all_dff.shape[0]*all_dff.shape[0]-all_dff.shape[0])
+
             # Distance
-            inv_diff = 1.0 / (total_reshaped_a_sd + 1e-7)
-            rs_inv_diff = tf.math.reduce_sum(inv_diff)
-            # RBF (closer point == larger rbf loss)
-            # rbf_loss = tf.math.reduce_sum(tf.exp(-total_reshaped_a_sd))
-            extra_loss = rs_inv_diff#rbf_loss
-            # Normalize
-            extra_loss = extra_loss/(self.nmatrix*self.num_actions)
+            # inv_diff = 1.0 / (total_reshaped_a_sd + 1e-7)
+            # rs_inv_diff = tf.math.reduce_sum(inv_diff)
+            # # RBF (closer point == larger rbf loss)
+            # # rbf_loss = tf.math.reduce_sum(tf.exp(-total_reshaped_a_sd))
+            # extra_loss = rs_inv_diff#rbf_loss
+            # # Normalize
+            # extra_loss = extra_loss/(self.nmatrix)
+            # extra_loss = extra_loss/(self.num_actions*self.num_actions)
+            # extra_loss = extra_loss/(self.num_states*self.num_states)
             total_loss = td_loss + extra_loss
 
         gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+
         return td_loss, extra_loss
 
     #@tf.function
@@ -314,12 +345,19 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             sampled_action = self.env.action_space.sample()
         # Use the policy
         else:
-            nrepeats = 1
+            nrepeats = 1000
             states = tf.repeat(state, nrepeats, axis=0)
             rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32)
             sampled_actions = self.actor_model.predict_on_batch([states, rdm_norms])
+            # Use critic models to steer action selection
+            max_id = self.get_best_qvalue_action(states, sampled_actions)
+            sampled_actions = sampled_actions[max_id]
+            #print(f' act: {sampled_actions}')
+            noise = (tf.random.normal(sampled_actions.shape, 0, 0.1)).numpy()
+            sampled_actions = sampled_actions + noise
             # print(f'shapes: {states.shape}, {rdm_norms.shape}, {sampled_actions.shape}')
-            # print(f' act: {sampled_actions}')
+            #print(f' noise: {noise}')
+            #print(f' act w/ noise: {sampled_actions}')
             # new_q1 = self.target_critic1([states, sampled_actions])
             # new_q2 = self.target_critic2([states, sampled_actions])
             # q_mean = tf.math.minimum(new_q1, new_q2)
@@ -348,5 +386,5 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         self.reward_buffer[index] = obs_tuple[2]
         self.next_state_buffer[index] = obs_tuple[3]
         self.done_buffer[index] = obs_tuple[4]
-        self.action_type_buffer[index] = obs_tuple[5]
+        #self.action_type_buffer[index] = obs_tuple[5]
         self.buffer_counter += 1

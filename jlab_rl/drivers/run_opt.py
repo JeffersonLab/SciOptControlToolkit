@@ -60,7 +60,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
     #
     # Environment
     print('Running env: {}'.format(env_id))
-    if ('HalfCheetah' or 'Hopper') in env_id:
+    if ('HalfCheetah-v4' or 'Hopper') in env_id:
         env = gym.make(env_id, exclude_current_positions_from_observation=False)
     elif 'Proxy' in env_id:
         env = gym.make(env_id,logdir=logdir)
@@ -166,7 +166,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     # Inference
 
                     inference_states = agent.state_buffer[0:agent.batch_size]
-                    inference_actions, inference_rewards = agent.action_inference(1000000)
+                    # Long test
+                    #inference_actions, inference_rewards = agent.action_inference(1000000)
+                    # Quick test
+                    inference_actions, inference_rewards = agent.action_inference(10000)
 
                     #sys.exit()
 #                    inference_actions, inference_rewards = agent.action_inference(inference_states)
