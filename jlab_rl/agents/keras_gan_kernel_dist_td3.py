@@ -57,8 +57,8 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         """ Define all key variables required for all agent """
 
         self.ntrain_actor_calls = 0
-        self.nactor_layers = 3
-        self.ncritic_layers = 3
+        self.nactor_layers = 5
+        self.ncritic_layers = 5
 
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
@@ -66,7 +66,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
         # Standard TD3 setup
         self.hidden_size = 256
-        self.batch_size = 512
+        self.batch_size = 99#512
 
         # Used for random samples
         self.rdm_intputs = 77
@@ -80,6 +80,11 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         self.critic_optimizer2 = GCRMSprop(learning_rate=self.critic_lr)
         self.actor_optimizer = GCRMSprop(learning_rate=self.actor_lr)
 
+
+        print(f'lower_bound: {self.lower_bound}, {type(self.lower_bound)}')
+        self.action_diff_range = tf.math.sqrt(tf.math.squared_difference(self.lower_bound, self.upper_bound))._numpy()
+        #self.action_diff_range = np.linalg.norm(self.upper_bound-self.lower_bound)
+        print(f'action_diff_range: {self.action_diff_range}, {type(self.action_diff_range)}')
         # Re-init models
         self.initialize_new_models()
 
@@ -171,11 +176,11 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             training_actions = tf.squeeze(training_actions)
             training_actions = tf.clip_by_value(training_actions, self.lower_bound, self.upper_bound)
             q_values = self.critic_model1([states, training_actions], training=False)
-
             # Calculate the original TD3 loss
             td_loss = -tf.math.reduce_mean(q_values)
-
+            # Distance range
             # Dissipative term - should optimize code
+            #print(f'training_actions: {training_actions}')
             total_reshaped_a_sd = 0
             if self.num_actions == 1:
                 total_reshaped_a_sd = tf.math.squared_difference(
@@ -186,21 +191,48 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
                     ra = tf.reshape(training_actions[:, a], [-1])
                     ra_sd = tf.math.squared_difference(
                         tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
+                    #print(f'ra_sd: {ra_sd}')
+                    ra_sd = tf.abs(tf.sqrt(ra_sd))
+                    #print(f'ra_sd sqrt: {ra_sd}')
+                    ra_sd = ra_sd/self.action_diff_range[a]
+                    #print(f'ra_sd w/ range: {ra_sd}')
                     total_reshaped_a_sd += ra_sd
 
-            # RBF (length scale depends on the range anf number of actions, and maybe other things)
-            length_scale = 1.0*self.num_actions
-            rbf = tf.exp(-total_reshaped_a_sd /length_scale)
-            rbf = rbf - tf.eye(total_reshaped_a_sd.shape[0])
+            # Normalize for the number of actions
+            total_reshaped_a_sd = total_reshaped_a_sd/self.num_actions
+            #print(f'total_reshaped_a_sd / actions: {total_reshaped_a_sd}')
+            # Normalize for the number of matrix
+            total_reshaped_a_sd = total_reshaped_a_sd/self.nmatrix
+            extra_loss = -tf.math.reduce_sum(total_reshaped_a_sd)
+            #print(f'total_reshaped_a_sd / matrix: {total_reshaped_a_sd}')
+            #total_reshaped_a_sd += tf.eye(total_reshaped_a_sd.shape[0])
+            #print(f'total_reshaped_a_sd w/ eye: {total_reshaped_a_sd}')
+            #print(f'total_reshaped_a_sd: {total_reshaped_a_sd.shape}')
+            #print(f'q_values: {q_values.shape}')
+            #matrix_vec = tf.linalg.matvec(total_reshaped_a_sd, tf.squeeze(q_values))
+            #matrix_vec = tf.expand_dims(matrix_vec,axis=1)
+            #print(f'matrix_vec: {matrix_vec.shape}')
+            #extra_loss = -tf.reduce_sum(matrix_vec)
+            #print(f'extra_loss: {extra_loss.shape}')
+            #print(f'td_loss: {td_loss.shape}')
 
-            # Normalize based on the problem size
-            extra_loss = tf.math.reduce_sum(rbf)/(self.nmatrix-self.batch_size)
+            #print(f'extra_loss: {extra_loss}')
+            #sys.exit()
+            # RBF (length scale depends on the range anf number of actions, and maybe other things)
+            # length_scale = 1.0*self.num_actions
+            # rbf = tf.exp(-total_reshaped_a_sd /length_scale)
+            # rbf = rbf - tf.eye(total_reshaped_a_sd.shape[0])
+            # #
+            # # # Normalize based on the problem size
+            # extra_loss = tf.math.reduce_sum(rbf)/(self.nmatrix-self.batch_size)
 
             # Divide by two since we are double counting the upper and lower part of the matrix
-            extra_loss = extra_loss/2.0
+            #extra_loss = extra_loss/2.0
 
             # Add both losses
             total_loss = td_loss + extra_loss
+            #total_loss = extra_loss
+
 
         gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
@@ -251,8 +283,9 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             sampled_actions = sampled_actions[max_id]
             # Apply TD3 noise
             if train:
-                noise = (tf.random.normal(sampled_actions.shape, 0, 0.1)).numpy()
-                sampled_actions = sampled_actions + noise
+                noise = tf.random.normal(sampled_actions.shape, 0, 0.1)
+                noise = tf.clip_by_value(noise, -0.25, 0.25)
+                sampled_actions = sampled_actions + noise.numpy()
             sampled_action = sampled_actions[0]
 
         sampled_action = sampled_action.flatten()

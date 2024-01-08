@@ -141,17 +141,17 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                 # Only does for 2D problem(s)
                 if agent.next_state_buffer.shape[1] == 2:
                     # Latest buffer
-                    action_types = agent.action_type_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
+                    #action_types = agent.action_type_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                     x = a[:,0]
                     y = a[:,1]
-                    sample_idx = np.where(action_types==0)[0]
+                    #sample_idx = np.where(action_types==0)[0]
                     sample_x = x#[sample_idx]
                     sample_y = y#[sample_idx]
                     sample_z = z#[sample_idx]
 
                     fig = plt.figure(figsize=(12, 12))
                     ax = fig.add_subplot(111)
-                    ax.set_title(f'Sampled {sample_idx.shape[0]}')
+                    ax.set_title(f'Sampled {sample_z.shape[0]}')
                     ax.set_xlabel("X")
                     ax.set_ylabel("Y")
                     ax.grid(True, linestyle='-', color='0.75')
@@ -167,7 +167,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                     inference_states = agent.state_buffer[0:agent.batch_size]
                     # Long test
-                    inference_actions, inference_rewards = agent.action_inference(1000000)
+                    inference_actions, inference_rewards = agent.action_inference(100000)
                     # Quick test
                     #inference_actions, inference_rewards = agent.action_inference(10000)
 

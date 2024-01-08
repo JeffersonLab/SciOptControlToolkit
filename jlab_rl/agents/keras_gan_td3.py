@@ -521,7 +521,6 @@ class KerasGenerativeTD3(KerasTD3):
         self.reward_buffer[index] = obs_tuple[2]
         self.next_state_buffer[index] = obs_tuple[3]
         self.done_buffer[index] = obs_tuple[4]
-        self.action_type_buffer[index] = obs_tuple[5]
         self.buffer_counter += 1
 
         if (self.buffer_counter >= self.max_size): #np.max([self.batch_size, self.min_buffer_counter])):

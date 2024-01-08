@@ -77,7 +77,7 @@ class KerasTD3(jlab_rl.Agent):
         self.next_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
         self.done_buffer = np.zeros((self.buffer_capacity, 1))
         self.priority_buffer = np.ones((self.buffer_capacity, 1))
-        self.action_type_buffer = np.ones((self.buffer_capacity, 1))
+        #self.action_type_buffer = np.ones((self.buffer_capacity, 1))
         self.batch_indices = None
         self.use_priority = 0
 
@@ -101,7 +101,7 @@ class KerasTD3(jlab_rl.Agent):
 
         self.hidden_size = 256
         self.layer_std = 1.0 / np.sqrt(self.num_actions)
-        self.ncritic_layers = 4
+        self.ncritic_layers = 2
 
         self.initialize_new_models()
         # Load models for retraining
