@@ -57,7 +57,7 @@ class KerasKernelSamplingGenerativeTD3(KerasTD3):
         """ Define all key variables required for all agent """
 
         self.ntrain_actor_calls = 0
-        self.nactor_layers = 3
+        self.nactor_layers = 4
         self.ncritic_layers = 3
 
         # Get env info

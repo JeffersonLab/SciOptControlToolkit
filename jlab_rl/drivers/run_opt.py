@@ -132,8 +132,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
             prev_state = state
 
             if (agent.buffer_counter % agent.batch_size == 0) \
-                and (agent.buffer_counter >= agent.batch_size)\
-                and (agent.buffer_counter >= agent.min_buffer_counter):
+                and (agent.buffer_counter >= agent.batch_size):#\
+                #and (agent.buffer_counter >= agent.min_buffer_counter):
                 # Plot
                 z = agent.reward_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
                 a = agent.action_buffer[agent.buffer_counter - nsavefig:agent.buffer_counter]
