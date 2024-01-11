@@ -2,31 +2,42 @@
 
 ## Software Requirement
 
-- Python 3.X
-- The optimization toolkit framework is built on [OpenAI Gym] (https://gym.openai.com)
-- Additional python packages are defined in the setup.py
-- This document assumes you are running at the top directory
+- Python 3.9
+- The optimization toolkit framework is built on [OpenAI Gymnasium](https://github.com/Farama-Foundation/Gymnasium)
 
-## Installing 
-* Pull code from repo
-```
-git clone https://github.com/JeffersonLab/jlab_optimization.git
-```
-* Install jlab_optimization (via pip):
-```
-cd jlab_optimization
-pip install -e . --user
-```
 
 ## Directory Organization
 ```
-├── setup.py
-├── scripts                           : a folder contains RL steering scripts  
-├── dataprep                          : a folder with code to read and prep data
-├── surrogates                        : a folder contains surrogate model code
-├── agents                            : a folder contains agent codes
-├── gym_jlab                          : a folder containing the jlab environments
-├── cfg                               : a folder contains the agent and environment configuration
-├── utils                             : a folder contains utilities
-          
+├── env.yaml                          : Conda setup file with package requirements
+├── setup.py                          : Python setup file with requirements files
+├── README.md                         : Readme documentation
+├── utests                            : Folder containing a collection of unit tests
+├── jlab_opt_control
+    ├── agents                        : Folder containing different agents
+    ├── cfgs                          : Folder containing configuration filesfor agents and environments
+    ├── core                          : Folder containing base classes
+    ├── drivers                       : Folder containing workflow modules / drivers
+    ├── envs                          : Folder containing different environemments 
+    ├── utils                         : Folder containing supporting tools (e.g. monitoring)
 ```
+
+## Installing
+
+- Clone code from repo
+```
+git clone https://github.com/JeffersonLab/SciOptControlToolkit.git
+cd SciOptControlToolkit
+```
+
+* Create default conda environment setup:
+```
+conda env create --file env.yaml (only once)
+conda activate jlab_opt_control_env (required every time you use the package)
+```
+
+- Install package in environment
+```
+pip install -e . (only once)
+```
+## Overview 
+https://github.com/JeffersonLab/SciOptControlToolkit/wiki/Overview

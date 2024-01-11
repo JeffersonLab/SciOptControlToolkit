@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class Agent(ABC):
 
     def __init__(self, **kwargs):
@@ -27,6 +28,6 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def save(self, results_dir):
+    def save(self):
         """ Save the ML models """
         pass

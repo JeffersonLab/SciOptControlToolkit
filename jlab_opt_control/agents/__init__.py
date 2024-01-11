@@ -26,62 +26,12 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import unittest as unittest
-import jlab_opt_control.agents as agents
-import jlab_opt_control.envs as envs
-import gymnasium as gym
+from jlab_opt_control.agents.registration import register, make, list_registered_modules
+from jlab_opt_control.agents.keras_td3 import KerasTD3
 
-
-class RegistryTests(unittest.TestCase):
-    """
-    Registry Test class to test all the registered modules are loaded properly.
-    """
-
-    def test_env(self):
-        """
-        Test each agent using a OpenAI gym env
-        :return: No return value
-        """
-        registered_envs = envs.list_registered_modules()
-        for env_id in registered_envs:
-            print('Testing env:', env_id)
-            env = envs.make(env_id)
-
-    def test_continuous_agents(self):
-        """
-        Test each agent using a OpenAI gym env
-        :return: No return value
-        """
-        env = gym.make('MountainCarContinuous-v0')
-        registered_agents = agents.list_registered_modules()
-        for agent_id in registered_agents:
-            print('Continuous env test agent:', agent_id)
-            agents.make(agent_id, env=env, logdir='./')
-
-    def test_discrete_agents(self):
-        """
-        Test each agent using a OpenAI gym env
-        :return: No return value
-        """
-        env = gym.make('CartPole-v0')
-        registered_agents = agents.list_registered_modules()
-        for agent_id in registered_agents:
-            print('Discrete env test agent:', agent_id)
-            agents.make(agent_id, env=env, logdir='./')
-
-
-    def test_registered_agents(self):
-        """
-        """
-        registered_agents = agents.list_registered_modules()
-        print('Registered agents:', registered_agents)
-
-    def test_registered_envs(self):
-        """
-        """
-        registered_envs = envs.list_registered_modules()
-        print('Registered envs:', registered_envs)
-
-
-if __name__ == '__main__':
-    unittest.main()
+# Single objective agents
+register(
+    id='KerasTD3-v0',
+    entry_point='jlab_opt_control.agents:KerasTD3',
+    kwargs={'cfg': 'keras_td3.cfg'},
+)
