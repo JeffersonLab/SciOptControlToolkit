@@ -316,7 +316,7 @@ class KerasKernelSamplingGenerativeTD3(KerasTD3):
                 nrepeats = 1000
                 states = tf.repeat(state, nrepeats, axis=0)
                 rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32)
-                sampled_actions = self.actor_model.predict_on_batch([states, rdm_norms])
+                sampled_actions = self.target_actor.predict_on_batch([states, rdm_norms])
                 # Use critic models to steer action selection
                 max_id, max_qvalue, max_q_distance, max_distance = self.get_distance_qvalue_action(states, sampled_actions)
                 tf.summary.scalar('max q_value ', data=max_qvalue, step=int(self.nactions))

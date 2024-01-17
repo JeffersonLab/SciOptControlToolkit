@@ -57,8 +57,8 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         """ Define all key variables required for all agent """
 
         self.ntrain_actor_calls = 0
-        self.nactor_layers = 5
-        self.ncritic_layers = 5
+        self.nactor_layers = 7
+        self.ncritic_layers = 7
 
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
@@ -66,7 +66,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
         # Standard TD3 setup
         self.hidden_size = 256
-        self.batch_size = 99#512
+        self.batch_size = 512
 
         # Used for random samples
         self.rdm_intputs = 77
@@ -168,86 +168,129 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
         return critic_loss1, critic_loss2
 
-    def train_actor(self, batch_states):
+    @tf.function
+    def train_actor(self, states):
+        next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
+                                         seed=time.time_ns())
+        with tf.GradientTape() as tape:
+            training_actions = self.actor_model([states, next_rdm_gaus], training=True)
+            training_actions = tf.squeeze(training_actions)
+            training_actions = tf.clip_by_value(training_actions, self.lower_bound, self.upper_bound)
+            q_values = self.critic_model1([states, training_actions], training=False)
 
-        train_vars = self.actor_model.trainable_variables
-        accum_gradient = [tf.zeros_like(this_var) for this_var in train_vars]
-        for state in batch_states:
-            state = tf.expand_dims(state, 0)
-            #print(state.shape)
-            states = tf.repeat(state, 25, axis=0)
-            #print(states.shape)
-            next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
-                                             seed=time.time_ns())
-            #print(next_rdm_gaus.shape)
-            with tf.GradientTape() as tape:
-                training_actions = self.actor_model([states, next_rdm_gaus], training=True)
-                training_actions = tf.squeeze(training_actions)
-                training_actions = tf.clip_by_value(training_actions, self.lower_bound, self.upper_bound)
-                q_values = self.critic_model1([states, training_actions], training=False)
-                # Calculate the original TD3 loss
-                td_loss = -tf.math.reduce_mean(q_values)
-                # Distance range
-                # Dissipative term - should optimize code
-                #print(f'training_actions: {training_actions}')
-                total_reshaped_a_sd = 0
-                if self.num_actions == 1:
-                    total_reshaped_a_sd = tf.math.squared_difference(
-                        tf.expand_dims(training_actions, axis=1),
-                        tf.expand_dims(training_actions, axis=0))
-                else:
-                    for a in range(self.num_actions):
-                        ra = tf.reshape(training_actions[:, a], [-1])
-                        ra_sd = tf.math.squared_difference(
-                            tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
-                        #print(f'ra_sd: {ra_sd}')
-                        ra_sd = tf.abs(tf.sqrt(ra_sd))
-                        #print(f'ra_sd sqrt: {ra_sd}')
-                        ra_sd = ra_sd/self.action_diff_range[a]
-                        #print(f'ra_sd w/ range: {ra_sd}')
-                        total_reshaped_a_sd += ra_sd
+            # Calculate the original TD3 loss
+            td_loss = -tf.math.reduce_mean(q_values)
 
-                # Normalize for the number of actions
-                total_reshaped_a_sd = total_reshaped_a_sd/self.num_actions
-                #print(f'total_reshaped_a_sd / actions: {total_reshaped_a_sd}')
-                # Normalize for the number of matrix
-                total_reshaped_a_sd = total_reshaped_a_sd/self.nmatrix
-                extra_loss = -tf.math.reduce_sum(total_reshaped_a_sd)
-                #print(f'total_reshaped_a_sd / matrix: {total_reshaped_a_sd}')
-                #total_reshaped_a_sd += tf.eye(total_reshaped_a_sd.shape[0])
-                #print(f'total_reshaped_a_sd w/ eye: {total_reshaped_a_sd}')
-                #print(f'total_reshaped_a_sd: {total_reshaped_a_sd.shape}')
-                #print(f'q_values: {q_values.shape}')
-                #matrix_vec = tf.linalg.matvec(total_reshaped_a_sd, tf.squeeze(q_values))
-                #matrix_vec = tf.expand_dims(matrix_vec,axis=1)
-                #print(f'matrix_vec: {matrix_vec.shape}')
-                #extra_loss = -tf.reduce_sum(matrix_vec)
-                #print(f'extra_loss: {extra_loss.shape}')
-                #print(f'td_loss: {td_loss.shape}')
+            # Calculate the q_value combinations
+            q_values_comb = tf.math.add(tf.expand_dims(q_values, axis=1), tf.expand_dims(q_values, axis=0))
 
-                #print(f'extra_loss: {extra_loss}')
-                #sys.exit()
-                # RBF (length scale depends on the range anf number of actions, and maybe other things)
-                # length_scale = 1.0*self.num_actions
-                # rbf = tf.exp(-total_reshaped_a_sd /length_scale)
-                # rbf = rbf - tf.eye(total_reshaped_a_sd.shape[0])
-                # #
-                # # # Normalize based on the problem size
-                # extra_loss = tf.math.reduce_sum(rbf)/(self.nmatrix-self.batch_size)
+            # Calculate the action distance combinations
+            # Dissipative term - should optimize code
+            action_distance_comb = 0
+            if self.num_actions == 1:
+                total_reshaped_a_sd = tf.math.squared_difference(
+                    tf.expand_dims(training_actions, axis=1),
+                    tf.expand_dims(training_actions, axis=0))
+                action_distance_comb = action_distance_comb / self.action_diff_range[a]
+            else:
+                for a in range(self.num_actions):
+                    ra = tf.reshape(training_actions[:, a], [-1])
+                    ra_sd = tf.math.squared_difference(
+                        tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
+                    ra_sd = ra_sd/self.action_diff_range[a]
+                    action_distance_comb += ra_sd
 
-                # Divide by two since we are double counting the upper and lower part of the matrix
-                #extra_loss = extra_loss/2.0
+            action_distance_comb = action_distance_comb/self.num_actions
+            extra_loss = -tf.math.reduce_mean(tf.multiply(q_values_comb, action_distance_comb)/self.batch_size)
 
-                # Add both losses
-                total_loss = td_loss + extra_loss
-                #total_loss = extra_loss
+            # Add both losses
+            total_loss = td_loss + extra_loss
 
-
-            gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
-            accum_gradient = [(acum_grad+grad) for acum_grad, grad in zip(accum_gradient, gradient)]
+        gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
 
         return td_loss, extra_loss
+
+    # def train_actor(self, batch_states):
+    #
+    #     train_vars = self.actor_model.trainable_variables
+    #     accum_gradient = [tf.zeros_like(this_var) for this_var in train_vars]
+    #     for state in batch_states:
+    #         state = tf.expand_dims(state, 0)
+    #         #print(state.shape)
+    #         states = tf.repeat(state, 25, axis=0)
+    #         #print(states.shape)
+    #         next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
+    #                                          seed=time.time_ns())
+    #         #print(next_rdm_gaus.shape)
+    #         with tf.GradientTape() as tape:
+    #             training_actions = self.actor_model([states, next_rdm_gaus], training=True)
+    #             training_actions = tf.squeeze(training_actions)
+    #             training_actions = tf.clip_by_value(training_actions, self.lower_bound, self.upper_bound)
+    #             q_values = self.critic_model1([states, training_actions], training=False)
+    #             # Calculate the original TD3 loss
+    #             td_loss = -tf.math.reduce_mean(q_values)
+    #             # Distance range
+    #             # Dissipative term - should optimize code
+    #             #print(f'training_actions: {training_actions}')
+    #             total_reshaped_a_sd = 0
+    #             if self.num_actions == 1:
+    #                 total_reshaped_a_sd = tf.math.squared_difference(
+    #                     tf.expand_dims(training_actions, axis=1),
+    #                     tf.expand_dims(training_actions, axis=0))
+    #             else:
+    #                 for a in range(self.num_actions):
+    #                     ra = tf.reshape(training_actions[:, a], [-1])
+    #                     ra_sd = tf.math.squared_difference(
+    #                         tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
+    #                     #print(f'ra_sd: {ra_sd}')
+    #                     ra_sd = tf.abs(tf.sqrt(ra_sd))
+    #                     #print(f'ra_sd sqrt: {ra_sd}')
+    #                     ra_sd = ra_sd/self.action_diff_range[a]
+    #                     #print(f'ra_sd w/ range: {ra_sd}')
+    #                     total_reshaped_a_sd += ra_sd
+    #
+    #             # Normalize for the number of actions
+    #             total_reshaped_a_sd = total_reshaped_a_sd/self.num_actions
+    #             #print(f'total_reshaped_a_sd / actions: {total_reshaped_a_sd}')
+    #             # Normalize for the number of matrix
+    #             total_reshaped_a_sd = total_reshaped_a_sd/self.nmatrix
+    #             extra_loss = -tf.math.reduce_sum(total_reshaped_a_sd)
+    #             #print(f'total_reshaped_a_sd / matrix: {total_reshaped_a_sd}')
+    #             #total_reshaped_a_sd += tf.eye(total_reshaped_a_sd.shape[0])
+    #             #print(f'total_reshaped_a_sd w/ eye: {total_reshaped_a_sd}')
+    #             #print(f'total_reshaped_a_sd: {total_reshaped_a_sd.shape}')
+    #             #print(f'q_values: {q_values.shape}')
+    #             #matrix_vec = tf.linalg.matvec(total_reshaped_a_sd, tf.squeeze(q_values))
+    #             #matrix_vec = tf.expand_dims(matrix_vec,axis=1)
+    #             #print(f'matrix_vec: {matrix_vec.shape}')
+    #             #extra_loss = -tf.reduce_sum(matrix_vec)
+    #             #print(f'extra_loss: {extra_loss.shape}')
+    #             #print(f'td_loss: {td_loss.shape}')
+    #
+    #             #print(f'extra_loss: {extra_loss}')
+    #             #sys.exit()
+    #             # RBF (length scale depends on the range anf number of actions, and maybe other things)
+    #             # length_scale = 1.0*self.num_actions
+    #             # rbf = tf.exp(-total_reshaped_a_sd /length_scale)
+    #             # rbf = rbf - tf.eye(total_reshaped_a_sd.shape[0])
+    #             # #
+    #             # # # Normalize based on the problem size
+    #             # extra_loss = tf.math.reduce_sum(rbf)/(self.nmatrix-self.batch_size)
+    #
+    #             # Divide by two since we are double counting the upper and lower part of the matrix
+    #             #extra_loss = extra_loss/2.0
+    #
+    #             # Add both losses
+    #             total_loss = td_loss + extra_loss
+    #             #total_loss = extra_loss
+    #
+    #
+    #         gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
+    #         accum_gradient = [(acum_grad+grad) for acum_grad, grad in zip(accum_gradient, gradient)]
+    #     self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+    #
+    #     return td_loss, extra_loss
 
     def get_best_qvalue_action(self, states, sampled_actions):
         new_q1 = self.target_critic1([states, sampled_actions])
