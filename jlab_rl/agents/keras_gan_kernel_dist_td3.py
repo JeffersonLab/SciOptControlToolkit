@@ -58,7 +58,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
         self.ntrain_actor_calls = 0
         self.nactor_layers = 7
-        self.ncritic_layers = 7
+        self.ncritic_layers = 3
 
         # Get env info
         super().__init__(env, warmup_size, nrff, logdir, model_load_path, model_save_path, **kwargs)
@@ -66,7 +66,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
         # Standard TD3 setup
         self.hidden_size = 256
-        self.batch_size = 512
+        self.batch_size = 25# 512
 
         # Used for random samples
         self.rdm_intputs = 77
@@ -168,13 +168,17 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
         return critic_loss1, critic_loss2
 
-    @tf.function
+    #@tf.function
     def train_actor(self, states):
         next_rdm_gaus = tf.random.normal([states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32,
                                          seed=time.time_ns())
         with tf.GradientTape() as tape:
+            #print(f'states: {states.shape}')
+            #print(f'next_rdm_gaus: {next_rdm_gaus.shape}')
             training_actions = self.actor_model([states, next_rdm_gaus], training=True)
-            training_actions = tf.squeeze(training_actions)
+            #print(f'training_actions.shape: {training_actions.shape}')
+            # training_actions = tf.squeeze(training_actions)
+            # print(f'training_actions.shape: {training_actions.shape}')
             training_actions = tf.clip_by_value(training_actions, self.lower_bound, self.upper_bound)
             q_values = self.critic_model1([states, training_actions], training=False)
 
@@ -183,7 +187,6 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
             # Calculate the q_value combinations
             q_values_comb = tf.math.add(tf.expand_dims(q_values, axis=1), tf.expand_dims(q_values, axis=0))
-
             # Calculate the action distance combinations
             # Dissipative term - should optimize code
             action_distance_comb = 0
@@ -198,13 +201,22 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
                     ra_sd = tf.math.squared_difference(
                         tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
                     ra_sd = ra_sd/self.action_diff_range[a]
+                    #print(f'actions distance #{a}: {ra_sd}')
                     action_distance_comb += ra_sd
 
             action_distance_comb = action_distance_comb/self.num_actions
-            extra_loss = -tf.math.reduce_mean(tf.multiply(q_values_comb, action_distance_comb)/self.batch_size)
+            #print(f'action_distance_comb: {action_distance_comb}')
+            action_distance_comb = action_distance_comb + tf.eye(self.batch_size)
+            #print(f'action_distance_comb: {action_distance_comb}')
+            q_action_matrix = tf.multiply(q_values_comb, action_distance_comb)
+            #print(f'q_action_matrix: {q_action_matrix[0]}')
 
+            extra_loss = -tf.math.reduce_mean(q_action_matrix)#/self.batch_size)
+            # print(f'extra_loss: {extra_loss}')
+            # sys.exit()
             # Add both losses
-            total_loss = td_loss + extra_loss
+#            total_loss = td_loss + extra_loss
+            total_loss = extra_loss
 
         gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))

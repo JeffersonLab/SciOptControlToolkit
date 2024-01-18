@@ -151,12 +151,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                     fig = plt.figure(figsize=(12, 12))
                     ax = fig.add_subplot(111)
-                    ax.set_title(f'Sampled {sample_z.shape[0]}')
+                    ax.set_title(f'Sampled {sample_z.shape[0]} \n Average Reward: {np.mean(sample_z):.5f}')
                     ax.set_xlabel("X")
                     ax.set_ylabel("Y")
                     ax.grid(True, linestyle='-', color='0.75')
                     # scatter with colormap mapping to z value
-                    cb = ax.scatter(sample_x, sample_y, s=35, c=sample_z, marker='o', cmap=cm.jet);
+                    cb = ax.scatter(sample_x, sample_y, s=35, c=sample_z, marker='o',
+                                    vmin=0.0,vmax=1, cmap=cm.jet);
                     plt.xlim(-1.1, 1.1)
                     plt.ylim(-1.1, 1.1)
                     plt.colorbar(cb)
@@ -188,11 +189,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                     ax.set_ylabel("Y")
                     ax.grid(True, linestyle='-', color='0.75')
                     # scatter with colormap mapping to z value
-                    cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o', cmap=cm.jet);
+                    cb = ax.scatter(policy_x, policy_y, s=35, c=policy_z, marker='o',
+                                    vmin=0.0, vmax=1, cmap=cm.jet);
                     plt.xlim(-1.1, 1.1)
                     plt.ylim(-1.1, 1.1)
                     plt.colorbar(cb)
                     plt.tight_layout
+                    ax.set_title(f'Average Reward {np.mean(policy_z):.5f}')
+
                     plt.savefig(logdir+'/inference_xy_action_reward_{}.png'.format(agent.buffer_counter / nsavefig))
                     plt.close()
 
@@ -359,7 +363,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
                         x = top_warmup_actions[:, 0]
                         y = top_warmup_actions[:, 1]
                         # scatter with colormap mapping to z value
-                        cb = ax.scatter(x, y, s=35, c=top_warmup_rewards, marker='o', cmap=cm.jet);
+                        cb = ax.scatter(x, y, s=35, c=top_warmup_rewards, marker='o'
+                                        ,vmin=0.0,vmax=1, cmap=cm.jet);
                         plt.xlim(-1.2, 1.2)
                         plt.ylim(-1.2, 1.2)
                         plt.colorbar(cb)
