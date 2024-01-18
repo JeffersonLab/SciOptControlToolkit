@@ -57,7 +57,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         """ Define all key variables required for all agent """
 
         self.ntrain_actor_calls = 0
-        self.nactor_layers = 7
+        self.nactor_layers = 2
         self.ncritic_layers = 3
 
         # Get env info
@@ -66,7 +66,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
         # Standard TD3 setup
         self.hidden_size = 256
-        self.batch_size = 25# 512
+        self.batch_size = 128# 512
 
         # Used for random samples
         self.rdm_intputs = 77
@@ -190,6 +190,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             # Calculate the action distance combinations
             # Dissipative term - should optimize code
             action_distance_comb = 0
+            reduced_q_action = 0
             if self.num_actions == 1:
                 total_reshaped_a_sd = tf.math.squared_difference(
                     tf.expand_dims(training_actions, axis=1),
@@ -201,22 +202,34 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
                     ra_sd = tf.math.squared_difference(
                         tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
                     ra_sd = ra_sd/self.action_diff_range[a]
-                    #print(f'actions distance #{a}: {ra_sd}')
-                    action_distance_comb += ra_sd
+                    #reduced_dist_action = tf.reduce_mean(ra_sd)
+                    #ra_sd = tf.exp(-ra_sd)
+                    #ra_sd = 1 - ra_sd + tf.eye(self.batch_size)
+                    ra_sd = ra_sd + tf.eye(self.batch_size)
+                    q_ra_matrix = tf.multiply(q_values_comb, ra_sd)
+                    reduced_q_action = -tf.reduce_mean(q_ra_matrix)
+                    print(f'reduced_q_action #{a}: {reduced_q_action}')
 
-            action_distance_comb = action_distance_comb/self.num_actions
+                    #print(f'actions distance #{a}: {ra_sd}')
+                    #action_distance_comb += reduced_q_action
+                    action_distance_comb += reduced_q_action
+
+            #extra_loss = reduced_q_action
+            extra_loss = action_distance_comb/self.num_actions
             #print(f'action_distance_comb: {action_distance_comb}')
-            action_distance_comb = action_distance_comb + tf.eye(self.batch_size)
+            #action_distance_comb = action_distance_comb + tf.eye(self.batch_size)
             #print(f'action_distance_comb: {action_distance_comb}')
-            q_action_matrix = tf.multiply(q_values_comb, action_distance_comb)
+            #q_action_matrix = tf.multiply(q_values_comb, action_distance_comb)
             #print(f'q_action_matrix: {q_action_matrix[0]}')
 
-            extra_loss = -tf.math.reduce_mean(q_action_matrix)#/self.batch_size)
+            #extra_loss = -tf.math.reduce_mean(q_action_matrix)#/self.batch_size)
             # print(f'extra_loss: {extra_loss}')
             # sys.exit()
             # Add both losses
-#            total_loss = td_loss + extra_loss
-            total_loss = extra_loss
+            #total_loss = td_loss + extra_loss
+            total_loss = td_loss + extra_loss
+            print(f'total_loss: {total_loss}')
+            #total_loss = extra_loss
 
         gradient = tape.gradient(total_loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
