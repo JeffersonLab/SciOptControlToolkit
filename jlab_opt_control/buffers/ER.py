@@ -17,38 +17,41 @@ class ER(Replay):
         with open(pfn_json_file) as json_file:
             data = json.load(json_file)
 
-        self.buffer_size = int(cfg_utils.cfg_get(data, 'buffer_capacity', 50000))
+        self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 5000000))
         self.pointer = 0
 
-        self.states = np.zeros((self.buffer_size, state_dim))
-        self.actions = np.zeros((self.buffer_size, action_dim))
-        self.rewards = np.zeros((self.buffer_size, 1))
-        self.next_states = np.zeros((self.buffer_size, state_dim))
-        self.dones = np.zeros((self.buffer_size, 1))
-        self.probabilities = np.ones(self.buffer_size)
+        self.states = np.zeros((self.buffer_capacity, state_dim))
+        self.actions = np.zeros((self.buffer_capacity, action_dim))
+        self.rewards = np.zeros((self.buffer_capacity, 1))
+        self.next_states = np.zeros((self.buffer_capacity, state_dim))
+        self.dones = np.zeros((self.buffer_capacity, 1))
+        self.probabilities = np.ones(self.buffer_capacity)
 
         self.indices = None
     
     def record(self, memory):
-        state, action, reward, next_state, done, probability = memory
-        self.states[self.pointer] = state
-        self.actions[self.pointer] = action
-        self.rewards[self.pointer] = reward
-        self.next_states[self.pointer] = next_state
-        self.dones[self.pointer] = done
-        self.probabilities[self.pointer] = probability
+        index = self.pointer % self.buffer_capacity
+        self.states[index] = memory[0]
+        self.actions[index] = memory[1]
+        self.rewards[index] = memory[2]
+        self.next_states[index] = memory[3]
+        self.dones[index] = memory[4]
+        self.probabilities[index] = memory[5]
 
-        self.pointer = (self.pointer + 1) % self.buffer_size
+        self.pointer += 1
 
     def sample(self, nsamples):
         # Find actual size of filled buffer
-        max_index = min(self.pointer, self.buffer_size)
+        max_index = min(self.pointer, self.buffer_capacity)
 
         # Normalize probabilites to sum to 1
-        normalized_probabilities = self.probabilities[:max_index] / np.sum(self.probabilities[:max_index])
+        # normalized_probabilities = self.probabilities[:max_index] / np.sum(self.probabilities[:max_index])
 
         # Select indicies from buffer based on above
-        self.indices = np.random.choice(max_index, size=nsamples, replace=False, p=normalized_probabilities)
+        # self.indices = np.random.choice(max_index, size=nsamples, replace=False, p=normalized_probabilities)
+
+        self.indices = np.random.choice(max_index, size=nsamples, replace=False)
+
 
         return (
             self.states[self.indices],
@@ -80,4 +83,4 @@ class ER(Replay):
         self.probabilities = data["probabilities"]
     
     def size(self):
-        return min(self.pointer, self.buffer_size)
+        return min(self.pointer, self.buffer_capacity)
