@@ -22,10 +22,10 @@ class PER(Replay):
         self.states = np.zeros((self.buffer_size, state_dim))
         self.actions = np.zeros((self.buffer_size, action_dim))
         self.next_states = np.zeros((self.buffer_size, state_dim))
-        self.rewards = np.zeros(buffer_size)
-        self.dones = np.zeros(buffer_size, dtype=np.bool)
+        self.rewards = np.zeros(self.buffer_size)
+        self.dones = np.zeros(self.buffer_size, dtype=np.bool)
         
-        self.probabilities = np.ones(buffer_size)
+        self.probabilities = np.ones(self.buffer_size)
     
     def record(self, memory):
         state, action, next_state, reward, done, probability = memory
@@ -49,7 +49,7 @@ class PER(Replay):
         indices = np.random.choice(max_index, size=nsamples, replace=False, p=normalized_probabilities)
 
         return (
-            self.states[indicies],
+            self.states[indices],
             self.actions[indices],
             self.next_states[indices],
             self.rewards[indices],
