@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 class Replay(ABC):
-    def __init__(self, state, action, next_state, reward, done, probability):
+    def __init__(self, state, action, reward, next_state, done, probability):
         """ Define all key variables required for all buffers """
         pass
     

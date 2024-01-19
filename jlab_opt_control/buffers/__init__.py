@@ -29,7 +29,12 @@
 from jlab_opt_control.buffers.registration import register, make, list_registered_modules
 from jlab_opt_control.buffers.PER import PER
 
-# Single objective agents
+register(
+    id='ER-v0',
+    entry_point='jlab_opt_control.buffers:ER',
+    kwargs={'cfg': 'ER.cfg'},
+)
+
 register(
     id='PER-v0',
     entry_point='jlab_opt_control.buffers:PER',

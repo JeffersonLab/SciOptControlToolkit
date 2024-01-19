@@ -5,8 +5,8 @@ import numpy as np
 import os
 import json
 
-class PER(Replay):
-    def __init__(self, state_dim, action_dim, cfg='PER.cfg'):
+class ER(Replay):
+    def __init__(self, state_dim, action_dim, cfg='ER.cfg'):
         super().__init__(None, None, None, None, None, None)
 
         # Load configuration
