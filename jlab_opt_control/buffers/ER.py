@@ -22,11 +22,12 @@ class ER(Replay):
 
         self.states = np.zeros((self.buffer_size, state_dim))
         self.actions = np.zeros((self.buffer_size, action_dim))
-        self.rewards = np.zeros(self.buffer_size)
+        self.rewards = np.zeros((self.buffer_size, 1))
         self.next_states = np.zeros((self.buffer_size, state_dim))
-        self.dones = np.zeros(self.buffer_size, dtype=bool)
-        
+        self.dones = np.zeros((self.buffer_size, 1))
         self.probabilities = np.ones(self.buffer_size)
+
+        self.indices = None
     
     def record(self, memory):
         state, action, reward, next_state, done, probability = memory
@@ -47,15 +48,15 @@ class ER(Replay):
         normalized_probabilities = self.probabilities[:max_index] / np.sum(self.probabilities[:max_index])
 
         # Select indicies from buffer based on above
-        indices = np.random.choice(max_index, size=nsamples, replace=False, p=normalized_probabilities)
+        self.indices = np.random.choice(max_index, size=nsamples, replace=False, p=normalized_probabilities)
 
         return (
-            self.states[indices],
-            self.actions[indices],
-            self.rewards[indices],
-            self.next_states[indices],
-            self.dones[indices],
-            self.probabilities[indices]
+            self.states[self.indices],
+            self.actions[self.indices],
+            self.rewards[self.indices],
+            self.next_states[self.indices],
+            self.dones[self.indices],
+            self.probabilities[self.indices]
         )
         
     def save(self, filename='replay_buffer.npy'):

@@ -10,6 +10,6 @@ class PER(ER):
     def __init__(self, state_dim, action_dim, cfg='PER.cfg'):
         super().__init__(state_dim, action_dim, cfg)
 
-    def update_priorities(self, indices, new_probabilities):
-        for idx, probability in zip(indices, new_probabilities):
-            self.probabilties[idx] = probability
+    def update_priorities(self, new_probabilities):
+        for idx, probability in zip(self.indices, new_probabilities):
+            self.probabilities[idx] = probability

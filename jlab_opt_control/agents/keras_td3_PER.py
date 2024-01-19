@@ -227,7 +227,8 @@ class KerasTD3_PER(jlab_opt_control.Agent):
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
-        return critic_loss1, critic_loss2
+
+        return critic_loss1, critic_loss2, tf.abs(td_errors1) + tf.abs(td_errors2)
 
     @tf.function
     def train_actor(self, states):
@@ -263,10 +264,16 @@ class KerasTD3_PER(jlab_opt_control.Agent):
             done_batch = tf.cast(done_batch, dtype=tf.float32)
 
             # Train critic
-            critic_loss1, critic_loss2 = self.train_critic(state_batch, action_batch, reward_batch,
+            critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
                                                            next_state_batch,done_batch)
+            
             tf.summary.scalar('Critic Loss 1', data=critic_loss1, step=int(self.ntrain_calls))
             tf.summary.scalar('Critic Loss 2', data=critic_loss2, step=int(self.ntrain_calls))
+            # tf.summary.scalar('TD Errors', data=td_errors, step=int(self.ntrain_calls))
+
+            # Update Priorities
+            new_priorities = td_errors.numpy()
+            self.buffer.update_priorities(new_priorities)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
                 actor_loss = self.train_actor(state_batch)
