@@ -17,7 +17,8 @@ class ER(Replay):
         with open(pfn_json_file) as json_file:
             data = json.load(json_file)
 
-        self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 5000000))
+        self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 50000))
+        self.current_index = 0
         self.pointer = 0
 
         self.states = np.zeros((self.buffer_capacity, state_dim))
@@ -28,15 +29,21 @@ class ER(Replay):
         self.probabilities = np.ones(self.buffer_capacity)
 
         self.indices = None
+        self.sample_counts = np.zeros(self.buffer_capacity)
     
     def record(self, memory):
-        index = self.pointer % self.buffer_capacity
-        self.states[index] = memory[0]
-        self.actions[index] = memory[1]
-        self.rewards[index] = memory[2]
-        self.next_states[index] = memory[3]
-        self.dones[index] = memory[4]
-        self.probabilities[index] = memory[5]
+        self.current_index = self.pointer % self.buffer_capacity
+
+        self.states[self.current_index] = memory[0]
+        self.actions[self.current_index] = memory[1]
+        self.rewards[self.current_index] = memory[2]
+        self.next_states[self.current_index] = memory[3]
+        self.dones[self.current_index] = memory[4]
+        self.probabilities[self.current_index] = memory[5]
+
+        # Reset count of sampling experience to zero if overwriting experiences
+        if (self.pointer >= self.buffer_capacity):
+            self.sample_counts[self.current_index] = 0
 
         self.pointer += 1
 
@@ -44,14 +51,9 @@ class ER(Replay):
         # Find actual size of filled buffer
         max_index = min(self.pointer, self.buffer_capacity)
 
-        # Normalize probabilites to sum to 1
-        # normalized_probabilities = self.probabilities[:max_index] / np.sum(self.probabilities[:max_index])
-
-        # Select indicies from buffer based on above
-        # self.indices = np.random.choice(max_index, size=nsamples, replace=False, p=normalized_probabilities)
-
         self.indices = np.random.choice(max_index, size=nsamples, replace=False)
 
+        self.sample_counts[self.indices] += 1
 
         return (
             self.states[self.indices],

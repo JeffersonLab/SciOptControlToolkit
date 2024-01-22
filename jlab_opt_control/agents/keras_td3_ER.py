@@ -28,7 +28,7 @@
 
 import jlab_opt_control as jlab_opt_control
 import jlab_opt_control.utils.cfg_utils as cfg_utils
-from jlab_opt_control.buffers.PER import PER
+from jlab_opt_control.buffers.ER import ER
 import tensorflow as tf
 import numpy as np
 import os
@@ -46,7 +46,7 @@ td3_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class KerasTD3_PER(jlab_opt_control.Agent):
+class KerasTD3_ER(jlab_opt_control.Agent):
 
     def __init__(self, env, logdir, cfg='keras_td3.json'):
         """ Define all key variables required for all agent """
@@ -89,7 +89,7 @@ class KerasTD3_PER(jlab_opt_control.Agent):
             data = json.load(json_file)
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 1000))
         self.min_buffer_counter = self.warmup_size
-        self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 5000))
+        self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 500000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 1000))
 
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
@@ -98,7 +98,7 @@ class KerasTD3_PER(jlab_opt_control.Agent):
         self.logdir = logdir
 
         # Buffer
-        self.buffer = PER(state_dim = self.num_states, action_dim = self.num_actions)
+        self.buffer = ER(state_dim = self.num_states, action_dim = self.num_actions)
 
         # Used to update target networks
         self.tau = float(cfg_utils.cfg_get(data, 'tau', 0.005))
@@ -271,10 +271,6 @@ class KerasTD3_PER(jlab_opt_control.Agent):
             tf.summary.scalar('Critic Loss 2', data=critic_loss2, step=int(self.ntrain_calls))
             # tf.summary.scalar('TD Errors', data=td_errors, step=int(self.ntrain_calls))
 
-            # Update Priorities
-            new_priorities = td_errors.numpy()
-            self.buffer.update_priorities(new_priorities)
-
             if self.ntrain_calls % self.actor_update_freq == 0:
                 actor_loss = self.train_actor(state_batch)
                 tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
@@ -349,8 +345,9 @@ class KerasTD3_PER(jlab_opt_control.Agent):
             self.target_critic2.save_weights(join(self.model_save_path, "target_critic2.h5"))
         except:
             td3_log.error("Error in saving the models...")
-
+    
     def log_sampling_distribution(self, step):
+
         if self.buffer.pointer < self.buffer.buffer_capacity:
             valid_sample_counts = self.buffer.sample_counts[:self.buffer.pointer]
         else:
@@ -365,4 +362,3 @@ class KerasTD3_PER(jlab_opt_control.Agent):
         
         tf.summary.histogram('Sample Probability Distribution', sampling_distribution, step=step)
         tf.summary.histogram('Sampling Count Distribution', valid_sample_counts, step=step)
-

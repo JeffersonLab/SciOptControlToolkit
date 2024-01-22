@@ -20,6 +20,8 @@ class PER(ER):
         # Select indicies from buffer based on above
         self.indices = np.random.choice(max_index, size=nsamples, replace=False, p=normalized_probabilities)
 
+        self.sample_counts[self.indices] += 1
+
         return (
             self.states[self.indices],
             self.actions[self.indices],
