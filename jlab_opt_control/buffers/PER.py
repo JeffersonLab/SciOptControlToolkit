@@ -9,6 +9,7 @@ import json
 class PER(ER):
     def __init__(self, state_dim, action_dim, cfg='PER.cfg'):
         super().__init__(state_dim, action_dim, cfg)
+        self.max_priority = 1.0
 
     def sample(self, nsamples):
         # Find actual size of filled buffer
@@ -34,3 +35,4 @@ class PER(ER):
     def update_priorities(self, new_probabilities):
         for idx, probability in zip(self.indices, new_probabilities):
             self.probabilities[idx] = probability
+        self.max_priority = np.max(self.probabilities)

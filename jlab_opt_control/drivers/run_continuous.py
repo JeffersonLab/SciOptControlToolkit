@@ -182,6 +182,7 @@ if __name__ == "__main__":
     parser.add_argument("--index", help="Index for tracking", type=int, default=0)
     parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=100)
     parser.add_argument("--nsteps", help="Number of steps", type=int, default=-1)
+    parser.add_argument("--bsize", help="Buffer size", type=int, default=-1)
     parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
     parser.add_argument("--env", help="Environment used for RL", type=str, default='Pendulum-v1')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
@@ -194,5 +195,6 @@ if __name__ == "__main__":
     args_agent_id = args.agent
     args_env_id = args.env
     args_logdir = args.logdir
+    args_buf_size = args.bsize
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id, args_env_id, args_logdir)
