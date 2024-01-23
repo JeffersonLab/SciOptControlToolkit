@@ -26,7 +26,7 @@ class ER(Replay):
         self.rewards = np.zeros((self.buffer_capacity, 1))
         self.next_states = np.zeros((self.buffer_capacity, state_dim))
         self.dones = np.zeros((self.buffer_capacity, 1))
-        self.probabilities = np.ones(self.buffer_capacity)
+        self.priorities = np.ones(self.buffer_capacity)
 
         self.indices = None
         self.sample_counts = np.zeros(self.buffer_capacity)
@@ -39,7 +39,7 @@ class ER(Replay):
         self.rewards[self.current_index] = memory[2]
         self.next_states[self.current_index] = memory[3]
         self.dones[self.current_index] = memory[4]
-        self.probabilities[self.current_index] = memory[5]
+        self.priorities[self.current_index] = memory[5]
 
         # Reset count of sampling experience to zero if overwriting experiences
         if (self.pointer >= self.buffer_capacity):
@@ -61,7 +61,7 @@ class ER(Replay):
             self.rewards[self.indices],
             self.next_states[self.indices],
             self.dones[self.indices],
-            self.probabilities[self.indices]
+            self.priorities[self.indices]
         )
         
     def save(self, filename='replay_buffer.npy'):
@@ -71,7 +71,7 @@ class ER(Replay):
             "rewards": self.rewards,
             "next_states": self.next_states,
             "dones": self.dones,
-            "probabilities": self.probabilities
+            "priorities": self.priorities
         }
         np.save(filename, data)
     
@@ -82,7 +82,7 @@ class ER(Replay):
         self.rewards = data["rewards"]
         self.next_states = data["next_states"]
         self.dones = data["dones"]
-        self.probabilities = data["probabilities"]
+        self.priorities = data["priorities"]
     
     def size(self):
         return min(self.pointer, self.buffer_capacity)

@@ -322,9 +322,8 @@ class KerasTD3_PER(jlab_opt_control.Agent):
         return legal_action, noise
 
     def memory(self, obs_tuple):
-        # initial_priority = 1.0
-        # memory_with_default_priority = obs_tuple + (initial_priority,)      
-        memory_with_default_priority = obs_tuple + (self.buffer.max_priority,)  
+        initial_priority = 1.0
+        memory_with_default_priority = obs_tuple + (initial_priority,)      
         self.buffer.record(memory_with_default_priority)
 
     def load(self):
