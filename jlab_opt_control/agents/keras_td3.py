@@ -38,6 +38,7 @@ import json
 import platform
 import sys
 processor = platform.processor()
+import gymnasium
 
 import logging
 
@@ -101,7 +102,15 @@ class KerasTD3(jlab_opt_control.Agent):
         self.env = env
         try:
             assert "Box" in str(type(env.action_space)), 'Invalid action space'
-            self.num_states = env.observation_space.shape[0]
+            ##################################################################
+            print("Obs type: ", type(env.observation_space))
+            if isinstance(env.observation_space, gymnasium.spaces.Dict):
+                self.num_states = 0
+                for key in list(env.observation_space.keys()):
+                    self.num_states += env.observation_space[key].shape[0]
+            else:
+                self.num_states = env.observation_space.shape[0]
+            ##################################################################
             self.num_actions = env.action_space.shape[0]
             self.upper_bound = env.action_space.high
             self.lower_bound = env.action_space.low
