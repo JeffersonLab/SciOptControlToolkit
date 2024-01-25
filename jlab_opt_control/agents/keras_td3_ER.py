@@ -280,7 +280,7 @@ class KerasTD3_ER(jlab_opt_control.Agent):
                 self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
                 self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
         
-        if self.ntrain_calls % 100 == 0:
+        if self.ntrain_calls % 1000 == 0:
             self.log_sampling_distribution(self.ntrain_calls)
 
     def action(self, state, train=True):

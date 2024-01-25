@@ -202,7 +202,7 @@ class KerasTD3_PER(jlab_opt_control.Agent):
         self.target_critic2.set_weights(self.critic_model2.get_weights())
 
     @tf.function
-    def train_critic(self, states, actions, rewards, next_states, dones):
+    def train_critic(self, states, actions, rewards, next_states, dones, weights):
         next_actions = self.target_actor(next_states, training=False)
         noises = tf.random.normal(next_actions.shape, 0, 0.2)
         noises = tf.clip_by_value(noises, -0.5, 0.5)
@@ -216,7 +216,7 @@ class KerasTD3_PER(jlab_opt_control.Agent):
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1([states, actions], training=False)
             td_errors1 = q_values1 - q_targets
-            critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
+            critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1) * weights)
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
         self.critic_optimizer1.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
 
@@ -224,7 +224,7 @@ class KerasTD3_PER(jlab_opt_control.Agent):
         with tf.GradientTape() as tape:
             q_values2 = self.critic_model2([states, actions], training=False)
             td_errors2 = q_values2 - q_targets
-            critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
+            critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2) * weights)
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
 
@@ -252,7 +252,7 @@ class KerasTD3_PER(jlab_opt_control.Agent):
 
         if self.buffer.size() >= self.batch_size:
             # Get sampling range
-            states, actions, rewards, next_states, dones, _ = self.buffer.sample(self.batch_size)
+            states, actions, rewards, next_states, dones, _, weights = self.buffer.sample(self.batch_size)
 
             # Convert to tensors
             state_batch = tf.convert_to_tensor(states)
@@ -262,10 +262,12 @@ class KerasTD3_PER(jlab_opt_control.Agent):
             next_state_batch = tf.convert_to_tensor(next_states)
             done_batch = tf.convert_to_tensor(dones)
             done_batch = tf.cast(done_batch, dtype=tf.float32)
+            weights_batch = tf.convert_to_tensor(weights)
+            weights_batch = tf.cast(weights_batch, dtype=tf.float32)
 
             # Train critic
             critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
-                                                           next_state_batch,done_batch)
+                                                           next_state_batch,done_batch, weights_batch)
             
             tf.summary.scalar('Critic Loss 1', data=critic_loss1, step=int(self.ntrain_calls))
             tf.summary.scalar('Critic Loss 2', data=critic_loss2, step=int(self.ntrain_calls))
@@ -284,7 +286,7 @@ class KerasTD3_PER(jlab_opt_control.Agent):
                 self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
                 self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
         
-        if self.ntrain_calls % 100 == 0:
+        if self.ntrain_calls % 1000 == 0:
             self.log_sampling_distribution(self.ntrain_calls)
 
     def action(self, state, train=True):
@@ -322,8 +324,8 @@ class KerasTD3_PER(jlab_opt_control.Agent):
         return legal_action, noise
 
     def memory(self, obs_tuple):
-        initial_priority = 1.0
-        memory_with_default_priority = obs_tuple + (initial_priority,)      
+        memory_with_default_priority = obs_tuple + (self.buffer.max_priority,)    
+        # memory_with_default_priority = obs_tuple + (1.0,)  
         self.buffer.record(memory_with_default_priority)
 
     def load(self):
