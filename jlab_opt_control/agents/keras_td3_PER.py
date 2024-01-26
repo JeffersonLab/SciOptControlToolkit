@@ -228,7 +228,9 @@ class KerasTD3_PER(jlab_opt_control.Agent):
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
         self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
 
-        return critic_loss1, critic_loss2, tf.abs(td_errors1) + tf.abs(td_errors2)
+        td_errors_avg =  (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
+
+        return critic_loss1, critic_loss2, td_errors_avg
 
     @tf.function
     def train_actor(self, states):
