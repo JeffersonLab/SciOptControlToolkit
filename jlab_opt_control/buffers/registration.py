@@ -30,6 +30,7 @@ class ReplaySpec(object):
             gen = self.entry_point(**_kwargs)
         else:
             cls = load(self.entry_point)
+            print(type(_kwargs))
             gen = cls(**_kwargs)
 
         return gen

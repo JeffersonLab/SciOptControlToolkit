@@ -30,6 +30,8 @@ from jlab_opt_control.agents.registration import register, make, list_registered
 from jlab_opt_control.agents.keras_td3 import KerasTD3
 from jlab_opt_control.agents.keras_td3_PER import KerasTD3_PER
 from jlab_opt_control.agents.keras_td3_ER import KerasTD3_ER
+from jlab_opt_control.agents.keras_td3_buffer import KerasTD3_buffer
+
 
 # Single objective agents
 register(
@@ -47,5 +49,11 @@ register(
 register(
     id='KerasTD3-ER-v0',
     entry_point='jlab_opt_control.agents:KerasTD3_ER',
+    kwargs={'cfg': 'keras_td3.cfg'},
+)
+
+register(
+    id='KerasTD3-buffer-v0',
+    entry_point='jlab_opt_control.agents:KerasTD3_buffer',
     kwargs={'cfg': 'keras_td3.cfg'},
 )

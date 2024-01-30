@@ -6,7 +6,7 @@ import os
 import json
 
 class ER(Replay):
-    def __init__(self, state_dim, action_dim, cfg='ER.cfg'):
+    def __init__(self, state_dim, action_dim, buffer_size=None, cfg='ER.cfg'):
         super().__init__(None, None, None, None, None, None)
 
         # Load configuration
@@ -17,7 +17,10 @@ class ER(Replay):
         with open(pfn_json_file) as json_file:
             data = json.load(json_file)
 
-        self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 50000))
+        if (buffer_size==None):
+            self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 50000))
+        else:
+            self.buffer_capacity = buffer_size
         self.current_index = 0
         self.pointer = 0
 
@@ -30,6 +33,8 @@ class ER(Replay):
 
         self.indices = None
         self.sample_counts = np.zeros(self.buffer_capacity)
+
+        self.max_priority = 1.0
     
     def record(self, memory):
         self.current_index = self.pointer % self.buffer_capacity

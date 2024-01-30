@@ -28,6 +28,8 @@
 
 from jlab_opt_control.buffers.registration import register, make, list_registered_modules
 from jlab_opt_control.buffers.PER import PER
+from jlab_opt_control.buffers.ER import ER
+
 
 register(
     id='ER-v0',

@@ -7,8 +7,9 @@ import os
 import json
 
 class PER(ER):
-    def __init__(self, state_dim, action_dim, cfg='PER.cfg'):
-        super().__init__(state_dim, action_dim, cfg)
+    def __init__(self, state_dim, action_dim, buffer_size=None, cfg='PER.cfg'):
+        super().__init__(state_dim, action_dim, buffer_size, cfg)
+        
         self.tds = np.zeros(self.buffer_capacity)
 
         # Load configuration

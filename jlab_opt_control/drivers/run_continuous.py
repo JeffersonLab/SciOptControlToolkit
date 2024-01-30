@@ -53,12 +53,25 @@ tf.random.set_seed(seed)
 np.random.seed(seed)
 #run_openai_log.info(f'seeds {tf.random.}')
 
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size):
     githash = get_git_revision_short_hash()
     run_openai_log.debug(githash)
     run_openai_log.debug(logdir)
+
+    # Checks for buffer logging information, will default to config if not set in command line
+    if (buffer_type == None):
+        buffer_type_log = "cfg"
+    else:
+        buffer_type_log = str(buffer_type)
+    
+    if (buffer_size == None):
+        buffer_size_log = "cfg"
+    else:
+        buffer_size_log = str(buffer_size)
+
+
     if logdir == 'None':
-        logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_hash" \
+        logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
                  + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
     else:
         logdir = logdir + "/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_date_" \
@@ -104,7 +117,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
     file_writer.set_as_default()
 
     # Agent
-    agent = jlab_opt_control.agents.make(agent_id, env=env, logdir=logdir)
+    print(agent_id)
+    agent = jlab_opt_control.agents.make(agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
 
     # To store reward history of each episode
     ep_reward_list = []
@@ -182,7 +196,8 @@ if __name__ == "__main__":
     parser.add_argument("--index", help="Index for tracking", type=int, default=0)
     parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=100)
     parser.add_argument("--nsteps", help="Number of steps", type=int, default=-1)
-    parser.add_argument("--bsize", help="Buffer size", type=int, default=-1)
+    parser.add_argument("--bsize", help="Buffer size", type=int, default=None)
+    parser.add_argument("--btype", help="Buffer Type", type=str, default=None)
     parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
     parser.add_argument("--env", help="Environment used for RL", type=str, default='Pendulum-v1')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
@@ -196,5 +211,6 @@ if __name__ == "__main__":
     args_env_id = args.env
     args_logdir = args.logdir
     args_buf_size = args.bsize
+    args_buf_type = args.btype
 
-    run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id, args_env_id, args_logdir)
+    run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id, args_env_id, args_logdir, args_buf_type, args_buf_size)
