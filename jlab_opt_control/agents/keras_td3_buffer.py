@@ -85,7 +85,7 @@ class KerasTD3_buffer(jlab_opt_control.Agent):
         td3_log.debug(f'pfn_json_file:{pfn_json_file}')
         with open(pfn_json_file) as json_file:
             data = json.load(json_file)
-        self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 1000))
+        self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.min_buffer_counter = self.warmup_size        
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 1000))
 
@@ -107,8 +107,8 @@ class KerasTD3_buffer(jlab_opt_control.Agent):
         self.gamma = float(cfg_utils.cfg_get(data, 'discount', 0.99))
 
         # Setup Optimizers
-        self.critic_lr = float(cfg_utils.cfg_get(data, 'critic_learning_rate', 5e-4))
-        self.actor_lr = float(cfg_utils.cfg_get(data, 'actor_learning_rate', 1e-4))
+        self.critic_lr = float(cfg_utils.cfg_get(data, 'critic_learning_rate', 1e-3))
+        self.actor_lr = float(cfg_utils.cfg_get(data, 'actor_learning_rate', 1e-3))
 
         if processor == 'arm':
             td3_log.info('Using legacy Adam')
@@ -120,7 +120,8 @@ class KerasTD3_buffer(jlab_opt_control.Agent):
             self.critic_optimizer2 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
-        self.hidden_size = 256
+        self.hidden_size = 400
+        self.hidden_size_2 = 300
         self.ncritic_layers = 2
 
         self.initialize_new_models()
@@ -147,8 +148,9 @@ class KerasTD3_buffer(jlab_opt_control.Agent):
         # Action as input
         action_input = tf.keras.layers.Input(shape=self.num_actions)
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
-        for _ in range(self.ncritic_layers):
-            state_action = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
+        # for _ in range(self.ncritic_layers):
+        state_action = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
+        state_action = tf.keras.layers.Dense(self.hidden_size_2, activation="relu")(state_action)
         outputs = tf.keras.layers.Dense(1, activation="linear")(state_action)
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)
@@ -163,7 +165,7 @@ class KerasTD3_buffer(jlab_opt_control.Agent):
         out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=init)(inputs)
         out = tf.keras.layers.Activation(tf.nn.relu)(out)
         #
-        out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=init)(out)
+        out = tf.keras.layers.Dense(self.hidden_size_2, kernel_initializer=init)(out)
         out = tf.keras.layers.Activation(tf.nn.relu)(out)
         #
         out = tf.keras.layers.Dense(self.num_actions, kernel_initializer=init)(out)
@@ -175,6 +177,7 @@ class KerasTD3_buffer(jlab_opt_control.Agent):
             lambda x: ((x + 1.0) * (self.upper_bound - self.lower_bound)) / 2.0 + self.lower_bound)(outputs)
 
         model = tf.keras.Model(inputs, outputs)
+        model.summary()
         return model
 
     def initialize_new_models(self):
@@ -260,7 +263,7 @@ class KerasTD3_buffer(jlab_opt_control.Agent):
         """ Method used to train """
         self.ntrain_calls += 1
 
-        if self.buffer.size() >= self.batch_size:
+        if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
             # Get sampling range
             if "PER" in self.buffer_type:
                 states, actions, rewards, next_states, dones, _, weights = self.buffer.sample(self.batch_size)
