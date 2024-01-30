@@ -1,5 +1,6 @@
 import tensorflow as tf
 import time
+import numpy as np
 
 class Generator(tf.keras.Model):
 
@@ -116,15 +117,15 @@ class Generator_v3(tf.keras.Model):
     self.act1, self.act2 = [], []
     for i in range(self.nlayers):
       self.denses1.append(tf.keras.layers.Dense(self.nodes, kernel_initializer=init))
+      self.bn1.append(tf.keras.layers.BatchNormalization())
 
       # Option #0
-      #self.bn1.append(tf.keras.layers.BatchNormalization())
       #self.act1.append(tf.keras.activations.relu)
       # Option 1
       #self.act1.append(tf.keras.layers.LeakyReLU(0.2))
       # Option #2
       self.act1.append(tf.keras.activations.tanh)
-      self.bn1.append(tf.keras.layers.BatchNormalization())
+      #self.bn1.append(tf.keras.layers.BatchNormalization())
       # Option #3
       #self.act1.append(tf.keras.activations.selu)
 
@@ -136,16 +137,20 @@ class Generator_v3(tf.keras.Model):
 
   def call(self, inputs):
     states, rdm_variables = inputs
-    #print(f'states 1: {states.shape}')
-    #states = tf.keras.layers.BatchNormalization()(states)
-    #print(f'states 2: {states.shape}')
+    # print(f'states 1: {states.shape}')
+    # # states = tf.keras.layers.BatchNormalization()(states)
+    # states = tf.keras.layers.Lambda(lambda xi: ((xi + 1.0)/2))(states)
+    # print(f'states min/max: {np.min(states[:,0])}/{np.max(states[:,0])}')
+    # print(f'states min/max: {np.min(states[:,1])}/{np.max(states[:,1])}')
+    # print(f'states 2: {states.shape}')
     #print(f'rdm_variables 2: {rdm_variables.shape}')
     x1 = tf.keras.layers.concatenate([rdm_variables, states])
     # x1 = self.denses1[0](x1)
     for i in range(0, self.nlayers):
       x1 = self.denses1[i](x1)
-      x1 = self.act1[i](x1)
       x1 = self.bn1[i](x1)
+      x1 = self.act1[i](x1)
+      #x1 = self.bn1[i](x1)
 
     x = self.out(x1)
 

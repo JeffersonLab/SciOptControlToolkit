@@ -57,7 +57,7 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         """ Define all key variables required for all agent """
 
         self.ntrain_actor_calls = 0
-        self.nactor_layers = 2
+        self.nactor_layers = 3
         self.ncritic_layers = 3
 
         # Get env info
@@ -76,9 +76,9 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         self.nmatrix = self.batch_size*self.batch_size
         print('max_size:', self.max_size)
 
-        self.critic_optimizer1 = GCRMSprop(learning_rate=self.critic_lr)
-        self.critic_optimizer2 = GCRMSprop(learning_rate=self.critic_lr)
-        self.actor_optimizer = GCRMSprop(learning_rate=self.actor_lr)
+        self.critic_optimizer1 = GCRMSprop(learning_rate=self.critic_lr, clipnorm=1.0,clipvalue=0.5)
+        self.critic_optimizer2 = GCRMSprop(learning_rate=self.critic_lr, clipnorm=1.0,clipvalue=0.5)
+        self.actor_optimizer = GCRMSprop(learning_rate=self.actor_lr, clipnorm=1.0, clipvalue=0.5)
 
 
         print(f'lower_bound: {self.lower_bound}, {type(self.lower_bound)}')
@@ -137,6 +137,8 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
     def train_critic(self, states, actions, rewards, next_states, dones):
         
         next_rdm_gaus = tf.random.normal([next_states.shape[0], self.rdm_intputs], 0, self.norm_sdt, tf.float32, seed=time.time_ns())
+        # print(f'next_states:{next_states.shape}')
+        # print(f'next_rdm_gaus:{next_rdm_gaus.shape}')
         next_actions = self.target_actor([next_states, next_rdm_gaus], training=False)
         
         # Do we need this noise ?
@@ -202,20 +204,23 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
                     ra_sd = tf.math.squared_difference(
                         tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
                     ra_sd = ra_sd/self.action_diff_range[a]
+                    action_distance_comb += ra_sd
                     #reduced_dist_action = tf.reduce_mean(ra_sd)
                     #ra_sd = tf.exp(-ra_sd)
                     #ra_sd = 1 - ra_sd + tf.eye(self.batch_size)
-                    ra_sd = ra_sd + tf.eye(self.batch_size)
-                    q_ra_matrix = tf.multiply(q_values_comb, ra_sd)
-                    reduced_q_action = -tf.reduce_mean(q_ra_matrix)
-                    print(f'reduced_q_action #{a}: {reduced_q_action}')
+                    #ra_sd = ra_sd + tf.eye(self.batch_size)
 
-                    #print(f'actions distance #{a}: {ra_sd}')
-                    #action_distance_comb += reduced_q_action
-                    action_distance_comb += reduced_q_action
+            action_distance_comb /= self.num_actions
+            q_action_matrix = tf.multiply(q_values_comb, action_distance_comb)
+            reduced_q_action = -tf.reduce_mean(q_action_matrix)
+                    # print(f'reduced_q_action #{a}: {reduced_q_action}')
+                    #
+                    # #print(f'actions distance #{a}: {ra_sd}')
+                    # action_distance_comb += reduced_q_action
+                    # #action_distance_comb -= tf.reduce_mean(q_ra_matrix)
 
-            #extra_loss = reduced_q_action
-            extra_loss = action_distance_comb/self.num_actions
+            extra_loss = reduced_q_action
+            #extra_loss = action_distance_comb/self.num_actions
             #print(f'action_distance_comb: {action_distance_comb}')
             #action_distance_comb = action_distance_comb + tf.eye(self.batch_size)
             #print(f'action_distance_comb: {action_distance_comb}')
@@ -324,12 +329,14 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
         max_q_idx = tf.argmax(q_mean)
         return max_q_idx
 
-    def action_inference(self, nrepeats=10000):
+    def action_inference(self, nrepeats=1000):
         prev_state, _ = self.env.reset()
         prev_state = tf.expand_dims(prev_state, 0)
         states = tf.repeat(prev_state, nrepeats, axis=0)
         rdm_norms = tf.random.normal([nrepeats, self.rdm_intputs], 0, self.norm_sdt, tf.float32)
-        actions = self.actor_model.predict_on_batch([states, rdm_norms])
+        #print(f'states:{states.shape}')
+        #print(f'rdm_norms:{rdm_norms.shape}')
+        actions = self.actor_model([states, rdm_norms])
         rewards = []
         for a in actions:
             prev_state, _ = self.env.reset()

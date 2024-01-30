@@ -168,7 +168,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
                     inference_states = agent.state_buffer[0:agent.batch_size]
                     # Long test
-                    inference_actions, inference_rewards = agent.action_inference(100000)
+                    inference_actions, inference_rewards = agent.action_inference(1000)
                     # Quick test
                     #inference_actions, inference_rewards = agent.action_inference(10000)
 
