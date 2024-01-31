@@ -177,7 +177,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
         tf.summary.scalar('Inference Reward', data=inference_episodic_reward, step=int(ep))
 
-        # Mean of last 40 episodes
+        # Mean of last 10 episodes
         nepisode_mod = 10
         avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
         time_end = time.process_time()
@@ -186,6 +186,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             run_openai_log.info("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
             run_openai_log.info("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
         avg_reward_list.append(avg_reward)
+
+        # tf.summary.scalar('Average of Last 10 Training Reward', data=avg_reward_list, step=int(ep))
 
         with open(logdir + '/results.npy', 'wb') as f:
             np.save(f, np.array(ep_reward_list))

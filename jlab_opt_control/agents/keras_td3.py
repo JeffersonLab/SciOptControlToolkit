@@ -47,7 +47,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 class KerasTD3(jlab_opt_control.Agent):
 
-    def __init__(self, env, logdir, cfg='keras_td3.json'):
+    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_td3.json'):
         """ Define all key variables required for all agent """
 
         # Get env info
