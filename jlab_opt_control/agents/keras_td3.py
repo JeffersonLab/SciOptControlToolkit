@@ -119,10 +119,12 @@ class KerasTD3(jlab_opt_control.Agent):
 
         if processor == 'arm':
             td3_log.info('Using legacy Adam')
-            self.critic_optimizer = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer1 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer2 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
         else:
-            self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer1 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer2 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
         self.hidden_size = 400
@@ -225,7 +227,7 @@ class KerasTD3(jlab_opt_control.Agent):
             td_errors1 = q_values1 - q_targets
             critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
-        self.critic_optimizer.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
+        self.critic_optimizer1.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
 
         # Critic 2
         with tf.GradientTape() as tape:
@@ -233,7 +235,7 @@ class KerasTD3(jlab_opt_control.Agent):
             td_errors2 = q_values2 - q_targets
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
-        self.critic_optimizer.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
+        self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
         return critic_loss1, critic_loss2
 
     @tf.function
