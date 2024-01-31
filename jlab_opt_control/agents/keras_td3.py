@@ -87,10 +87,10 @@ class KerasTD3(jlab_opt_control.Agent):
         with open(pfn_json_file) as json_file:
             data = json.load(json_file)
         self.buffer_counter = 0
-        self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 1000))
+        self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.min_buffer_counter = self.warmup_size
-        self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 5000000))
-        self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 1000))
+        self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 1000000))
+        self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
 
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
         self.model_save_path = cfg_utils.cfg_get(data, 'save_model', None)
@@ -119,15 +119,13 @@ class KerasTD3(jlab_opt_control.Agent):
 
         if processor == 'arm':
             td3_log.info('Using legacy Adam')
-            self.critic_optimizer1 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
-            self.critic_optimizer2 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
         else:
-            self.critic_optimizer1 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
-            self.critic_optimizer2 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
-        self.hidden_size = 256
+        self.hidden_size = 400
         self.ncritic_layers = 2
 
         self.initialize_new_models()
@@ -227,7 +225,7 @@ class KerasTD3(jlab_opt_control.Agent):
             td_errors1 = q_values1 - q_targets
             critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
-        self.critic_optimizer1.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
+        self.critic_optimizer.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
 
         # Critic 2
         with tf.GradientTape() as tape:
@@ -235,7 +233,7 @@ class KerasTD3(jlab_opt_control.Agent):
             td_errors2 = q_values2 - q_targets
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
-        self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
+        self.critic_optimizer.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
         return critic_loss1, critic_loss2
 
     @tf.function
@@ -256,9 +254,8 @@ class KerasTD3(jlab_opt_control.Agent):
 
     def train(self):
         """ Method used to train """
-        self.ntrain_calls += 1
-
-        if self.buffer_counter >= self.batch_size:
+        if self.buffer_counter > np.max([self.batch_size, self.warmup_size]):
+            self.ntrain_calls += 1
             # Get sampling range
             record_range = min(self.buffer_counter, self.buffer_capacity)
             batch_indices = np.random.choice(record_range, self.batch_size)
@@ -287,20 +284,19 @@ class KerasTD3(jlab_opt_control.Agent):
                 self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
     def action(self, state, train=True):
-        """ Method used to provide the next action using the target model """
-        if train:
-            self.nactions = self.nactions + 1
-
+        """ Method used to provide the next action using the target model """            
+        # Warmup experience sample
         if self.buffer_counter < np.max([self.batch_size, self.warmup_size]):
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
+        # Warmup completed, sample from actor
         else:
             state = tf.expand_dims(state, 0)
 
-            # else:
             sampled_action = (self.actor_model(state)).numpy()
             if train:
-                noise = self.upper_bound*(tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
+                # noise = (tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
+                noise = (tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
                 sampled_action = sampled_action + noise
             else:
                 noise = np.zeros(self.num_actions)
@@ -310,13 +306,16 @@ class KerasTD3(jlab_opt_control.Agent):
             assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
                 f"Sampled action shape is incorrect... {sampled_action.shape}"
 
+        # Log the training action(s) taken
         if train:
+            self.nactions = self.nactions + 1
             if self.num_actions == 0:
                 tf.summary.scalar('Action', data=sampled_action, step=int(self.nactions))
             else:
                 for i in range(self.num_actions):
                     tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
+        # Insure action output by actor is in legal environment range
         legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         return legal_action, noise
 

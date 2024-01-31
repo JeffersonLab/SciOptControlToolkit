@@ -24,15 +24,18 @@ class ER(Replay):
         self.current_index = 0
         self.pointer = 0
 
-        self.states = np.zeros((self.buffer_capacity, state_dim))
-        self.actions = np.zeros((self.buffer_capacity, action_dim))
+        self.num_states = state_dim
+        self.num_actions = action_dim
+
+        self.states = np.zeros((self.buffer_capacity, self.num_states))
+        self.actions = np.zeros((self.buffer_capacity, self.num_actions))
         self.rewards = np.zeros((self.buffer_capacity, 1))
-        self.next_states = np.zeros((self.buffer_capacity, state_dim))
+        self.next_states = np.zeros((self.buffer_capacity, self.num_states))
         self.dones = np.zeros((self.buffer_capacity, 1))
-        self.priorities = np.ones(self.buffer_capacity)
+        self.priorities = np.ones((self.buffer_capacity, 1))
 
         self.indices = None
-        self.sample_counts = np.zeros(self.buffer_capacity)
+        self.sample_counts = np.zeros((self.buffer_capacity,1))
 
         self.max_priority = 1.0
     
