@@ -32,7 +32,7 @@ class ER(Replay):
         self.rewards = np.zeros((self.buffer_capacity, 1))
         self.next_states = np.zeros((self.buffer_capacity, self.num_states))
         self.dones = np.zeros((self.buffer_capacity, 1))
-        self.priorities = np.ones((self.buffer_capacity, 1))
+        self.priorities = np.ones(self.buffer_capacity)
 
         self.indices = None
         self.sample_counts = np.zeros((self.buffer_capacity,1))

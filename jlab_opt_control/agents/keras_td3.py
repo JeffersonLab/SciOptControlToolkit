@@ -307,7 +307,7 @@ class KerasTD3(jlab_opt_control.Agent):
 
             sampled_action = (self.actor_model(state)).numpy()
             if train:
-                noise = (tf.random.normal(shape=(self.num_actions,), mean=0, stddev=self.self.upper_bound*0.1, dtype=tf.float32)).numpy()
+                noise = (tf.random.normal(shape=(self.num_actions,), mean=0, stddev=self.upper_bound*0.1, dtype=tf.float32)).numpy()
                 sampled_action = np.clip(sampled_action + noise, self.lower_bound, self.upper_bound)
 
                 # noise = (tf.random.normal(sampled_action.shape, 0, 0.1)) .numpy()
@@ -330,7 +330,7 @@ class KerasTD3(jlab_opt_control.Agent):
                     tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
         # Insure action output by actor is in legal environment range
-        return legal_action, noise
+        return sampled_action, noise
 
     def memory(self, obs_tuple):
         index = self.buffer_counter % self.buffer_capacity
