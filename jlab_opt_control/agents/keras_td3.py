@@ -149,13 +149,16 @@ class KerasTD3(jlab_opt_control.Agent):
         self.nactions = 0
 
     def get_critic(self):
+        seed = time.time_ns()
+        init = tf.keras.initializers.GlorotUniform(seed)
+
         # State as input
         state_input = tf.keras.layers.Input(shape=self.num_states)
         # Action as input
         action_input = tf.keras.layers.Input(shape=self.num_actions)
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
         for _ in range(self.ncritic_layers):
-            state_action = tf.keras.layers.Dense(self.hidden_size, activation="relu")(state_action)
+            state_action = tf.keras.layers.Dense(self.hidden_size, activation="relu", kernel_initializer=init)(state_action)
         outputs = tf.keras.layers.Dense(1, activation="linear")(state_action)
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)
@@ -297,8 +300,7 @@ class KerasTD3(jlab_opt_control.Agent):
 
             sampled_action = (self.actor_model(state)).numpy()
             if train:
-                # noise = (tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
-                noise = (tf.random.normal(sampled_action.shape, 0, 0.1)).numpy()
+                noise = (tf.random.normal(sampled_action.shape, 0, 0.1)) .numpy()
                 sampled_action = sampled_action + noise
             else:
                 noise = np.zeros(self.num_actions)
