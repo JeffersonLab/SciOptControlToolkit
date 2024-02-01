@@ -140,6 +140,8 @@ class KerasTD3(jlab_opt_control.Agent):
         self.actor_update_freq = int(cfg_utils.cfg_get(data, 'actor_update_freq', 2))
         self.critic_update_freq = int(cfg_utils.cfg_get(data, 'critic_update_freq', 2))
 
+        self.noise_clip = 0.2
+
         try:
             os.mkdir(self.logdir)
         except OSError as error:
@@ -150,7 +152,7 @@ class KerasTD3(jlab_opt_control.Agent):
 
     def get_critic(self):
         seed = time.time_ns()
-        init = tf.keras.initializers.HeNormal(seed)
+        init = tf.keras.initializers.GlorotNormal(seed)
 
         # State as input
         state_input = tf.keras.layers.Input(shape=self.num_states)
@@ -167,7 +169,8 @@ class KerasTD3(jlab_opt_control.Agent):
     def get_actor(self):
 
         seed = time.time_ns()
-        init = tf.keras.initializers.HeNormal(seed)
+        init = tf.keras.initializers.GlorotNormal(seed)
+
         inputs = tf.keras.layers.Input(shape=self.num_states)
         #
         out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=init)(inputs)
@@ -179,10 +182,11 @@ class KerasTD3(jlab_opt_control.Agent):
         out = tf.keras.layers.Dense(self.num_actions, kernel_initializer=init)(out)
         out = tf.keras.layers.Activation(tf.nn.tanh)(out)
         #
-        outputs = out
+        outputs = self.upper_bound * out
+
         # Rescale for tanh [-1,1]
-        outputs = tf.keras.layers.Lambda(
-            lambda x: ((x + 1.0) * (self.upper_bound - self.lower_bound)) / 2.0 + self.lower_bound)(outputs)
+        # outputs = tf.keras.layers.Lambda(
+        #     lambda x: ((x + 1.0) * (self.upper_bound - self.lower_bound)) / 2.0 + self.lower_bound)(outputs)
 
         model = tf.keras.Model(inputs, outputs)
         return model
@@ -215,10 +219,11 @@ class KerasTD3(jlab_opt_control.Agent):
 
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
-        next_actions = self.target_actor(next_states, training=False)
-        noises = tf.random.normal(next_actions.shape, 0, 0.2)
-        noises = tf.clip_by_value(noises, -0.5, 0.5)
-        next_actions = next_actions + noises
+        # Generate the proper noise
+        noise = tf.random.normal(tf.shape(actions), mean=0, stddev=0.2, dtype=tf.float32)
+        noise_clipped = tf.clip_by_value(noise, -self.noise_clip, self.noise_clip)
+        next_actions = tf.clip_by_value(self.target_actor(next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
+
         target_q1 = self.target_critic1([next_states, next_actions], training=False)
         target_q2 = self.target_critic2([next_states, next_actions], training=False)
         target_q = tf.math.minimum(target_q1, target_q2)
@@ -226,7 +231,7 @@ class KerasTD3(jlab_opt_control.Agent):
         q_targets = rewards + self.gamma * target_q * (1.0 - dones)
         # Critic 1
         with tf.GradientTape() as tape:
-            q_values1 = self.critic_model1([states, actions], training=False)
+            q_values1 = self.critic_model1([states, actions], training=True)
             td_errors1 = q_values1 - q_targets
             critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
         gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
@@ -234,7 +239,7 @@ class KerasTD3(jlab_opt_control.Agent):
 
         # Critic 2
         with tf.GradientTape() as tape:
-            q_values2 = self.critic_model2([states, actions], training=False)
+            q_values2 = self.critic_model2([states, actions], training=True)
             td_errors2 = q_values2 - q_targets
             critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
         gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
