@@ -69,7 +69,9 @@ class KerasTD3(jlab_opt_control.Agent):
             self.upper_bound = env.action_space.high
             self.lower_bound = env.action_space.low
             td3_log.info(f'Action upper bound: {self.upper_bound}')
+            td3_log.info(f'Action upper bound: {float(env.action_space.high[0])}')
             td3_log.info(f'Action lower bound: {self.lower_bound}')
+            td3_log.info(f'Action lower bound: {float(env.action_space.low[0])}')
             self.range = self.upper_bound - self.lower_bound
             td3_log.info(f'Action range: {self.range}')
         except:
@@ -305,8 +307,11 @@ class KerasTD3(jlab_opt_control.Agent):
 
             sampled_action = (self.actor_model(state)).numpy()
             if train:
-                noise = (tf.random.normal(sampled_action.shape, 0, 0.1)) .numpy()
-                sampled_action = sampled_action + noise
+                noise = (tf.random.normal(shape=(self.num_actions,), mean=0, stddev=self.self.upper_bound*0.1, dtype=tf.float32)).numpy()
+                sampled_action = np.clip(sampled_action + noise, self.lower_bound, self.upper_bound)
+
+                # noise = (tf.random.normal(sampled_action.shape, 0, 0.1)) .numpy()
+                # sampled_action = sampled_action + noise
             else:
                 noise = np.zeros(self.num_actions)
 
@@ -325,7 +330,6 @@ class KerasTD3(jlab_opt_control.Agent):
                     tf.summary.scalar('Action #{}'.format(i), data=sampled_action[i], step=int(self.nactions))
 
         # Insure action output by actor is in legal environment range
-        legal_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         return legal_action, noise
 
     def memory(self, obs_tuple):
