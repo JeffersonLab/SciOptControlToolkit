@@ -150,7 +150,7 @@ class KerasTD3(jlab_opt_control.Agent):
 
     def get_critic(self):
         seed = time.time_ns()
-        init = tf.keras.initializers.GlorotUniform(seed)
+        init = tf.keras.initializers.HeNormal(seed)
 
         # State as input
         state_input = tf.keras.layers.Input(shape=self.num_states)
@@ -167,7 +167,7 @@ class KerasTD3(jlab_opt_control.Agent):
     def get_actor(self):
 
         seed = time.time_ns()
-        init = tf.keras.initializers.GlorotUniform(seed)
+        init = tf.keras.initializers.HeNormal(seed)
         inputs = tf.keras.layers.Input(shape=self.num_states)
         #
         out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=init)(inputs)
