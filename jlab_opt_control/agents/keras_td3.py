@@ -176,10 +176,12 @@ class KerasTD3(jlab_opt_control.Agent):
 
         if processor == 'arm':
             td3_log.info('Using legacy Adam')
-            self.critic_optimizer = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer1 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer2 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
         else:
-            self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer1 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer2 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
         self.hidden_size = 400
