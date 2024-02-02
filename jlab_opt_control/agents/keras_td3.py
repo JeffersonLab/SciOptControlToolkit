@@ -290,8 +290,9 @@ class KerasTD3(jlab_opt_control.Agent):
             q_values1, q_values2 = self.critic_models(states, actions, training=True)
             td_errors1 = q_values1 - q_targets
             td_errors2 = q_values2 - q_targets
-            critic_loss1 = tf.keras.losses.MeanSquaredError(tf.cast(q_values1, dtype=tf.float32), tf.cast(q_targets, dtype=tf.float32))
-            critic_loss2 = tf.keras.losses.MeanSquaredError(tf.cast(q_values2, dtype=tf.float32), tf.cast(q_target, dtype=tf.float32))
+            mse_loss = tf.keras.losses.MeanSquaredError()
+            critic_loss1 = mse_loss(q_values1, q_targets)
+            critic_loss2 = mse_loss(q_values2, q_targets)
             critic_losses =  critic_loss1 + critic_loss2
         gradients = tape.gradient(critic_losses, self.critic_models.trainable_variables)
         self.critic_optimizer.apply_gradients(zip(gradients, self.critic_models.trainable_variables))
