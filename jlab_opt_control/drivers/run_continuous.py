@@ -130,10 +130,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         time_start = time.process_time()
         prev_state, _ = env.reset()
+        episode_timesteps = 0
         episodic_reward = 0
         done = False
         while (done==False):
             total_nsteps += 1
+            episode_timesteps += 1
             action, action_noise = agent.action(tf.convert_to_tensor(prev_state))
             assert 'numpy.ndarray' in str(type(action))
             run_openai_log.debug(f'action: {action}')
@@ -149,6 +151,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             assert state.shape == (num_states,)
             assert 'float' in str(type(reward)), str(type(reward))
             done = (terminate or truncate)
+            # print("Done flag: ", done)
+            done_buffer = (terminate or truncate) if (episode_timesteps < env._max_episode_steps) else False
+            # print("Done_buffer: ", done_buffer)
+
             agent.memory((prev_state, action, reward, state, done))
             episodic_reward += reward
             agent.train()

@@ -29,6 +29,7 @@
 import jlab_opt_control as jlab_opt_control
 import jlab_opt_control.utils.cfg_utils as cfg_utils
 import tensorflow as tf
+from tensorflow.keras import layers
 import numpy as np
 import os
 from os.path import join
@@ -43,6 +44,60 @@ import logging
 td3_log = logging.getLogger("TD3-Agent")
 td3_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
+
+
+class Actor(tf.keras.Model):
+    def __init__(self, action_dim, max_action):
+        super(Actor, self).__init__()
+
+        # Actor Architecture
+        self.l1 = layers.Dense(256, activation="relu")
+        self.l2 = layers.Dense(256, activation="relu")
+        self.l3 = layers.Dense(action_dim)
+
+        self.max_action = max_action
+
+    def call(self, state):
+        a = self.l1(state)
+        a = self.l2(a)
+        a = self.l3(a)
+        return self.max_action * tf.tanh(a)
+
+class Critic(tf.keras.Model):
+    def __init__(self):
+        super(Critic, self).__init__()
+
+        # Q1 Architecture
+        self.l1 = layers.Dense(256, activation="relu")
+        self.l2 = layers.Dense(256, activation="relu")
+        self.l3 = layers.Dense(1)
+
+        # Q2 Architecture
+        self.l4 = layers.Dense(256, activation="relu")
+        self.l5 = layers.Dense(256, activation="relu")
+        self.l6 = layers.Dense(1)
+
+    def call(self, state, action):
+        sa = tf.concat([state, action], axis=1)
+
+        q1 = self.l1(sa)
+        q1 = self.l2(q1)
+        q1 = self.l3(q1)
+
+        q2 = self.l4(sa)
+        q2 = self.l5(q2)
+        q2 = self.l6(q2)
+
+        return q1, q2
+
+    def Q1(self, state, action):
+        sa = tf.concat([state, action], axis=1)
+
+        q1 = self.l1(sa)
+        q1 = self.l2(q1)
+        q1 = self.l3(q1)
+
+        return q1
 
 
 class KerasTD3(jlab_opt_control.Agent):
@@ -121,18 +176,24 @@ class KerasTD3(jlab_opt_control.Agent):
 
         if processor == 'arm':
             td3_log.info('Using legacy Adam')
-            self.critic_optimizer1 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
-            self.critic_optimizer2 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
         else:
-            self.critic_optimizer1 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
-            self.critic_optimizer2 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
         self.hidden_size = 400
         self.ncritic_layers = 2
 
         self.initialize_new_models()
+        # self.critic_models = Critic()
+        # self.target_critics = Critic()
+        # self.target_critic.set_weights(self.critic_models.get_weights())
+
+        # self.actor_model = Actor(self.num_actions, self.upper_bound)
+        # self.target_actor = Actor(self.num_actions, self.upper_bound)
+        # self.target_actor.set_weights(self.actor_model.get_weights())
+
         # Load models for retraining
         if self.model_load_path is not None:
             self.load()
@@ -153,35 +214,28 @@ class KerasTD3(jlab_opt_control.Agent):
         self.nactions = 0
 
     def get_critic(self):
-        seed = time.time_ns()
-        init = tf.keras.initializers.GlorotNormal(seed)
-
         # State as input
         state_input = tf.keras.layers.Input(shape=self.num_states)
         # Action as input
         action_input = tf.keras.layers.Input(shape=self.num_actions)
         state_action = tf.keras.layers.Concatenate()([state_input, action_input])
         for _ in range(self.ncritic_layers):
-            state_action = tf.keras.layers.Dense(self.hidden_size, activation="relu", kernel_initializer=init)(state_action)
+            state_action = tf.keras.layers.Dense(self.hidden_size, activation="relu", kernel_initializer=tf.keras.initializers.HeNormal())(state_action)
         outputs = tf.keras.layers.Dense(1, activation="linear")(state_action)
         # Outputs single value for give state-action
         model = tf.keras.Model([state_input, action_input], outputs)
         return model
 
     def get_actor(self):
-
-        seed = time.time_ns()
-        init = tf.keras.initializers.GlorotNormal(seed)
-
         inputs = tf.keras.layers.Input(shape=self.num_states)
         #
-        out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=init)(inputs)
+        out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=tf.keras.initializers.HeNormal())(inputs)
         out = tf.keras.layers.Activation(tf.nn.relu)(out)
         #
-        out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=init)(out)
+        out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=tf.keras.initializers.HeNormal())(out)
         out = tf.keras.layers.Activation(tf.nn.relu)(out)
         #
-        out = tf.keras.layers.Dense(self.num_actions, kernel_initializer=init)(out)
+        out = tf.keras.layers.Dense(self.num_actions, kernel_initializer=tf.keras.initializers.HeNormal())(out)
         out = tf.keras.layers.Activation(tf.nn.tanh)(out)
         #
         outputs = self.upper_bound * out
