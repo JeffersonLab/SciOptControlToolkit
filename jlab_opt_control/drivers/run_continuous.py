@@ -155,7 +155,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             done_buffer = (terminate or truncate) if (episode_timesteps < env._max_episode_steps) else False
             # print("Done_buffer: ", done_buffer)
 
-            agent.memory((prev_state, action, reward, state, done))
+            agent.memory((prev_state, action, reward, state, done_buffer))
             episodic_reward += reward
             agent.train()
             prev_state = state
