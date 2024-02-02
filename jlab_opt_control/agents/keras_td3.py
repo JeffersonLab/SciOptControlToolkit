@@ -57,7 +57,7 @@ class Actor(tf.keras.Model):
 
         self.max_action = max_action
 
-    def call(self, state):
+    def call(self, state, training=False):
         a = self.l1(state)
         a = self.l2(a)
         a = self.l3(a)
@@ -77,7 +77,7 @@ class Critic(tf.keras.Model):
         self.l5 = layers.Dense(256, activation="relu")
         self.l6 = layers.Dense(1)
 
-    def call(self, state, action):
+    def call(self, state, action, training=False):
         sa = tf.concat([state, action], axis=1)
 
         q1 = self.l1(sa)
@@ -90,7 +90,7 @@ class Critic(tf.keras.Model):
 
         return q1, q2
 
-    def Q1(self, state, action):
+    def Q1(self, state, action, training=False):
         sa = tf.concat([state, action], axis=1)
 
         q1 = self.l1(sa)
@@ -98,7 +98,6 @@ class Critic(tf.keras.Model):
         q1 = self.l3(q1)
 
         return q1
-
 
 class KerasTD3(jlab_opt_control.Agent):
 
@@ -176,25 +175,23 @@ class KerasTD3(jlab_opt_control.Agent):
 
         if processor == 'arm':
             td3_log.info('Using legacy Adam')
-            self.critic_optimizer1 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
-            self.critic_optimizer2 = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
         else:
-            self.critic_optimizer1 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
-            self.critic_optimizer2 = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
+            self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
         self.hidden_size = 400
         self.ncritic_layers = 2
 
-        self.initialize_new_models()
-        # self.critic_models = Critic()
-        # self.target_critics = Critic()
-        # self.target_critic.set_weights(self.critic_models.get_weights())
+        # self.initialize_new_models()
+        self.critic_models = Critic()
+        self.target_critics = Critic()
+        self.target_critics.set_weights(self.critic_models.get_weights())
 
-        # self.actor_model = Actor(self.num_actions, self.upper_bound)
-        # self.target_actor = Actor(self.num_actions, self.upper_bound)
-        # self.target_actor.set_weights(self.actor_model.get_weights())
+        self.actor_model = Actor(self.num_actions, self.upper_bound)
+        self.target_actor = Actor(self.num_actions, self.upper_bound)
+        self.target_actor.set_weights(self.actor_model.get_weights())
 
         # Load models for retraining
         if self.model_load_path is not None:
@@ -282,26 +279,23 @@ class KerasTD3(jlab_opt_control.Agent):
         noise_clipped = tf.clip_by_value(noise, -self.noise_clip, self.noise_clip)
         next_actions = tf.clip_by_value(self.target_actor(next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
 
-        target_q1 = self.target_critic1([next_states, next_actions], training=False)
-        target_q2 = self.target_critic2([next_states, next_actions], training=False)
+        target_q1, target_q2 = self.target_critics(next_states, next_actions, training=False)
         target_q = tf.math.minimum(target_q1, target_q2)
+
         # Bellman equation for the q value
         q_targets = rewards + self.gamma * target_q * (1.0 - dones)
-        # Critic 1
-        with tf.GradientTape() as tape:
-            q_values1 = self.critic_model1([states, actions], training=True)
-            td_errors1 = q_values1 - q_targets
-            critic_loss1 = tf.reduce_mean(tf.math.square(td_errors1))
-        gradient1 = tape.gradient(critic_loss1, self.critic_model1.trainable_variables)
-        self.critic_optimizer1.apply_gradients(zip(gradient1, self.critic_model1.trainable_variables))
 
-        # Critic 2
+        # Critic 1 and 2
         with tf.GradientTape() as tape:
-            q_values2 = self.critic_model2([states, actions], training=True)
+            q_values1, q_values2 = self.critic_models(states, actions, training=True)
+            td_errors1 = q_values1 - q_targets
             td_errors2 = q_values2 - q_targets
-            critic_loss2 = tf.reduce_mean(tf.math.square(td_errors2))
-        gradient2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
-        self.critic_optimizer2.apply_gradients(zip(gradient2, self.critic_model2.trainable_variables))
+            critic_loss1 = tf.keras.losses.MeanSquaredError(tf.cast(q_values1, dtype=tf.float32), tf.cast(q_targets, dtype=tf.float32))
+            critic_loss2 = tf.keras.losses.MeanSquaredError(tf.cast(q_values2, dtype=tf.float32), tf.cast(q_target, dtype=tf.float32))
+            critic_losses =  critic_loss1 + critic_loss2
+        gradients = tape.gradient(critic_losses, self.critic_models.trainable_variables)
+        self.critic_optimizer.apply_gradients(zip(gradients, self.critic_models.trainable_variables))
+
         return critic_loss1, critic_loss2
 
     @tf.function
@@ -309,7 +303,7 @@ class KerasTD3(jlab_opt_control.Agent):
         # Use Critic 1
         with tf.GradientTape() as tape:
             actions = self.actor_model(states, training=True)
-            q_value = self.critic_model1([states, actions], training=False)
+            q_value = self.critic_models.Q1(states, actions, training=False)
             loss = -tf.math.reduce_mean(q_value)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
@@ -328,11 +322,11 @@ class KerasTD3(jlab_opt_control.Agent):
             record_range = min(self.buffer_counter, self.buffer_capacity)
             batch_indices = np.random.choice(record_range, self.batch_size)
             # Convert to tensors
-            state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
-            action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
+            state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
+            action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.float32)
             reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
             reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
+            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)
             done_batch = tf.convert_to_tensor(self.done_buffer[batch_indices])
             done_batch = tf.cast(done_batch, dtype=tf.float32)
 
@@ -348,8 +342,8 @@ class KerasTD3(jlab_opt_control.Agent):
                 self.soft_update(self.target_actor.variables, self.actor_model.variables)
 
             if self.ntrain_calls % self.critic_update_freq == 0:
-                self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
-                self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
+                self.soft_update(self.target_critics.variables, self.critic_models.variables)
+                # self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """            
