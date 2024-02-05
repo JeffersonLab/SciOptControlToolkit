@@ -57,6 +57,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
     githash = get_git_revision_short_hash()
     run_openai_log.debug(githash)
     run_openai_log.debug(logdir)
+
     if logdir == 'None':
         logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_hash" \
                  + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -104,6 +105,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
     file_writer.set_as_default()
 
     # Agent
+    print(agent_id)
     agent = jlab_opt_control.agents.make(agent_id, env=env, logdir=logdir)
 
     # To store reward history of each episode
@@ -116,10 +118,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         time_start = time.process_time()
         prev_state, _ = env.reset()
+        episode_timesteps = 0
         episodic_reward = 0
         done = False
         while (done==False):
             total_nsteps += 1
+            episode_timesteps += 1
             action, action_noise = agent.action(tf.convert_to_tensor(prev_state))
             assert 'numpy.ndarray' in str(type(action))
             run_openai_log.debug(f'action: {action}')
@@ -135,7 +139,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
             assert state.shape == (num_states,)
             assert 'float' in str(type(reward)), str(type(reward))
             done = (terminate or truncate)
-            agent.memory((prev_state, action, reward, state, done))
+            done_buffer = (terminate or truncate) if (episode_timesteps < env._max_episode_steps) else False
+
+            agent.memory((prev_state, action, reward, state, done_buffer))
             episodic_reward += reward
             agent.train()
             prev_state = state
@@ -163,7 +169,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
 
         tf.summary.scalar('Inference Reward', data=inference_episodic_reward, step=int(ep))
 
-        # Mean of last 40 episodes
+        # Mean of last 10 episodes
         nepisode_mod = 10
         avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
         time_end = time.process_time()
@@ -172,6 +178,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
             run_openai_log.info("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
             run_openai_log.info("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
         avg_reward_list.append(avg_reward)
+
+        # tf.summary.scalar('Average of Last 10 Training Reward', data=avg_reward_list, step=int(ep))
 
         with open(logdir + '/results.npy', 'wb') as f:
             np.save(f, np.array(ep_reward_list))
