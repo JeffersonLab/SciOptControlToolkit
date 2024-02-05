@@ -40,6 +40,7 @@ from jlab_opt_control.utils.git_utils import get_git_revision_short_hash
 from tqdm import tqdm
 import warnings
 import matplotlib.pyplot as plt
+from gymnasium.wrappers import FlattenObservation
 
 warnings.filterwarnings("ignore")
 
@@ -94,9 +95,9 @@ run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
-seed = 1#time.time_ns()
-tf.random.set_seed(seed)
-np.random.seed(seed)
+# seed = 1#time.time_ns()
+# tf.random.set_seed(seed)
+# np.random.seed(seed)
 #run_openai_log.info(f'seeds {tf.random.}')
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
@@ -151,19 +152,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
             final_combiner_args=config["final_combiner_args"],
             final_combiner_weights=config["final_combiner_weights"]
         )
+        env = FlattenObservation(env)
     else:
         import gymnasium as gym
         env = gym.make(env_id)
 
-    #if max_nsteps!=-1:
-    #    env._max_episode_steps = max_nsteps
-    #run_openai_log.info("Environment max steps ->  {}".format(env._max_episode_steps))
-    if "fel" in env_id:
-        num_states = 0
-        for key in sorted(list(env.observation_space.keys())):
-            num_states += env.observation_space[key].shape[0]
-    else:
-        num_states = env.observation_space.shape[0]
+    num_states = env.observation_space.shape[0]
     run_openai_log.info("Size of State Space ->  {}".format(num_states))
     num_actions = env.action_space.shape[0]
     run_openai_log.info("Size of Action Space ->  {}".format(num_actions))
@@ -193,15 +187,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         time_start = time.process_time()
         prev_state, _ = env.reset()
-        
-        ########################################################################
-        if "fel" in env_id:
-            state = []
-            for key in sorted(list(env.observation_space.keys())):
-                state.extend(prev_state[key])
-            prev_state = np.array(state)
-        ########################################################################
-        
         episodic_reward = 0
         done = False
         count = 0
@@ -215,14 +200,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
             # Take a step
             state, reward, terminate, truncate, info = env.step(action)
             
-            ########################################################################
-            if "fel" in env_id:
-                temp_state = []
-                for key in sorted(list(env.observation_space.keys())):
-                    temp_state.extend(state[key])
-                state = np.array(temp_state)
-            ########################################################################
-            
             run_openai_log.debug(f'reward: {reward}')
             run_openai_log.debug(f'reward: {type(reward)}')
 
@@ -231,14 +208,15 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
             assert state.shape == (num_states,)
             assert 'float' in str(type(reward)), str(type(reward))
             done = (terminate or truncate)
+            done_buffer = (terminate or truncate) if (count < max_nsteps) else False
             step += 1
-            agent.memory((prev_state, action, reward, state, done))
+            agent.memory((prev_state, action, reward, state, done_buffer))
             episodic_reward += reward
             agent.train()
             prev_state = state
             count += 1
             # print(count)
-            if count > max_nsteps:
+            if count >= max_nsteps:
                 count = 0
                 break
             # End this episode when `done` is True
@@ -253,26 +231,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
             inference_episodic_reward = 0
             inference_prev_state, _ = env.reset()
             
-            ########################################################################
-            if "fel" in env_id:
-                state = []
-                for key in sorted(list(env.observation_space.keys())):
-                    state.extend(inference_prev_state[key])
-                inference_prev_state = np.array(state)
-            ########################################################################
-            
             inference_done = False
             count = 0
             while (inference_done==False):
                 inference_action, inference_action_noise = agent.action(tf.convert_to_tensor(inference_prev_state), train=False)
                 inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(inference_action)
-                ########################################################################
-                if "fel" in env_id:
-                    state = []
-                    for key in sorted(list(env.observation_space.keys())):
-                        state.extend(inference_state[key])
-                    inference_state = np.array(state)
-                ########################################################################
                 inference_episodic_reward += inference_reward
                 inference_prev_state = inference_state
                 inference_done = (inference_terminate or inference_truncate)
@@ -294,16 +257,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
 
         with open(logdir + '/results.npy', 'wb') as f:
             np.save(f, np.array(ep_reward_list))
-        
-#         if ep%200==0:
-#             plt.plot(ep_reward_list)
-#             plt.xlabel("Episode #", fontsize=20)
-#             plt.ylabel("Episodic Reward", fontsize=20)
-#             plt.grid()
-#             plt.savefig(os.path.join(logdir, "Episodic_reward.png"), dpi=120)
-# #             plt.show()
-#             plt.clf()
-#             plt.close()
 
 
 if __name__ == "__main__":
