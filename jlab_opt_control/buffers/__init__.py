@@ -30,7 +30,6 @@ from jlab_opt_control.buffers.registration import register, make, list_registere
 from jlab_opt_control.buffers.PER import PER
 from jlab_opt_control.buffers.ER import ER
 
-
 register(
     id='ER-v0',
     entry_point='jlab_opt_control.buffers:ER',

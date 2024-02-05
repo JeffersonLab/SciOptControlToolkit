@@ -167,22 +167,7 @@ class KerasTD3(jlab_opt_control.Agent):
             self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
-        self.hidden_size = 400
-        self.ncritic_layers = 2
-
-        # self.initialize_new_models()
-        self.actor_model = Actor(self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
-        self.target_actor = Actor(self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
-
-        self.critic_model1 = Critic(self.num_states, self.num_actions)
-        self.target_critic1 = Critic(self.num_states, self.num_actions)
-
-        self.critic_model2 = Critic(self.num_states, self.num_actions)
-        self.target_critic2 = Critic(self.num_states, self.num_actions)
-
-        self.target_actor.set_weights(self.actor_model.get_weights())
-        self.target_critic1.set_weights(self.critic_model1.get_weights())
-        self.target_critic2.set_weights(self.critic_model2.get_weights())
+        self.initialize_new_models()
 
         # Load models for retraining
         if self.model_load_path is not None:
@@ -193,7 +178,7 @@ class KerasTD3(jlab_opt_control.Agent):
         self.actor_update_freq = int(cfg_utils.cfg_get(data, 'actor_update_freq', 2))
         self.critic_update_freq = int(cfg_utils.cfg_get(data, 'critic_update_freq', 2))
 
-        self.noise_clip = 0.2
+        self.noise_clip = 0.5
 
         try:
             os.mkdir(self.logdir)
@@ -203,64 +188,32 @@ class KerasTD3(jlab_opt_control.Agent):
         file_writer.set_as_default()
         self.nactions = 0
 
-    def get_critic(self):
-        # State as input
-        state_input = tf.keras.layers.Input(shape=self.num_states)
-        # Action as input
-        action_input = tf.keras.layers.Input(shape=self.num_actions)
-        state_action = tf.keras.layers.Concatenate()([state_input, action_input])
-        for _ in range(self.ncritic_layers):
-            state_action = tf.keras.layers.Dense(self.hidden_size, activation="relu", kernel_initializer=tf.keras.initializers.HeNormal())(state_action)
-        outputs = tf.keras.layers.Dense(1, activation="linear")(state_action)
-        # Outputs single value for give state-action
-        model = tf.keras.Model([state_input, action_input], outputs)
-        return model
-
-    def get_actor(self):
-        inputs = tf.keras.layers.Input(shape=self.num_states)
-        #
-        out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=tf.keras.initializers.HeNormal())(inputs)
-        out = tf.keras.layers.Activation(tf.nn.relu)(out)
-        #
-        out = tf.keras.layers.Dense(self.hidden_size, kernel_initializer=tf.keras.initializers.HeNormal())(out)
-        out = tf.keras.layers.Activation(tf.nn.relu)(out)
-        #
-        out = tf.keras.layers.Dense(self.num_actions, kernel_initializer=tf.keras.initializers.HeNormal())(out)
-        out = tf.keras.layers.Activation(tf.nn.tanh)(out)
-        #
-        outputs = self.upper_bound * out
-
-        # Rescale for tanh [-1,1]
-        # outputs = tf.keras.layers.Lambda(
-        #     lambda x: ((x + 1.0) * (self.upper_bound - self.lower_bound)) / 2.0 + self.lower_bound)(outputs)
-
-        model = tf.keras.Model(inputs, outputs)
-        return model
-
     def initialize_new_models(self):
         """ Initialize new models from scratch """
         td3_log.info('Running KerasTD3 initialize_new_models()')
 
-        self.actor_model = self.get_actor()
-        self.target_actor = self.get_actor()
-        self.target_actor.set_weights(self.actor_model.get_weights())
-
+        self.actor_model = Actor(self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
+        self.target_actor = Actor(self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
+        
         seed1 = time.time_ns()
         str_seed1 = str(seed1)
         seed1 = int(str_seed1[9:-3])
         td3_log.debug(f'seed1:{seed1}')
         tf.random.set_seed(seed1)
-        self.critic_model1 = self.get_critic()
-        self.target_critic1 = self.get_critic()
-        self.target_critic1.set_weights(self.critic_model1.get_weights())
+        self.critic_model1 = Critic(self.num_states, self.num_actions)
+        self.target_critic1 = Critic(self.num_states, self.num_actions)
+
         time.sleep(1 / 10)
         seed2 = time.time_ns()
         str_seed2 = str(seed2)
         seed2 = int(str_seed2[9:-3])
         td3_log.debug(f'seed2:{seed2}')
         tf.random.set_seed(seed2)
-        self.critic_model2 = self.get_critic()
-        self.target_critic2 = self.get_critic()
+        self.critic_model2 = Critic(self.num_states, self.num_actions)
+        self.target_critic2 = Critic(self.num_states, self.num_actions)
+
+        self.target_actor.set_weights(self.actor_model.get_weights())
+        self.target_critic1.set_weights(self.critic_model1.get_weights())
         self.target_critic2.set_weights(self.critic_model2.get_weights())
 
     @tf.function
