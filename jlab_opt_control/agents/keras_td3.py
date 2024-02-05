@@ -47,13 +47,16 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
 class Actor(tf.keras.Model):
-    def __init__(self, action_dim, max_action):
-        super(Actor, self).__init__()
+    def __init__(self, state_dim, action_dim, min_action, max_action):
+        super().__init__()
 
         # Actor Architecture
-        self.l1 = layers.Dense(256, activation="relu")
+        self.l1 = layers.Dense(256, activation="relu", input_shape=(state_dim,))
         self.l2 = layers.Dense(256, activation="relu")
-        self.l3 = layers.Dense(action_dim)
+        self.l3 = layers.Dense(action_dim, activation='tanh')
+
+        self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
+        self.action_bias = tf.constant((max_action + min_action) / 2, dtype=tf.float32)
 
         self.max_action = max_action
 
@@ -61,43 +64,24 @@ class Actor(tf.keras.Model):
         a = self.l1(state)
         a = self.l2(a)
         a = self.l3(a)
-        return self.max_action * tf.tanh(a)
+        return a * self.action_scale + self.action_bias
 
 class Critic(tf.keras.Model):
-    def __init__(self):
-        super(Critic, self).__init__()
+    def __init__(self, state_dim, action_dim):
+        super().__init__()
 
-        # Q1 Architecture
-        self.l1 = layers.Dense(256, activation="relu")
+        # Q network Architecture
+        self.l1 = layers.Dense(256, activation="relu", input_shape=(state_dim + action_dim,))
         self.l2 = layers.Dense(256, activation="relu")
         self.l3 = layers.Dense(1)
 
-        # Q2 Architecture
-        self.l4 = layers.Dense(256, activation="relu")
-        self.l5 = layers.Dense(256, activation="relu")
-        self.l6 = layers.Dense(1)
-
     def call(self, state, action, training=False):
-        sa = tf.concat([state, action], axis=1)
+        x = tf.concat([state, action], axis=1)
+        x = self.l1(x)
+        x = self.l2(x)
+        x = self.l3(x)
 
-        q1 = self.l1(sa)
-        q1 = self.l2(q1)
-        q1 = self.l3(q1)
-
-        q2 = self.l4(sa)
-        q2 = self.l5(q2)
-        q2 = self.l6(q2)
-
-        return q1, q2
-
-    def Q1(self, state, action, training=False):
-        sa = tf.concat([state, action], axis=1)
-
-        q1 = self.l1(sa)
-        q1 = self.l2(q1)
-        q1 = self.l3(q1)
-
-        return q1
+        return x
 
 class KerasTD3(jlab_opt_control.Agent):
 
@@ -153,6 +137,8 @@ class KerasTD3(jlab_opt_control.Agent):
 
         self.logdir = logdir
 
+        self.mse_loss = tf.keras.losses.MeanSquaredError()
+
         # Buffer
 
         self.state_buffer = np.zeros((self.buffer_capacity, self.num_states))
@@ -185,13 +171,18 @@ class KerasTD3(jlab_opt_control.Agent):
         self.ncritic_layers = 2
 
         # self.initialize_new_models()
-        self.critic_models = Critic()
-        self.target_critics = Critic()
-        self.target_critics.set_weights(self.critic_models.get_weights())
+        self.actor_model = Actor(self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
+        self.target_actor = Actor(self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
 
-        self.actor_model = Actor(self.num_actions, self.upper_bound)
-        self.target_actor = Actor(self.num_actions, self.upper_bound)
+        self.critic_model1 = Critic(self.num_states, self.num_actions)
+        self.target_critic1 = Critic(self.num_states, self.num_actions)
+
+        self.critic_model2 = Critic(self.num_states, self.num_actions)
+        self.target_critic2 = Critic(self.num_states, self.num_actions)
+
         self.target_actor.set_weights(self.actor_model.get_weights())
+        self.target_critic1.set_weights(self.critic_model1.get_weights())
+        self.target_critic2.set_weights(self.critic_model2.get_weights())
 
         # Load models for retraining
         if self.model_load_path is not None:
@@ -279,7 +270,8 @@ class KerasTD3(jlab_opt_control.Agent):
         noise_clipped = tf.clip_by_value(noise, -self.noise_clip, self.noise_clip)
         next_actions = tf.clip_by_value(self.target_actor(next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
 
-        target_q1, target_q2 = self.target_critics(next_states, next_actions, training=False)
+        target_q1 = self.target_critic1(next_states, next_actions, training=False)
+        target_q2 = self.target_critic2(next_states, next_actions, training=False)
         target_q = tf.math.minimum(target_q1, target_q2)
 
         # Bellman equation for the q value
@@ -287,15 +279,15 @@ class KerasTD3(jlab_opt_control.Agent):
 
         # Critic 1 and 2
         with tf.GradientTape() as tape:
-            q_values1, q_values2 = self.critic_models(states, actions, training=True)
+            q_values1 = self.critic_model1(states, actions, training=True)
+            q_values2 = self.critic_model2(states, actions, training=True)
             td_errors1 = q_values1 - q_targets
             td_errors2 = q_values2 - q_targets
-            mse_loss = tf.keras.losses.MeanSquaredError()
-            critic_loss1 = mse_loss(q_values1, q_targets)
-            critic_loss2 = mse_loss(q_values2, q_targets)
+            critic_loss1 = self.mse_loss(q_values1, q_targets)
+            critic_loss2 = self.mse_loss(q_values2, q_targets)
             critic_losses =  critic_loss1 + critic_loss2
-        gradients = tape.gradient(critic_losses, self.critic_models.trainable_variables)
-        self.critic_optimizer.apply_gradients(zip(gradients, self.critic_models.trainable_variables))
+        gradients = tape.gradient(critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
+        self.critic_optimizer.apply_gradients(zip(gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
 
         return critic_loss1, critic_loss2
 
@@ -304,7 +296,7 @@ class KerasTD3(jlab_opt_control.Agent):
         # Use Critic 1
         with tf.GradientTape() as tape:
             actions = self.actor_model(states, training=True)
-            q_value = self.critic_models.Q1(states, actions, training=False)
+            q_value = self.critic_model1(states, actions, training=False)
             loss = -tf.math.reduce_mean(q_value)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
@@ -343,8 +335,8 @@ class KerasTD3(jlab_opt_control.Agent):
                 self.soft_update(self.target_actor.variables, self.actor_model.variables)
 
             if self.ntrain_calls % self.critic_update_freq == 0:
-                self.soft_update(self.target_critics.variables, self.critic_models.variables)
-                # self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
+                self.soft_update(self.target_critic1.variables, self.critic_model1.variables)
+                self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """            
