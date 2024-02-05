@@ -266,8 +266,8 @@ class KerasTD3(jlab_opt_control.Agent):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones):
         # Generate the proper noise
-        noise = tf.random.normal(tf.shape(actions), mean=0, stddev=0.2, dtype=tf.float32)
-        noise_clipped = tf.clip_by_value(noise, -self.noise_clip, self.noise_clip)
+        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
+        noise_clipped = tf.clip_by_value(noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
         next_actions = tf.clip_by_value(self.target_actor(next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
 
         target_q1 = self.target_critic1(next_states, next_actions, training=False)
@@ -347,14 +347,10 @@ class KerasTD3(jlab_opt_control.Agent):
         # Warmup completed, sample from actor
         else:
             state = tf.expand_dims(state, 0)
-
             sampled_action = (self.actor_model(state)).numpy()
             if train:
-                noise = (tf.random.normal(shape=(self.num_actions,), mean=0, stddev=self.upper_bound*0.1, dtype=tf.float32)).numpy()
+                noise = (tf.random.normal(shape=(self.num_actions,), mean=0, stddev = self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
                 sampled_action = np.clip(sampled_action + noise, self.lower_bound, self.upper_bound)
-
-                # noise = (tf.random.normal(sampled_action.shape, 0, 0.1)) .numpy()
-                # sampled_action = sampled_action + noise
             else:
                 noise = np.zeros(self.num_actions)
 
