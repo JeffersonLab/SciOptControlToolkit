@@ -116,8 +116,6 @@ class KerasTD3(jlab_opt_control.Agent):
             td3_log.error('Action space not valid for this agent.')
             sys.exit(0)
 
-
-
         # Load configuration
         absolute_path = os.path.dirname(__file__)
         relative_path = "../cfgs/"
