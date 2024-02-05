@@ -106,9 +106,7 @@ class KerasTD3(jlab_opt_control.Agent):
             self.upper_bound = env.action_space.high
             self.lower_bound = env.action_space.low
             td3_log.info(f'Action upper bound: {self.upper_bound}')
-            td3_log.info(f'Action upper bound: {float(env.action_space.high[0])}')
             td3_log.info(f'Action lower bound: {self.lower_bound}')
-            td3_log.info(f'Action lower bound: {float(env.action_space.low[0])}')
             self.range = self.upper_bound - self.lower_bound
             td3_log.info(f'Action range: {self.range}')
         except:
