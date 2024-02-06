@@ -27,11 +27,17 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 from jlab_opt_control.models.registration import register, make, list_registered_modules
-from jlab_opt_control.models.keras_td3 import KerasTD3
+from jlab_opt_control.models.actor_FCNN import actor_FCNN
+from jlab_opt_control.models.critic_FCNN import critic_FCNN
 
-# Single objective agents
-# register(
-#     id='KerasTD3-v0',
-#     entry_point='jlab_opt_control.agents:KerasTD3',
-#     kwargs={'cfg': 'keras_td3.cfg'},
-# )
+register(
+    id='actor_FCNN-v0',
+    entry_point='jlab_opt_control.models:actor_FCNN',
+    kwargs={'cfg': 'actor_FCNN.cfg'},
+)
+
+register(
+    id='critic_FCNN-v0',
+    entry_point='jlab_opt_control.models:critic_FCNN',
+    kwargs={'cfg': 'critic_FCNN.cfg'},
+)
