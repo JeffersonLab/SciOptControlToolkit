@@ -153,22 +153,17 @@ class KerasTD3(jlab_opt_control.Agent):
         """ Initialize new models from scratch """
         td3_log.info('Running KerasTD3 initialize_new_models()')
 
-        # self.actor_model_type
-        # self.critic_model_type
-
-        self.actor_model = jlab_opt_control.models.make(self.actor_model_type, self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
-        self.target_actor = jlab_opt_control.models.make(self.actor_model_type, self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
-
-        # self.actor_model = Actor(self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
-        # self.target_actor = Actor(self.num_states, self.num_actions, self.lower_bound, self.upper_bound)
+        self.actor_model = jlab_opt_control.models.make(self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound)
+        self.target_actor = jlab_opt_control.models.make(self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound)
         
         seed1 = time.time_ns()
         str_seed1 = str(seed1)
         seed1 = int(str_seed1[9:-3])
         td3_log.debug(f'seed1:{seed1}')
         tf.random.set_seed(seed1)
-        self.critic_model1 = Critic(self.num_states, self.num_actions)
-        self.target_critic1 = Critic(self.num_states, self.num_actions)
+
+        self.critic_model1 = jlab_opt_control.models.make(self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
+        self.target_critic1 = jlab_opt_control.models.make(self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
 
         time.sleep(1 / 10)
         seed2 = time.time_ns()
@@ -176,8 +171,9 @@ class KerasTD3(jlab_opt_control.Agent):
         seed2 = int(str_seed2[9:-3])
         td3_log.debug(f'seed2:{seed2}')
         tf.random.set_seed(seed2)
-        self.critic_model2 = Critic(self.num_states, self.num_actions)
-        self.target_critic2 = Critic(self.num_states, self.num_actions)
+        
+        self.critic_model2 = jlab_opt_control.models.make(self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
+        self.target_critic2 = jlab_opt_control.models.make(self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
 
         self.target_actor.set_weights(self.actor_model.get_weights())
         self.target_critic1.set_weights(self.critic_model1.get_weights())
