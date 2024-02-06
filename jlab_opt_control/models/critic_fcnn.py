@@ -4,8 +4,8 @@ from jlab_opt_control.core.model_core import Model
 import tensorflow as tf
 from tensorflow.keras import layers
 
-class critic_FCNN(Model):
-    def __init__(self, state_dim, action_dim, cfg='critic_FCNN.cfg'):
+class CriticFCNN(Model):
+    def __init__(self, state_dim, action_dim, cfg='critic_fcnn.cfg'):
         super().__init__()
 
         # Q network Architecture

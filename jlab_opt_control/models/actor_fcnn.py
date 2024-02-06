@@ -4,8 +4,8 @@ from jlab_opt_control.core.model_core import Model
 import tensorflow as tf
 from tensorflow.keras import layers
 
-class actor_FCNN(Model):
-    def __init__(self, state_dim, action_dim, min_action, max_action, cfg='actor_FCNN.cfg'):
+class ActorFCNN(Model):
+    def __init__(self, state_dim, action_dim, min_action, max_action, cfg='actor_fcnn.cfg'):
         super().__init__()
 
         # Actor Architecture
