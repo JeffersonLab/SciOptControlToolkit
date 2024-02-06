@@ -27,17 +27,17 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 from jlab_opt_control.models.registration import register, make, list_registered_modules
-from jlab_opt_control.models.actor_FCNN import actor_FCNN
-from jlab_opt_control.models.critic_FCNN import critic_FCNN
+from jlab_opt_control.models.actor_fcnn import ActorFCNN
+from jlab_opt_control.models.critic_fcnn import CriticFCNN
 
 register(
-    id='actor_FCNN-v0',
-    entry_point='jlab_opt_control.models:actor_FCNN',
-    kwargs={'cfg': 'actor_FCNN.cfg'},
+    id='actor_fcnn-v0',
+    entry_point='jlab_opt_control.models:ActorFCNN',
+    kwargs={'cfg': 'actor_fcnn.cfg'},
 )
 
 register(
-    id='critic_FCNN-v0',
-    entry_point='jlab_opt_control.models:critic_FCNN',
-    kwargs={'cfg': 'critic_FCNN.cfg'},
+    id='critic_fcnn-v0',
+    entry_point='jlab_opt_control.models:CriticFCNN',
+    kwargs={'cfg': 'critic_fcnn.cfg'},
 )
