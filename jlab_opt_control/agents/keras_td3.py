@@ -28,6 +28,7 @@
 
 import jlab_opt_control as jlab_opt_control
 import jlab_opt_control.utils.cfg_utils as cfg_utils
+import jlab_opt_control.buffers
 import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
@@ -89,7 +90,6 @@ class KerasTD3(jlab_opt_control.Agent):
         """ Define all key variables required for all agent """
 
         # Get env info
-        # super().__init__(**kwargs)
         self.target_critic2 = None
         self.critic_model2 = None
         self.target_critic1 = None
@@ -138,16 +138,12 @@ class KerasTD3(jlab_opt_control.Agent):
         self.mse_loss = tf.keras.losses.MeanSquaredError()
 
         # Buffer
-
-        self.state_buffer = np.zeros((self.buffer_capacity, self.num_states))
-        self.action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
-        self.reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.next_state_buffer = np.zeros((self.buffer_capacity, self.num_states))
-        self.done_buffer = np.zeros((self.buffer_capacity, 1))
-        self.priority_buffer = np.ones((self.buffer_capacity, 1))
-        self.action_type_buffer = np.ones((self.buffer_capacity, 1))
-        self.batch_indices = None
-        self.use_priority = 0
+        if buffer_type == None:
+            self.buffer_type = cfg_utils.cfg_get(data, 'buffer_type', None)
+        else:
+            self.buffer_type = buffer_type
+        
+        self.buffer = jlab_opt_control.buffers.make(self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, buffer_size=buffer_size)
 
         # Used to update target networks
         self.tau = float(cfg_utils.cfg_get(data, 'tau', 0.005))
@@ -215,7 +211,7 @@ class KerasTD3(jlab_opt_control.Agent):
         self.target_critic2.set_weights(self.critic_model2.get_weights())
 
     @tf.function
-    def train_critic(self, states, actions, rewards, next_states, dones):
+    def train_critic(self, states, actions, rewards, next_states, dones, weights):
         # Generate the proper noise
         noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
         noise_clipped = tf.clip_by_value(noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
@@ -234,13 +230,19 @@ class KerasTD3(jlab_opt_control.Agent):
             q_values2 = self.critic_model2(states, actions, training=True)
             td_errors1 = q_values1 - q_targets
             td_errors2 = q_values2 - q_targets
-            critic_loss1 = self.mse_loss(q_values1, q_targets)
-            critic_loss2 = self.mse_loss(q_values2, q_targets)
+            if "PER" in self.buffer_type:
+                critic_loss1 = self.mse_loss(q_values1, q_targets, sample_weight=weights)
+                critic_loss2 = self.mse_loss(q_values2, q_targets, sample_weight=weights)
+            else:
+                critic_loss1 = self.mse_loss(q_values1, q_targets)
+                critic_loss2 = self.mse_loss(q_values2, q_targets)
             critic_losses =  critic_loss1 + critic_loss2
         gradients = tape.gradient(critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
         self.critic_optimizer.apply_gradients(zip(gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
 
-        return critic_loss1, critic_loss2
+        td_errors_avg =  (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
+
+        return critic_loss1, critic_loss2, td_errors_avg
 
     @tf.function
     def train_actor(self, states):
@@ -260,25 +262,34 @@ class KerasTD3(jlab_opt_control.Agent):
 
     def train(self):
         """ Method used to train """
+        self.ntrain_calls += 1
+        
         if self.buffer_counter > np.max([self.batch_size, self.warmup_size]):
-            self.ntrain_calls += 1
             # Get sampling range
-            record_range = min(self.buffer_counter, self.buffer_capacity)
-            batch_indices = np.random.choice(record_range, self.batch_size)
-            # Convert to tensors
-            state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices], dtype=tf.float32)
-            action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices], dtype=tf.float32)
-            reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
-            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices], dtype=tf.float32)
-            done_batch = tf.convert_to_tensor(self.done_buffer[batch_indices])
-            done_batch = tf.cast(done_batch, dtype=tf.float32)
+            if "PER" in self.buffer_type:
+                states, actions, rewards, next_states, dones, _, weights = self.buffer.sample(self.batch_size)
+                weights_batch = tf.convert_to_tensor(weights)
+                weights_batch = tf.cast(weights_batch, dtype=tf.float32)
+            elif "ER" in self.buffer_type:
+                states, actions, rewards, next_states, dones, _ = self.buffer.sample(self.batch_size)
+            else:
+                print("ERROR: Please check configuration of agent for buffer type.")
 
-            # Train critic
-            critic_loss1, critic_loss2 = self.train_critic(state_batch, action_batch, reward_batch,
-                                                           next_state_batch,done_batch)
+             # Train critic
+            if "PER" in self.buffer_type:
+                critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
+                                                           next_state_batch,done_batch, weights_batch)
+            elif "ER" in self.buffer_type:
+                critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
+                                                           next_state_batch,done_batch, _)
+
             tf.summary.scalar('Critic Loss 1', data=critic_loss1, step=int(self.ntrain_calls))
             tf.summary.scalar('Critic Loss 2', data=critic_loss2, step=int(self.ntrain_calls))
+            
+            # Update Priorities
+            if "PER" in self.buffer_type:
+                new_priorities = td_errors.numpy()
+                self.buffer.update_priorities(new_priorities)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
                 actor_loss = self.train_actor(state_batch)
@@ -323,14 +334,8 @@ class KerasTD3(jlab_opt_control.Agent):
         return sampled_action, noise
 
     def memory(self, obs_tuple):
-        index = self.buffer_counter % self.buffer_capacity
-
-        self.state_buffer[index] = obs_tuple[0]
-        self.action_buffer[index] = obs_tuple[1]
-        self.reward_buffer[index] = obs_tuple[2]
-        self.next_state_buffer[index] = obs_tuple[3]
-        self.done_buffer[index] = obs_tuple[4]
-        self.buffer_counter += 1
+        memory_with_default_priority = obs_tuple + (self.buffer.max_priority,)    
+        self.buffer.record(memory_with_default_priority)
 
     def load(self):
         """ Load the ML models """
