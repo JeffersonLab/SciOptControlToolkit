@@ -124,9 +124,7 @@ class KerasTD3(jlab_opt_control.Agent):
         td3_log.debug(f'pfn_json_file:{pfn_json_file}')
         with open(pfn_json_file) as json_file:
             data = json.load(json_file)
-        self.buffer_counter = 0
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
-        self.min_buffer_counter = self.warmup_size
         self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 1000000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
 
@@ -264,7 +262,7 @@ class KerasTD3(jlab_opt_control.Agent):
         """ Method used to train """
         self.ntrain_calls += 1
         
-        if self.buffer_counter > np.max([self.batch_size, self.warmup_size]):
+        if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
             # Get sampling range
             if "PER" in self.buffer_type:
                 states, actions, rewards, next_states, dones, _, weights = self.buffer.sample(self.batch_size)
@@ -303,7 +301,7 @@ class KerasTD3(jlab_opt_control.Agent):
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """            
         # Warmup experience sample
-        if self.buffer_counter < np.max([self.batch_size, self.warmup_size]):
+        if self.buffer.size() < np.max([self.batch_size, self.warmup_size]):
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
         # Warmup completed, sample from actor

@@ -58,7 +58,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     run_openai_log.debug(githash)
     run_openai_log.debug(logdir)
 
-<<<<<<< HEAD
     # Checks for buffer logging information, will default to config if not set in command line
     if (buffer_type == None):
         buffer_type_log = "cfg"
@@ -71,8 +70,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         buffer_size_log = str(buffer_size)
 
 
-=======
->>>>>>> c991c579fb7f05f86c5253129f49816d28f8bdc7
     if logdir == 'None':
         logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
                  + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -121,11 +118,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
     # Agent
     print(agent_id)
-<<<<<<< HEAD
     agent = jlab_opt_control.agents.make(agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
-=======
-    agent = jlab_opt_control.agents.make(agent_id, env=env, logdir=logdir)
->>>>>>> c991c579fb7f05f86c5253129f49816d28f8bdc7
 
     # To store reward history of each episode
     ep_reward_list = []
@@ -158,23 +151,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             assert state.shape == (num_states,)
             assert 'float' in str(type(reward)), str(type(reward))
             done = (terminate or truncate)
-<<<<<<< HEAD
-            # print("Done flag: ", done)
             done_buffer = (terminate or truncate) if (episode_timesteps < env._max_episode_steps) else False
-            # print("Done_buffer: ", done_buffer)
-=======
-            done_buffer = (terminate or truncate) if (episode_timesteps < env._max_episode_steps) else False
->>>>>>> c991c579fb7f05f86c5253129f49816d28f8bdc7
 
             agent.memory((prev_state, action, reward, state, done_buffer))
             episodic_reward += reward
             agent.train()
             prev_state = state
-
-            # End this episode when `done` is True
-            # if done:
-            #     break
-
+            
         ep_reward_list.append(episodic_reward)
         tf.summary.scalar('Training Reward', data=episodic_reward, step=int(ep))
 
