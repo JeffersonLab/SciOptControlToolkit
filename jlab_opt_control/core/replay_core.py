@@ -19,7 +19,12 @@ class Replay(ABC):
     def save(self, filename='replay_buffer.npy'):
         """ Save buffer to file """
         pass
-    
+        
+    @abstractmethod
+    def save_cfg(self):
+        """ Save the buffer cfg """
+        pass
+
     @abstractmethod
     def load(self, filename):
         """ Load previous experiences into buffer """

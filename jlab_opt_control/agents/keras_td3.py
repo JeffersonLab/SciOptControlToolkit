@@ -40,6 +40,7 @@ import time
 import json
 import platform
 import sys
+import shutil
 processor = platform.processor()
 
 
@@ -86,9 +87,9 @@ class KerasTD3(jlab_opt_control.Agent):
         absolute_path = os.path.dirname(__file__)
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
-        pfn_json_file = os.path.join(full_path, cfg)
-        td3_log.debug(f'pfn_json_file:{pfn_json_file}')
-        with open(pfn_json_file) as json_file:
+        self.pfn_json_file = os.path.join(full_path, cfg)
+        td3_log.debug(f'pfn_json_file:{self.pfn_json_file}')
+        with open(self.pfn_json_file) as json_file:
             data = json.load(json_file)
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
@@ -385,3 +386,16 @@ class KerasTD3(jlab_opt_control.Agent):
                 join(self.model_save_path, "target_critic2.h5"))
         except:
             td3_log.error("Error in saving the models...")
+
+    def save_cfg(self):
+        """ Save the actor cfg """
+        try:
+            destination_file_path = os.path.join(self.logdir, 'cfgs/')
+            if not os.path.exists(destination_file_path):
+                os.makedirs(destination_file_path)
+            destination_file_path = os.path.join(destination_file_path, os.path.basename(self.pfn_json_file))
+            shutil.copy(self.pfn_json_file, destination_file_path)
+            td3_log.info('Agent config saved successfully')
+        except:
+            td3_log.error("Error in saving the agent cfg...")
+            

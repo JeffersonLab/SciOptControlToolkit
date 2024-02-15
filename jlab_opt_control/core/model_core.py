@@ -10,5 +10,10 @@ class Model(tf.keras.Model):
     def call(self, inputs, training=False):
         """ forward pass of model """
         pass
+    
+    @abstractmethod
+    def save_cfg(self):
+        """ Save the model cfg """
+        pass
 
 

@@ -116,12 +116,15 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     tfb_path = os.path.join(logdir, 'metrics')
     run_openai_log.info(f'TFB Path: {tfb_path}')
     file_writer = tf.summary.create_file_writer(tfb_path)
+    tfb_path = os.path.join(logdir, 'metrics')
     file_writer.set_as_default()
 
     # Agent
     print(agent_id)
     agent = jlab_opt_control.agents.make(
         agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
+
+    agent.save_cfg()
 
     # To store reward history of each episode
     ep_reward_list = []

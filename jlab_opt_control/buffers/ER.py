@@ -85,6 +85,17 @@ class ER(Replay):
             "priorities": self.priorities
         }
         np.save(filename, data)
+    
+    def save_cfg(self, filename='replay_buffer.npy'):
+        data = {
+            "states": self.states,
+            "actions": self.actions,
+            "rewards": self.rewards,
+            "next_states": self.next_states,
+            "dones": self.dones,
+            "priorities": self.priorities
+        }
+        np.save(filename, data)
 
     def load(self, filename):
         data = np.load(filename, allow_pickle=True).item()
