@@ -5,11 +5,12 @@ from jlab_opt_control.buffers.ER import ER
 import numpy as np
 import os
 import json
-
+import logging
+import shutil
 
 class PER(ER):
-    def __init__(self, state_dim, action_dim, buffer_size=None, cfg='PER.cfg'):
-        super().__init__(state_dim, action_dim, buffer_size, cfg)
+    def __init__(self, state_dim, action_dim, logdir, buffer_size=None, cfg='PER.cfg'):
+        super().__init__(state_dim, action_dim, logdir, buffer_size, cfg)
 
         self.tds = np.zeros(self.buffer_capacity)
 
