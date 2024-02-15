@@ -26,6 +26,7 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+import logging
 import argparse
 import os
 
@@ -42,16 +43,16 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-import logging
 
 run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
-seed = 1#time.time_ns()
+seed = 1  # time.time_ns()
 tf.random.set_seed(seed)
 np.random.seed(seed)
-#run_openai_log.info(f'seeds {tf.random.}')
+# run_openai_log.info(f'seeds {tf.random.}')
+
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size):
     githash = get_git_revision_short_hash()
@@ -63,19 +64,18 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         buffer_type_log = "cfg"
     else:
         buffer_type_log = str(buffer_type)
-    
+
     if (buffer_size == None):
         buffer_size_log = "cfg"
     else:
         buffer_size_log = str(buffer_size)
-
 
     if logdir == 'None':
         logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
                  + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
     else:
         logdir = logdir + "/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_date_" \
-                 + datetime.now().strftime("%Y%m%d-%H%M%S")
+            + datetime.now().strftime("%Y%m%d-%H%M%S")
 
     try:
         os.makedirs(logdir)
@@ -87,7 +87,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     run_openai_log.info('Running env: {}'.format(env_id))
     if ('HalfCheetah' or 'Hopper') in env_id:
         import gymnasium as gym
-        env = gym.make(env_id, exclude_current_positions_from_observation=False)
+        env = gym.make(
+            env_id, exclude_current_positions_from_observation=False)
     elif 'DnC2s' in env_id:
         import jlab_opt_control.envs as gym
         env = gym.make(env_id)
@@ -95,9 +96,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         import gymnasium as gym
         env = gym.make(env_id)
 
-    if max_nsteps!=-1:
+    if max_nsteps != -1:
         env._max_episode_steps = max_nsteps
-    run_openai_log.info("Environment max steps ->  {}".format(env._max_episode_steps))
+    run_openai_log.info(
+        "Environment max steps ->  {}".format(env._max_episode_steps))
 
     num_states = env.observation_space.shape[0]
     run_openai_log.info("Size of State Space ->  {}".format(num_states))
@@ -118,7 +120,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
     # Agent
     print(agent_id)
-    agent = jlab_opt_control.agents.make(agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
+    agent = jlab_opt_control.agents.make(
+        agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
 
     # To store reward history of each episode
     ep_reward_list = []
@@ -133,10 +136,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         episode_timesteps = 0
         episodic_reward = 0
         done = False
-        while (done==False):
+        while (done == False):
             total_nsteps += 1
             episode_timesteps += 1
-            action, action_noise = agent.action(tf.convert_to_tensor(prev_state))
+            action, action_noise = agent.action(
+                tf.convert_to_tensor(prev_state))
             assert 'numpy.ndarray' in str(type(action))
             run_openai_log.debug(f'action: {action}')
             run_openai_log.debug(f'action_noise: {action_noise}')
@@ -151,40 +155,48 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             assert state.shape == (num_states,)
             assert 'float' in str(type(reward)), str(type(reward))
             done = (terminate or truncate)
-            done_buffer = (terminate or truncate) if (episode_timesteps < env._max_episode_steps) else False
+            done_buffer = (terminate or truncate) if (
+                episode_timesteps < env._max_episode_steps) else False
 
             agent.memory((prev_state, action, reward, state, done_buffer))
             episodic_reward += reward
             agent.train()
             prev_state = state
-            
+
         ep_reward_list.append(episodic_reward)
-        tf.summary.scalar('Training Reward', data=episodic_reward, step=int(ep))
+        tf.summary.scalar('Training Reward',
+                          data=episodic_reward, step=int(ep))
 
         # Run inference test
         if ep % 1 == 0:
             inference_episodic_reward = 0
             inference_prev_state, _ = env.reset()
             inference_done = False
-            while (inference_done==False):
-                inference_action, inference_action_noise = agent.action(tf.convert_to_tensor(inference_prev_state), train=False)
-                inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(inference_action)
+            while (inference_done == False):
+                inference_action, inference_action_noise = agent.action(
+                    tf.convert_to_tensor(inference_prev_state), train=False)
+                inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(
+                    inference_action)
                 inference_episodic_reward += inference_reward
                 inference_prev_state = inference_state
                 inference_done = (inference_terminate or inference_truncate)
                 # if done:
                 #     break
 
-        tf.summary.scalar('Inference Reward', data=inference_episodic_reward, step=int(ep))
+        tf.summary.scalar('Inference Reward',
+                          data=inference_episodic_reward, step=int(ep))
 
         # Mean of last 10 episodes
         nepisode_mod = 10
         avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
         time_end = time.process_time()
         if total_nsteps % 1000 == 0:
-            run_openai_log.info("Episode Elapsed Time {}".format((time_end - time_start)))
-            run_openai_log.info("Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
-            run_openai_log.info("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
+            run_openai_log.info(
+                "Episode Elapsed Time {}".format((time_end - time_start)))
+            run_openai_log.info(
+                "Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
+            run_openai_log.info(
+                "Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
         avg_reward_list.append(avg_reward)
 
         # tf.summary.scalar('Average of Last 10 Training Reward', data=avg_reward_list, step=int(ep))
@@ -195,14 +207,20 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--index", help="Index for tracking", type=int, default=0)
-    parser.add_argument("--nepisodes", help="Number of episodes", type=int, default=100)
-    parser.add_argument("--nsteps", help="Number of steps", type=int, default=-1)
+    parser.add_argument(
+        "--index", help="Index for tracking", type=int, default=0)
+    parser.add_argument(
+        "--nepisodes", help="Number of episodes", type=int, default=100)
+    parser.add_argument("--nsteps", help="Number of steps",
+                        type=int, default=-1)
     parser.add_argument("--bsize", help="Buffer size", type=int, default=None)
     parser.add_argument("--btype", help="Buffer Type", type=str, default=None)
-    parser.add_argument("--agent", help="Agent used for RL", type=str, default='KerasTD3-v0')
-    parser.add_argument("--env", help="Environment used for RL", type=str, default='Pendulum-v1')
-    parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
+    parser.add_argument("--agent", help="Agent used for RL",
+                        type=str, default='KerasTD3-v0')
+    parser.add_argument("--env", help="Environment used for RL",
+                        type=str, default='Pendulum-v1')
+    parser.add_argument(
+        "--logdir", help="Directory to save results", type=str, default='None')
 
     # Get input arguments
     args = parser.parse_args()
@@ -215,4 +233,5 @@ if __name__ == "__main__":
     args_buf_size = args.bsize
     args_buf_type = args.btype
 
-    run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id, args_env_id, args_logdir, args_buf_type, args_buf_size)
+    run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
+            args_env_id, args_logdir, args_buf_type, args_buf_size)

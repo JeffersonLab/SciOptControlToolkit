@@ -6,10 +6,11 @@ import numpy as np
 import os
 import json
 
+
 class PER(ER):
     def __init__(self, state_dim, action_dim, buffer_size=None, cfg='PER.cfg'):
         super().__init__(state_dim, action_dim, buffer_size, cfg)
-        
+
         self.tds = np.zeros(self.buffer_capacity)
 
         # Load configuration
@@ -22,13 +23,15 @@ class PER(ER):
 
         self.alpha = float(cfg_utils.cfg_get(data, 'alpha', 0.6))
         self.beta = float(cfg_utils.cfg_get(data, 'beta', 0.4))
-        self.beta_increment = float(cfg_utils.cfg_get(data, 'beta_increment', 0.001))
-        self.prioritization_type = str(cfg_utils.cfg_get(data, 'prioritization_type', None))
+        self.beta_increment = float(
+            cfg_utils.cfg_get(data, 'beta_increment', 0.001))
+        self.prioritization_type = str(
+            cfg_utils.cfg_get(data, 'prioritization_type', None))
 
         self.max_priority = 1.0
 
     def sample(self, nsamples):
-        
+
         # Find actual size of filled buffer
         max_index = min(self.pointer, self.buffer_capacity)
 
@@ -42,20 +45,23 @@ class PER(ER):
             ranks = np.argsort(sorted_indices) + 1
 
             rank_based_probs = (1/ranks) ** self.alpha
-            normalized_probabilities = rank_based_probs / np.sum(rank_based_probs)
-            
-        else:
-            print("ERROR: Please select a proper prioritization type in the PER.cfg config (proportional/rank)")
+            normalized_probabilities = rank_based_probs / \
+                np.sum(rank_based_probs)
 
+        else:
+            print(
+                "ERROR: Please select a proper prioritization type in the PER.cfg config (proportional/rank)")
 
         # Select indicies from buffer based on above
-        self.indices = np.random.choice(max_index, size=nsamples, replace=False, p=normalized_probabilities)
+        self.indices = np.random.choice(
+            max_index, size=nsamples, replace=False, p=normalized_probabilities)
 
         self.sample_counts[self.indices] += 1
 
         # Computing the importance-sampling weights using beta
-        weights = (1 / (max_index * normalized_probabilities[self.indices])) ** self.beta
-        weights /= weights.max() # Normalize weights 
+        weights = (
+            1 / (max_index * normalized_probabilities[self.indices])) ** self.beta
+        weights /= weights.max()  # Normalize weights
 
         # Increment beta value
         self._update_beta()
@@ -103,7 +109,7 @@ class PER(ER):
         non_zero_inices = np.nonzero(self.tds)
         self.priorities[non_zero_inices] = 1e-4 + self.tds[non_zero_inices]
 
-        ### Normalization Code
+        # Normalization Code
 
         # max_td_error = np.max(new_tds) if np.max(new_tds) > 0 else 1
         # normalized_new_tds = new_tds / max_td_error
@@ -114,10 +120,9 @@ class PER(ER):
         # if (1 + normalized_new_tds.max() > self.max_priority):
         #     self.max_priority = 1 + normalized_new_tds.max()
         #     print("New max priority: ", self.max_priority)
-        
+
         # # normalized_tds = self.tds / np.sum(self.tds)
         # # self.priorities[non_zero_inices] = 1 + normalized_tds[non_zero_inices]
 
     def _update_beta(self):
         self.beta = min(self.beta + self.beta_increment, 1.0)
-

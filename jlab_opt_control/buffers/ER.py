@@ -5,6 +5,7 @@ import numpy as np
 import os
 import json
 
+
 class ER(Replay):
     def __init__(self, state_dim, action_dim, buffer_size=None, cfg='ER.cfg'):
         super().__init__(None, None, None, None, None, None)
@@ -17,8 +18,9 @@ class ER(Replay):
         with open(pfn_json_file) as json_file:
             data = json.load(json_file)
 
-        if (buffer_size==None):
-            self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 50000))
+        if (buffer_size == None):
+            self.buffer_capacity = int(
+                cfg_utils.cfg_get(data, 'buffer_capacity', 50000))
         else:
             self.buffer_capacity = buffer_size
         self.current_index = 0
@@ -35,10 +37,10 @@ class ER(Replay):
         self.priorities = np.ones(self.buffer_capacity)
 
         self.indices = None
-        self.sample_counts = np.zeros((self.buffer_capacity,1))
+        self.sample_counts = np.zeros((self.buffer_capacity, 1))
 
         self.max_priority = 1.0
-    
+
     def record(self, memory):
         self.current_index = self.pointer % self.buffer_capacity
 
@@ -59,7 +61,8 @@ class ER(Replay):
         # Find actual size of filled buffer
         max_index = min(self.pointer, self.buffer_capacity)
 
-        self.indices = np.random.choice(max_index, size=nsamples, replace=False)
+        self.indices = np.random.choice(
+            max_index, size=nsamples, replace=False)
 
         self.sample_counts[self.indices] += 1
 
@@ -71,7 +74,7 @@ class ER(Replay):
             self.dones[self.indices],
             self.priorities[self.indices]
         )
-        
+
     def save(self, filename='replay_buffer.npy'):
         data = {
             "states": self.states,
@@ -82,7 +85,7 @@ class ER(Replay):
             "priorities": self.priorities
         }
         np.save(filename, data)
-    
+
     def load(self, filename):
         data = np.load(filename, allow_pickle=True).item()
         self.states = data["states"]
@@ -91,6 +94,6 @@ class ER(Replay):
         self.next_states = data["next_states"]
         self.dones = data["dones"]
         self.priorities = data["priorities"]
-    
+
     def size(self):
         return min(self.pointer, self.buffer_capacity)
