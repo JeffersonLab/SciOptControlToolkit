@@ -34,7 +34,6 @@ class PER(ER):
 
         if self.prioritization_type == "proportional":
             probabilities = self.priorities[:max_index] ** self.alpha
-
             # Normalize probabilites to sum to 1
             normalized_probabilities = probabilities / np.sum(probabilities)
 
@@ -44,6 +43,7 @@ class PER(ER):
 
             rank_based_probs = (1/ranks) ** self.alpha
             normalized_probabilities = rank_based_probs / np.sum(rank_based_probs)
+            
         else:
             print("ERROR: Please select a proper prioritization type in the PER.cfg config (proportional/rank)")
 
