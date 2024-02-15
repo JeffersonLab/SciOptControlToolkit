@@ -266,12 +266,18 @@ class KerasTD3(jlab_opt_control.Agent):
             # Get sampling range
             if "PER" in self.buffer_type:
                 states, actions, rewards, next_states, dones, _, weights = self.buffer.sample(self.batch_size)
-                weights_batch = tf.convert_to_tensor(weights)
-                weights_batch = tf.cast(weights_batch, dtype=tf.float32)
+                weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
             elif "ER" in self.buffer_type:
                 states, actions, rewards, next_states, dones, _ = self.buffer.sample(self.batch_size)
             else:
                 print("ERROR: Please check configuration of agent for buffer type.")
+            
+            # Convert to tensors
+            state_batch = tf.convert_to_tensor(states, dtype=tf.float32)
+            action_batch = tf.convert_to_tensor(actions, dtype=tf.float32)
+            reward_batch = tf.convert_to_tensor(rewards, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(next_states, dtype=tf.float32)
+            done_batch = tf.convert_to_tensor(dones, dtype=tf.float32)
 
              # Train critic
             if "PER" in self.buffer_type:
