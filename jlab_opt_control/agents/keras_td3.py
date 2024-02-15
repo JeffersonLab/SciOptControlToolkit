@@ -88,9 +88,7 @@ class KerasTD3(jlab_opt_control.Agent):
         with open(pfn_json_file) as json_file:
             data = json.load(json_file)
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
-        self.buffer_capacity = int(cfg_utils.cfg_get(data, 'buffer_capacity', 1000000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
-
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
         self.model_save_path = cfg_utils.cfg_get(data, 'save_model', None)
 
