@@ -29,6 +29,7 @@
 import unittest as unittest
 import jlab_opt_control.agents as agents
 import jlab_opt_control.envs as envs
+import jlab_opt_control.buffers as buffers
 import jlab_opt_control.models as models
 import gymnasium as gym
 
@@ -88,6 +89,12 @@ class RegistryTests(unittest.TestCase):
         """
         registered_envs = envs.list_registered_modules()
         print('Registered envs:', registered_envs)
+
+    def test_registered_buffers(self):
+        """
+        """
+        registered_buffers = buffers.list_registered_modules()
+        print('Registered buffers:', registered_buffers)
 
 
 if __name__ == '__main__':
