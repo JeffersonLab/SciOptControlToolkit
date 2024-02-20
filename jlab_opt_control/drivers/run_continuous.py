@@ -204,8 +204,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         with open(logdir + '/results.npy', 'wb') as f:
             np.save(f, np.array(ep_reward_list))
 
-
-if __name__ == "__main__":
+def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--index", help="Index for tracking", type=int, default=0)
@@ -223,7 +222,11 @@ if __name__ == "__main__":
         "--logdir", help="Directory to save results", type=str, default='None')
 
     # Get input arguments
-    args = parser.parse_args()
+    if args is not None:
+        args = parser.parse_args(args)
+    else:
+        args = parser.parse_args()
+    
     args_index = args.index
     args_nepisodes = args.nepisodes
     args_nsteps = args.nsteps
@@ -235,3 +238,7 @@ if __name__ == "__main__":
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
             args_env_id, args_logdir, args_buf_type, args_buf_size)
+
+if __name__ == "__main__":
+    main()
+    
