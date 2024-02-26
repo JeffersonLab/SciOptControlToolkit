@@ -47,6 +47,7 @@ td3_log = logging.getLogger("TD3-Agent")
 td3_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
+
 class KerasTD3(jlab_opt_control.Agent):
 
     def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_td3.json'):
@@ -103,7 +104,7 @@ class KerasTD3(jlab_opt_control.Agent):
         self.mse_loss = tf.keras.losses.MeanSquaredError()
 
         # Buffer
-        if buffer_type == None:
+        if buffer_type is None:
             self.buffer_type = cfg_utils.cfg_get(data, 'buffer_type', None)
         else:
             self.buffer_type = buffer_type
@@ -192,7 +193,7 @@ class KerasTD3(jlab_opt_control.Agent):
             self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
         self.target_critic2 = jlab_opt_control.models.make(
             self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
-        
+
         self.target_actor.set_weights(self.actor_model.get_weights())
         self.target_critic1.set_weights(self.critic_model1.get_weights())
         self.target_critic2.set_weights(self.critic_model2.get_weights())
@@ -404,9 +405,9 @@ class KerasTD3(jlab_opt_control.Agent):
             destination_file_path = os.path.join(self.logdir, 'cfgs/')
             if not os.path.exists(destination_file_path):
                 os.makedirs(destination_file_path)
-            destination_file_path = os.path.join(destination_file_path, os.path.basename(self.pfn_json_file))
+            destination_file_path = os.path.join(
+                destination_file_path, os.path.basename(self.pfn_json_file))
             shutil.copy(self.pfn_json_file, destination_file_path)
             td3_log.info('Agent config saved successfully')
         except:
             td3_log.error("Error in saving the agent cfg...")
-            

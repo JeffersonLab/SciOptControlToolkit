@@ -11,8 +11,9 @@ buf_log = logging.getLogger("Buffer")
 buf_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
+
 class ER(Replay):
-    def __init__(self, state_dim, action_dim, logdir, buffer_size=None, cfg='ER.cfg'):
+    def __init__(self, state_dim, action_dim, logdir, buffer_size=None, cfg='er.cfg'):
         super().__init__(None, None, None, None, None, None)
 
         # Load configuration
@@ -23,7 +24,7 @@ class ER(Replay):
         with open(self.pfn_json_file) as json_file:
             data = json.load(json_file)
 
-        if (buffer_size == None):
+        if buffer_size is None:
             self.buffer_capacity = int(
                 cfg_utils.cfg_get(data, 'buffer_capacity', 50000))
         else:
@@ -92,14 +93,15 @@ class ER(Replay):
             "priorities": self.priorities
         }
         np.save(filename, data)
-    
+
     def save_cfg(self):
         """ Save the buffer cfg """
         try:
             destination_file_path = os.path.join(self.logdir, 'cfgs/')
             if not os.path.exists(destination_file_path):
                 os.makedirs(destination_file_path)
-            destination_file_path = os.path.join(destination_file_path, os.path.basename(self.pfn_json_file))
+            destination_file_path = os.path.join(
+                destination_file_path, os.path.basename(self.pfn_json_file))
             shutil.copy(self.pfn_json_file, destination_file_path)
             buf_log.info('Buffer config saved successfully')
         except:

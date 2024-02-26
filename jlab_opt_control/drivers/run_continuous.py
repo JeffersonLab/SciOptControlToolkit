@@ -60,12 +60,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     run_openai_log.debug(logdir)
 
     # Checks for buffer logging information, will default to config if not set in command line
-    if (buffer_type == None):
+    if buffer_type is None:
         buffer_type_log = "cfg"
     else:
         buffer_type_log = str(buffer_type)
 
-    if (buffer_size == None):
+    if buffer_size is None:
         buffer_size_log = "cfg"
     else:
         buffer_size_log = str(buffer_size)
@@ -143,7 +143,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         episode_timesteps = 0
         episodic_reward = 0
         done = False
-        while (done == False):
+        while done is False:
             total_nsteps += 1
             episode_timesteps += 1
             action, action_noise = agent.action(
@@ -179,7 +179,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             inference_episodic_reward = 0
             inference_prev_state, _ = env.reset()
             inference_done = False
-            while (inference_done == False):
+            while inference_done is False:
                 inference_action, inference_action_noise = agent.action(
                     tf.convert_to_tensor(inference_prev_state), train=False)
                 inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(
@@ -225,8 +225,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         with open(logdir + '/results.npy', 'wb') as f:
             np.save(f, np.array(ep_reward_list))
 
-
-if __name__ == "__main__":
+def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--index", help="Index for tracking", type=int, default=0)
@@ -244,7 +243,11 @@ if __name__ == "__main__":
         "--logdir", help="Directory to save results", type=str, default='None')
 
     # Get input arguments
-    args = parser.parse_args()
+    if args is not None:
+        args = parser.parse_args(args)
+    else:
+        args = parser.parse_args()
+    
     args_index = args.index
     args_nepisodes = args.nepisodes
     args_nsteps = args.nsteps
@@ -256,3 +259,7 @@ if __name__ == "__main__":
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
             args_env_id, args_logdir, args_buf_type, args_buf_size)
+
+if __name__ == "__main__":
+    main()
+    

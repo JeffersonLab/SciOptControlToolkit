@@ -1,15 +1,16 @@
 import jlab_opt_control as jlab_opt_control
 import jlab_opt_control.utils.cfg_utils as cfg_utils
 from jlab_opt_control.core.replay_core import Replay
-from jlab_opt_control.buffers.ER import ER
+from jlab_opt_control.buffers.er import ER
 import numpy as np
 import os
 import json
 import logging
 import shutil
 
+
 class PER(ER):
-    def __init__(self, state_dim, action_dim, logdir, buffer_size=None, cfg='PER.cfg'):
+    def __init__(self, state_dim, action_dim, logdir, buffer_size=None, cfg='per.cfg'):
         super().__init__(state_dim, action_dim, logdir, buffer_size, cfg)
 
         self.tds = np.zeros(self.buffer_capacity)
@@ -45,7 +46,7 @@ class PER(ER):
             sorted_indices = np.argsort(-self.priorities[:max_index])
             ranks = np.argsort(sorted_indices) + 1
 
-            rank_based_probs = (1/ranks) ** self.alpha
+            rank_based_probs = (1 / ranks) ** self.alpha
             normalized_probabilities = rank_based_probs / \
                 np.sum(rank_based_probs)
 
@@ -97,7 +98,7 @@ class PER(ER):
 
     def update_priorities(self, new_tds):
 
-        ### Proportional Prioritization Method ###
+        # Proportional Prioritization Method
 
         # Update the TD array with returned values
         for idx, td in zip(self.indices, new_tds):
