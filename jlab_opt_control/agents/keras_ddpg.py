@@ -199,9 +199,9 @@ class KerasDDPG(jlab_opt_control.Agent):
                 critic_loss1 = self.mse_loss(q_values1, q_targets)
             critic_loss = critic_loss1
         gradients = tape.gradient(
-            critic_loss, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
+            critic_loss, self.critic_model1.trainable_variables)
         self.critic_optimizer.apply_gradients(zip(
-            gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
+            gradients, self.critic_model1.trainable_variables))
 
         td_errors_avg = td_errors1
 
@@ -257,7 +257,7 @@ class KerasDDPG(jlab_opt_control.Agent):
                 critic_loss, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
                                                                           next_state_batch, done_batch, _)
 
-            tf.summary.scalar('Critic Loss', data=critic_loss1,
+            tf.summary.scalar('Critic Loss', data=critic_loss,
                               step=int(self.ntrain_calls))
 
             # Update Priorities
