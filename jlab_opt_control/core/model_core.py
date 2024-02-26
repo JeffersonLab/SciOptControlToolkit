@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import tensorflow as tf
 
+
 class Model(tf.keras.Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -11,4 +12,7 @@ class Model(tf.keras.Model):
         """ forward pass of model """
         pass
 
-
+    @abstractmethod
+    def save_cfg(self):
+        """ Save the model cfg """
+        pass

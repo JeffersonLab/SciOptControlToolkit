@@ -46,11 +46,14 @@ class Circle2D(gym.Env):
         circle_env_log.info(f'RDM Reset Mode: {self.rdm_reset_mode}')
 
         # Setup the action and observation
-        self.action_space = spaces.Box(low=-np.ones(self.ndim), high=np.ones(self.ndim), dtype=np.float64)
+        self.action_space = spaces.Box(
+            low=-np.ones(self.ndim), high=np.ones(self.ndim), dtype=np.float64)
         circle_env_log.info(f'Action upper bound: {self.action_space.high}')
         circle_env_log.info(f'Action lower bound: {self.action_space.low}')
-        self.observation_space = spaces.Box(low=-np.ones(self.ndim), high=np.ones(self.ndim), dtype=np.float64)
-        circle_env_log.info(f'State upper bound: {self.observation_space.high}')
+        self.observation_space = spaces.Box(
+            low=-np.ones(self.ndim), high=np.ones(self.ndim), dtype=np.float64)
+        circle_env_log.info(
+            f'State upper bound: {self.observation_space.high}')
         circle_env_log.info(f'State lower bound: {self.observation_space.low}')
 
         # Define the target

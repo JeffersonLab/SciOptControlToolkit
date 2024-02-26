@@ -28,9 +28,6 @@
 
 from jlab_opt_control.agents.registration import register, make, list_registered_modules
 from jlab_opt_control.agents.keras_td3 import KerasTD3
-from jlab_opt_control.agents.keras_td3_PER import KerasTD3_PER
-from jlab_opt_control.agents.keras_td3_ER import KerasTD3_ER
-from jlab_opt_control.agents.keras_td3_buffer import KerasTD3_buffer
 
 
 # Single objective agents

@@ -40,8 +40,8 @@ import time
 import json
 import platform
 import sys
+import shutil
 processor = platform.processor()
-
 
 td3_log = logging.getLogger("TD3-Agent")
 td3_log.setLevel(logging.DEBUG)
@@ -86,9 +86,9 @@ class KerasTD3(jlab_opt_control.Agent):
         absolute_path = os.path.dirname(__file__)
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
-        pfn_json_file = os.path.join(full_path, cfg)
-        td3_log.debug(f'pfn_json_file:{pfn_json_file}')
-        with open(pfn_json_file) as json_file:
+        self.pfn_json_file = os.path.join(full_path, cfg)
+        td3_log.debug(f'pfn_json_file:{self.pfn_json_file}')
+        with open(self.pfn_json_file) as json_file:
             data = json.load(json_file)
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
@@ -105,13 +105,14 @@ class KerasTD3(jlab_opt_control.Agent):
         self.mse_loss = tf.keras.losses.MeanSquaredError()
 
         # Buffer
-        if buffer_type == None:
+        if buffer_type is None:
             self.buffer_type = cfg_utils.cfg_get(data, 'buffer_type', None)
         else:
             self.buffer_type = buffer_type
 
         self.buffer = jlab_opt_control.buffers.make(
-            self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, buffer_size=buffer_size)
+            self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir, buffer_size=buffer_size)
+        self.buffer.save_cfg()
 
         # Used to update target networks
         self.tau = float(cfg_utils.cfg_get(data, 'tau', 0.005))
@@ -163,9 +164,11 @@ class KerasTD3(jlab_opt_control.Agent):
         td3_log.info('Running KerasTD3 initialize_new_models()')
 
         self.actor_model = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound)
+            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
         self.target_actor = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound)
+            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+
+        self.actor_model.save_cfg()
 
         seed1 = time.time_ns()
         str_seed1 = str(seed1)
@@ -174,9 +177,11 @@ class KerasTD3(jlab_opt_control.Agent):
         tf.random.set_seed(seed1)
 
         self.critic_model1 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
         self.target_critic1 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+
+        self.critic_model1.save_cfg()
 
         time.sleep(1 / 10)
         seed2 = time.time_ns()
@@ -186,9 +191,9 @@ class KerasTD3(jlab_opt_control.Agent):
         tf.random.set_seed(seed2)
 
         self.critic_model2 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
         self.target_critic2 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
 
         self.target_actor.set_weights(self.actor_model.get_weights())
         self.target_critic1.set_weights(self.critic_model1.get_weights())
@@ -385,3 +390,16 @@ class KerasTD3(jlab_opt_control.Agent):
                 join(self.model_save_path, "target_critic2.h5"))
         except:
             td3_log.error("Error in saving the models...")
+
+    def save_cfg(self):
+        """ Save the actor cfg """
+        try:
+            destination_file_path = os.path.join(self.logdir, 'cfgs/')
+            if not os.path.exists(destination_file_path):
+                os.makedirs(destination_file_path)
+            destination_file_path = os.path.join(
+                destination_file_path, os.path.basename(self.pfn_json_file))
+            shutil.copy(self.pfn_json_file, destination_file_path)
+            td3_log.info('Agent config saved successfully')
+        except:
+            td3_log.error("Error in saving the agent cfg...")
