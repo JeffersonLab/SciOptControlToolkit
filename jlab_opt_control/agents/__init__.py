@@ -36,21 +36,3 @@ register(
     entry_point='jlab_opt_control.agents:KerasTD3',
     kwargs={'cfg': 'keras_td3.cfg'},
 )
-
-register(
-    id='KerasTD3-PER-v0',
-    entry_point='jlab_opt_control.agents:KerasTD3_PER',
-    kwargs={'cfg': 'keras_td3.cfg'},
-)
-
-register(
-    id='KerasTD3-ER-v0',
-    entry_point='jlab_opt_control.agents:KerasTD3_ER',
-    kwargs={'cfg': 'keras_td3.cfg'},
-)
-
-register(
-    id='KerasTD3-buffer-v0',
-    entry_point='jlab_opt_control.agents:KerasTD3_buffer',
-    kwargs={'cfg': 'keras_td3.cfg'},
-)

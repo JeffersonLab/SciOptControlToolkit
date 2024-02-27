@@ -93,12 +93,11 @@ class KerasTD3(jlab_opt_control.Agent):
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
-        self.model_save_path = cfg_utils.cfg_get(data, 'save_model', None)
 
         self.actor_model_type = cfg_utils.cfg_get(
-            data, 'actor_model', "actor_FCNN-v0")
+            data, 'actor_model', "actor_fcnn-v0")
         self.critic_model_type = cfg_utils.cfg_get(
-            data, 'critic_model', "critic_FCNN-v0")
+            data, 'critic_model', "critic_fcnn-v0")
 
         self.logdir = logdir
 
@@ -373,21 +372,30 @@ class KerasTD3(jlab_opt_control.Agent):
         except:
             print("Error while loading models, initializing new models...")
 
-    def save(self):
+    def save(self, post_fix="test"):
         """ Save the ML models """
         try:
+            destination_file_path = os.path.join(self.logdir, 'models/')
+            if not os.path.exists(destination_file_path):
+                os.makedirs(destination_file_path)
+
+            destination_file_path = os.path.join(destination_file_path, post_fix + '/')
+            if not os.path.exists(destination_file_path):
+                os.makedirs(destination_file_path)
+
             self.actor_model.save_weights(
-                join(self.model_save_path, "actor_model.h5"))
+                join(destination_file_path, "actor_model_" + post_fix + ".h5"))
             self.target_actor.save_weights(
-                join(self.model_save_path, "target_actor.h5"))
+                join(destination_file_path, "target_actor_" + post_fix + ".h5"))
             self.critic_model1.save_weights(
-                join(self.model_save_path, "critic_model1.h5"))
+                join(destination_file_path, "critic_model1_" + post_fix + ".h5"))
             self.target_critic1.save_weights(
-                join(self.model_save_path, "target_critic1.h5"))
+                join(destination_file_path, "target_critic1_" + post_fix + ".h5"))
             self.critic_model2.save_weights(
-                join(self.model_save_path, "critic_model2.h5"))
+                join(destination_file_path, "critic_model2_" + post_fix + ".h5"))
             self.target_critic2.save_weights(
-                join(self.model_save_path, "target_critic2.h5"))
+                join(destination_file_path, "target_critic2_" + post_fix + ".h5"))
+            td3_log.info('Agent models saved successfully')
         except:
             td3_log.error("Error in saving the models...")
 

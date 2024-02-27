@@ -120,16 +120,20 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     file_writer.set_as_default()
 
     # Agent
-    print(agent_id)
     agent = jlab_opt_control.agents.make(
         agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
 
     agent.save_cfg()
+    agent.save("init")
 
     # To store reward history of each episode
     ep_reward_list = []
     # To store average reward history of last few episodes
     avg_reward_list = []
+
+    # Variable to hold previous max
+    # Init at very small number
+    inference_episodic_hold = 0
 
     total_nsteps = 0
 
@@ -185,6 +189,20 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 inference_done = (inference_terminate or inference_truncate)
                 # if done:
                 #     break
+            
+            # init for first epoch
+            if (ep == 0):
+                inference_episodic_hold = inference_episodic_reward
+            
+            # % better you want inference reward to be before save
+            percent_increase = 0.05
+
+            if inference_episodic_reward != 0:
+                percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
+                if percentage_change >= percent_increase:
+                    str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
+                    agent.save(str_pct_inc)
+                    inference_episodic_hold = inference_episodic_reward
 
         tf.summary.scalar('Inference Reward',
                           data=inference_episodic_reward, step=int(ep))
