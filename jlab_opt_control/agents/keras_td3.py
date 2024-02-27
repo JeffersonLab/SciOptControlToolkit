@@ -369,6 +369,7 @@ class KerasTD3(jlab_opt_control.Agent):
                 join(self.model_load_path, "critic_model2.h5"))
             self.target_critic2.load_weights(
                 join(self.model_load_path, "target_critic2.h5"))
+            td3_log.info('Models loaded successfully')
         except:
             print("Error while loading models, initializing new models...")
 

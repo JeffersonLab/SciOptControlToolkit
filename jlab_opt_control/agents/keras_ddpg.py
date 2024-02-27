@@ -40,6 +40,7 @@ import time
 import json
 import platform
 import sys
+import shutil
 processor = platform.processor()
 
 
@@ -84,9 +85,9 @@ class KerasDDPG(jlab_opt_control.Agent):
         absolute_path = os.path.dirname(__file__)
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
-        pfn_json_file = os.path.join(full_path, cfg)
-        ddpg_log.debug(f'pfn_json_file:{pfn_json_file}')
-        with open(pfn_json_file) as json_file:
+        self.pfn_json_file = os.path.join(full_path, cfg)
+        ddpg_log.debug(f'pfn_json_file:{self.pfn_json_file}')
+        with open(self.pfn_json_file) as json_file:
             data = json.load(json_file)
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
@@ -103,13 +104,14 @@ class KerasDDPG(jlab_opt_control.Agent):
         self.mse_loss = tf.keras.losses.MeanSquaredError()
 
         # Buffer
-        if buffer_type == None:
+        if buffer_type is None:
             self.buffer_type = cfg_utils.cfg_get(data, 'buffer_type', None)
         else:
             self.buffer_type = buffer_type
 
         self.buffer = jlab_opt_control.buffers.make(
-            self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, buffer_size=buffer_size)
+            self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir, buffer_size=buffer_size)
+        self.buffer.save_cfg()
 
         # Used to update target networks
         self.tau = float(cfg_utils.cfg_get(data, 'tau', 0.005))
@@ -155,10 +157,12 @@ class KerasDDPG(jlab_opt_control.Agent):
         ddpg_log.info('Running KerasDDPG initialize_new_models()')
 
         self.actor_model = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound)
+            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
         self.target_actor = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound)
+            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
 
+        self.actor_model.save_cfg()
+        
         seed1 = time.time_ns()
         str_seed1 = str(seed1)
         seed1 = int(str_seed1[9:-3])
@@ -166,9 +170,11 @@ class KerasDDPG(jlab_opt_control.Agent):
         tf.random.set_seed(seed1)
 
         self.critic_model1 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
         self.target_critic1 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+
+        self.critic_model1.save_cfg()
 
         self.target_actor.set_weights(self.actor_model.get_weights())
         self.target_critic1.set_weights(self.critic_model1.get_weights())
@@ -328,27 +334,41 @@ class KerasDDPG(jlab_opt_control.Agent):
                 join(self.model_load_path, "critic_model1.h5"))
             self.target_critic1.load_weights(
                 join(self.model_load_path, "target_critic1.h5"))
-            self.critic_model2.load_weights(
-                join(self.model_load_path, "critic_model2.h5"))
-            self.target_critic2.load_weights(
-                join(self.model_load_path, "target_critic2.h5"))
+            ddpg_log.info('Models loaded successfully')
         except:
-            print("Error while loading models, initializing new models...")
+            ddpg_log.error("Error in loading the models...")
 
-    def save(self):
+    def save(self, post_fix="test"):
         """ Save the ML models """
         try:
+            destination_file_path = os.path.join(self.logdir, 'models/')
+            if not os.path.exists(destination_file_path):
+                os.makedirs(destination_file_path)
+
+            destination_file_path = os.path.join(destination_file_path, post_fix + '/')
+            if not os.path.exists(destination_file_path):
+                os.makedirs(destination_file_path)
+
             self.actor_model.save_weights(
-                join(self.model_save_path, "actor_model.h5"))
+                join(destination_file_path, "actor_model_" + post_fix + ".h5"))
             self.target_actor.save_weights(
-                join(self.model_save_path, "target_actor.h5"))
+                join(destination_file_path, "target_actor_" + post_fix + ".h5"))
             self.critic_model1.save_weights(
-                join(self.model_save_path, "critic_model1.h5"))
+                join(destination_file_path, "critic_model1_" + post_fix + ".h5"))
             self.target_critic1.save_weights(
-                join(self.model_save_path, "target_critic1.h5"))
-            self.critic_model2.save_weights(
-                join(self.model_save_path, "critic_model2.h5"))
-            self.target_critic2.save_weights(
-                join(self.model_save_path, "target_critic2.h5"))
+                join(destination_file_path, "target_critic1_" + post_fix + ".h5"))
         except:
             ddpg_log.error("Error in saving the models...")
+
+    def save_cfg(self):
+        """ Save the actor cfg """
+        try:
+            destination_file_path = os.path.join(self.logdir, 'cfgs/')
+            if not os.path.exists(destination_file_path):
+                os.makedirs(destination_file_path)
+            destination_file_path = os.path.join(
+                destination_file_path, os.path.basename(self.pfn_json_file))
+            shutil.copy(self.pfn_json_file, destination_file_path)
+            ddpg_log.info('Agent config saved successfully')
+        except:
+            ddpg_log.error("Error in saving the agent cfg...")
