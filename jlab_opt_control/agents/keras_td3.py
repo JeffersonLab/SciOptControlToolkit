@@ -95,9 +95,9 @@ class KerasTD3(jlab_opt_control.Agent):
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
 
         self.actor_model_type = cfg_utils.cfg_get(
-            data, 'actor_model', "actor_FCNN-v0")
+            data, 'actor_model', "actor_fcnn-v0")
         self.critic_model_type = cfg_utils.cfg_get(
-            data, 'critic_model', "critic_FCNN-v0")
+            data, 'critic_model', "critic_fcnn-v0")
 
         self.logdir = logdir
 
