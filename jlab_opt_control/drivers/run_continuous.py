@@ -60,12 +60,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     run_openai_log.debug(logdir)
 
     # Checks for buffer logging information, will default to config if not set in command line
-    if (buffer_type == None):
+    if buffer_type is None:
         buffer_type_log = "cfg"
     else:
         buffer_type_log = str(buffer_type)
 
-    if (buffer_size == None):
+    if buffer_size is None:
         buffer_size_log = "cfg"
     else:
         buffer_size_log = str(buffer_size)
@@ -116,17 +116,24 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     tfb_path = os.path.join(logdir, 'metrics')
     run_openai_log.info(f'TFB Path: {tfb_path}')
     file_writer = tf.summary.create_file_writer(tfb_path)
+    tfb_path = os.path.join(logdir, 'metrics')
     file_writer.set_as_default()
 
     # Agent
-    print(agent_id)
     agent = jlab_opt_control.agents.make(
         agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
+
+    agent.save_cfg()
+    agent.save("init")
 
     # To store reward history of each episode
     ep_reward_list = []
     # To store average reward history of last few episodes
     avg_reward_list = []
+
+    # Variable to hold previous max
+    # Init at very small number
+    inference_episodic_hold = 0
 
     total_nsteps = 0
 
@@ -136,7 +143,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         episode_timesteps = 0
         episodic_reward = 0
         done = False
-        while (done == False):
+        while done is False:
             total_nsteps += 1
             episode_timesteps += 1
             action, action_noise = agent.action(
@@ -172,7 +179,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             inference_episodic_reward = 0
             inference_prev_state, _ = env.reset()
             inference_done = False
-            while (inference_done == False):
+            while inference_done is False:
                 inference_action, inference_action_noise = agent.action(
                     tf.convert_to_tensor(inference_prev_state), train=False)
                 inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(
@@ -182,6 +189,20 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 inference_done = (inference_terminate or inference_truncate)
                 # if done:
                 #     break
+            
+            # init for first epoch
+            if (ep == 0):
+                inference_episodic_hold = inference_episodic_reward
+            
+            # % better you want inference reward to be before save
+            percent_increase = 0.05
+
+            if inference_episodic_reward != 0:
+                percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
+                if percentage_change >= percent_increase:
+                    str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
+                    agent.save(str_pct_inc)
+                    inference_episodic_hold = inference_episodic_reward
 
         tf.summary.scalar('Inference Reward',
                           data=inference_episodic_reward, step=int(ep))
