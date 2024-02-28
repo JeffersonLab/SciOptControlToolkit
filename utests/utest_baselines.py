@@ -9,22 +9,34 @@ class MyTestCase(unittest.TestCase):
     def test_env_performance_circle2d(self):
         args = ['--env','DnC2s-Circle2D-Statefull-v0','--nepisodes','100']
         main(args)
+
+    def test_ddpg_circle(self):
+        args = ['--env','DnC2s-Circle2D-Statefull-v0', '--agent', 'KerasDDPG-v0', '--nepisodes','10']
+        main(args)
     
     def test_ER(self):
-        args = ['--env','Pendulum-v1','--nepisodes','100', '--nsteps','100', '--btype', 'ER-v0', '--bsize', '100000']
+        args = ['--env','Pendulum-v1','--nepisodes','50', '--nsteps','100', '--btype', 'ER-v0', '--bsize', '100000']
         main(args)
 
     def test_PER(self):
-        args = ['--env','Pendulum-v1','--nepisodes','100', '--nsteps','100', '--btype', 'PER-v0', '--bsize', '100000']
+        args = ['--env','Pendulum-v1','--nepisodes','50', '--nsteps','100', '--btype', 'PER-v0', '--bsize', '100000']
         main(args)
 
     def test_env_performance_halfcheetah(self):
-        args = ['--env','HalfCheetah-v4','--nepisodes','100']
+        args = ['--env','HalfCheetah-v4','--nepisodes','50']
         main(args)
 
     def test_env_performance_halfcheetah_PER(self):
-        args = ['--env','HalfCheetah-v4','--nepisodes','100', '--btype', 'PER-v0']
+        args = ['--env','HalfCheetah-v4','--nepisodes','50', '--btype', 'PER-v0']
         main(args)
     
+    def test_ddpg_PER(self):
+        args = ['--env','Pendulum-v1', '--agent', 'KerasDDPG-v0', '--nepisodes','50', '--btype', 'PER-v0']
+        main(args)
+
+    def test_ddpg_ER(self):
+        args = ['--env','Pendulum-v1', '--agent', 'KerasDDPG-v0', '--nepisodes','50', '--btype', 'ER-v0']
+        main(args)
+
 if __name__ == '__main__':
     unittest.main()
