@@ -30,7 +30,6 @@ class ReplaySpec(object):
             gen = self.entry_point(**_kwargs)
         else:
             cls = load(self.entry_point)
-            print(type(_kwargs))
             gen = cls(**_kwargs)
 
         return gen
@@ -69,7 +68,8 @@ class ReplayRegistry(object):
         try:
             return self.replay_specs[id]
         except KeyError:
-            raise replay_log.error('No registered replay buffer with id: {}'.format(id))
+            raise replay_log.error(
+                'No registered replay buffer with id: {}'.format(id))
 
     def register(self, id, **kwargs):
         if id in self.replay_specs:

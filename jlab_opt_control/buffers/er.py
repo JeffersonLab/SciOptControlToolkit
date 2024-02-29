@@ -4,27 +4,35 @@ from jlab_opt_control.core.replay_core import Replay
 import numpy as np
 import os
 import json
+import logging
+import shutil
+
+buf_log = logging.getLogger("Buffer")
+buf_log.setLevel(logging.DEBUG)
+logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
 class ER(Replay):
-    def __init__(self, state_dim, action_dim, buffer_size=None, cfg='ER.cfg'):
+    def __init__(self, state_dim, action_dim, logdir, buffer_size=None, cfg='er.cfg'):
         super().__init__(None, None, None, None, None, None)
 
         # Load configuration
         absolute_path = os.path.dirname(__file__)
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
-        pfn_json_file = os.path.join(full_path, cfg)
-        with open(pfn_json_file) as json_file:
+        self.pfn_json_file = os.path.join(full_path, cfg)
+        with open(self.pfn_json_file) as json_file:
             data = json.load(json_file)
 
-        if (buffer_size == None):
+        if buffer_size is None:
             self.buffer_capacity = int(
                 cfg_utils.cfg_get(data, 'buffer_capacity', 50000))
         else:
             self.buffer_capacity = buffer_size
         self.current_index = 0
         self.pointer = 0
+
+        self.logdir = logdir
 
         self.num_states = state_dim
         self.num_actions = action_dim
@@ -85,6 +93,19 @@ class ER(Replay):
             "priorities": self.priorities
         }
         np.save(filename, data)
+
+    def save_cfg(self):
+        """ Save the buffer cfg """
+        try:
+            destination_file_path = os.path.join(self.logdir, 'cfgs/')
+            if not os.path.exists(destination_file_path):
+                os.makedirs(destination_file_path)
+            destination_file_path = os.path.join(
+                destination_file_path, os.path.basename(self.pfn_json_file))
+            shutil.copy(self.pfn_json_file, destination_file_path)
+            buf_log.info('Buffer config saved successfully')
+        except:
+            buf_log.error("Error in saving the buffer cfg...")
 
     def load(self, filename):
         data = np.load(filename, allow_pickle=True).item()

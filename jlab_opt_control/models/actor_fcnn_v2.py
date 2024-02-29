@@ -6,16 +6,18 @@ from tensorflow.keras import layers
 import shutil
 import os
 import logging
+import time
 
 act_log = logging.getLogger("Actor")
-act_log.setLevel(logging.DEBUG)
+act_log.setLevel(logging.WARNING)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class ActorFCNN(Model):
-    def __init__(self, state_dim, action_dim, min_action, max_action, logdir, cfg='actor_fcnn.cfg'):
+class ActorFCNN_v2(Model):
+    def __init__(self, state_dim, action_dim, min_action, max_action, logdir, cfg='actor_fcnn_v2.cfg'):
         super().__init__()
 
+        act_log.debug(f'state_dim: {state_dim}')
         # Load configuration
         absolute_path = os.path.dirname(__file__)
         relative_path = "../cfgs/"
@@ -25,10 +27,19 @@ class ActorFCNN(Model):
         self.logdir = logdir
 
         # Actor Architecture
-        self.l1 = layers.Dense(256, activation="relu",
-                               input_shape=(state_dim,))
-        self.l2 = layers.Dense(256, activation="relu")
-        self.l3 = layers.Dense(action_dim, activation='tanh')
+        self.nlayers = 4
+        self.nodes = 256
+        seed = time.time_ns()
+        init = tf.keras.initializers.GlorotUniform(seed)
+        self.dense1, self.act1, self.bn1 = [], [], []
+        self.dense1.append(tf.keras.layers.Dense(self.nodes, kernel_initializer=init, input_shape = (state_dim,)))
+        self.act1.append(tf.keras.activations.tanh)
+        self.bn1.append(tf.keras.layers.BatchNormalization())
+        for i in range(1, self.nlayers):
+            self.dense1.append(tf.keras.layers.Dense(self.nodes, kernel_initializer=init))
+            self.act1.append(tf.keras.activations.tanh)
+            self.bn1.append(tf.keras.layers.BatchNormalization())
+        self.out = tf.keras.layers.Dense(action_dim, activation='tanh')
 
         self.action_scale = tf.constant(
             (max_action - min_action) / 2, dtype=tf.float32)
@@ -38,9 +49,13 @@ class ActorFCNN(Model):
         self.max_action = max_action
 
     def call(self, state, training=False):
-        a = self.l1(state)
-        a = self.l2(a)
-        a = self.l3(a)
+        act_log.debug(f'call state_dim: {state.shape}')
+        a = state
+        for i in range(self.nlayers):
+            a = self.dense1[i](a)
+            a = self.bn1[i](a)
+            a = self.act1[i](a)
+        a = self.out(a)
         return a * self.action_scale + self.action_bias
 
     def save_cfg(self):

@@ -31,3 +31,8 @@ class Agent(ABC):
     def save(self):
         """ Save the ML models """
         pass
+
+    @abstractmethod
+    def save_cfg(self):
+        """ Save the agent cfg """
+        pass

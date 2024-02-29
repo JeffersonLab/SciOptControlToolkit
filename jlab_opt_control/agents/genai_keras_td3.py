@@ -44,13 +44,13 @@ import shutil
 processor = platform.processor()
 
 td3_log = logging.getLogger("TD3-Agent")
-td3_log.setLevel(logging.DEBUG)
+td3_log.setLevel(logging.WARNING)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class KerasTD3(jlab_opt_control.Agent):
+class GenAIKerasTD3(jlab_opt_control.Agent):
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_td3.json'):
+    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='genai_keras_td3.json'):
         """ Define all key variables required for all agent """
 
         # Get env info
@@ -60,8 +60,10 @@ class KerasTD3(jlab_opt_control.Agent):
         self.critic_model1 = None
         self.target_actor = None
         self.actor_model = None
-        td3_log.info('Running KerasTD3 __init__')
+        td3_log.info('Running GenAIKerasTD3 __init__')
 
+        # How many random samples as input to the state
+        self.rdm_intputs = 7
         # Environment setup
         self.env = env
         try:
@@ -95,7 +97,7 @@ class KerasTD3(jlab_opt_control.Agent):
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
 
         self.actor_model_type = cfg_utils.cfg_get(
-            data, 'actor_model', "actor_fcnn-v0")
+            data, 'actor_model', "actor_fcnn-v2")
         self.critic_model_type = cfg_utils.cfg_get(
             data, 'critic_model', "critic_fcnn-v0")
 
@@ -163,9 +165,9 @@ class KerasTD3(jlab_opt_control.Agent):
         td3_log.info('Running KerasTD3 initialize_new_models()')
 
         self.actor_model = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+            self.actor_model_type, state_dim=self.num_states+self.rdm_intputs, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
         self.target_actor = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+            self.actor_model_type, state_dim=self.num_states+self.rdm_intputs, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
 
         self.actor_model.save_cfg()
 
@@ -198,14 +200,23 @@ class KerasTD3(jlab_opt_control.Agent):
         self.target_critic1.set_weights(self.critic_model1.get_weights())
         self.target_critic2.set_weights(self.critic_model2.get_weights())
 
+    def get_genai_states(self, states):
+        rdm_variables = tf.random.normal([states.shape[0], self.rdm_intputs], 0, 1, tf.float32, seed=time.time_ns())
+        genai_states = tf.keras.layers.concatenate([rdm_variables, states])
+        return genai_states
+
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones, weights):
+        # Convert state to genai states
+        genai_states = self.get_genai_states(states)
+        genai_next_states = self.get_genai_states(next_states)
+
         # Generate the proper noise
         noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
         noise_clipped = tf.clip_by_value(
             noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
         next_actions = tf.clip_by_value(self.target_actor(
-            next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
+            genai_next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
 
         target_q1 = self.target_critic1(
             next_states, next_actions, training=False)
@@ -243,8 +254,10 @@ class KerasTD3(jlab_opt_control.Agent):
     @tf.function
     def train_actor(self, states):
         # Use Critic 1
+        genai_states = self.get_genai_states(states)
+        td3_log.debug(f'genai_states: {genai_states.shape}')
         with tf.GradientTape() as tape:
-            actions = self.actor_model(states, training=True)
+            actions = self.actor_model(genai_states, training=True)
             q_value = self.critic_model1(states, actions, training=False)
             loss = -tf.math.reduce_mean(q_value)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
@@ -322,7 +335,8 @@ class KerasTD3(jlab_opt_control.Agent):
         # Warmup completed, sample from actor
         else:
             state = tf.expand_dims(state, 0)
-            sampled_action = (self.actor_model(state)).numpy()
+            genai_states = self.get_genai_states(state)
+            sampled_action = (self.actor_model(genai_states)).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
                          stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
@@ -369,7 +383,6 @@ class KerasTD3(jlab_opt_control.Agent):
                 join(self.model_load_path, "critic_model2.h5"))
             self.target_critic2.load_weights(
                 join(self.model_load_path, "target_critic2.h5"))
-            td3_log.info('Models loaded successfully')
         except:
             print("Error while loading models, initializing new models...")
 
