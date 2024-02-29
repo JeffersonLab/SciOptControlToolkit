@@ -48,7 +48,7 @@ td3_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class KerasTD3(jlab_opt_control.Agent):
+class MO_KerasTD3(jlab_opt_control.Agent):
 
     def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_td3.json'):
         """ Define all key variables required for all agent """
@@ -68,6 +68,7 @@ class KerasTD3(jlab_opt_control.Agent):
             assert "Box" in str(type(env.action_space)), 'Invalid action space'
             self.num_states = env.observation_space.shape[0]
             self.num_actions = env.action_space.shape[0]
+            self.num_rewards = env.reward_space.shape[0]
             self.upper_bound = env.action_space.high
             self.lower_bound = env.action_space.low
             td3_log.info(f'Action upper bound: {self.upper_bound}')
@@ -110,7 +111,7 @@ class KerasTD3(jlab_opt_control.Agent):
             self.buffer_type = buffer_type
 
         self.buffer = jlab_opt_control.buffers.make(
-            self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir, buffer_size=buffer_size)
+            self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, logdir=self.logdir, buffer_size=buffer_size)
         self.buffer.save_cfg()
 
         # Used to update target networks
@@ -269,7 +270,7 @@ class KerasTD3(jlab_opt_control.Agent):
                     self.batch_size)
                 weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
             elif "ER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _ = self.buffer.sample(
+                states, actions, rewards, next_states, dones, _, _ = self.buffer.sample(
                     self.batch_size)
             else:
                 print("ERROR: Please check configuration of agent for buffer type.")
