@@ -215,8 +215,11 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             next_states, next_actions, training=False)
         target_q = tf.math.minimum(target_q1, target_q2)
 
+        alphas_reshaped = tf.reshape(alphas, tf.shape(rewards)) # Might not be needed
+        weighted_rewards = tf.multiply(rewards, alphas_reshaped)
+
         # Bellman equation for the q value
-        q_targets = rewards + self.gamma * target_q * (1.0 - dones)
+        q_targets = weighted_rewards + self.gamma * target_q * (1.0 - dones)
 
         # Critic 1 and 2
         with tf.GradientTape() as tape:
@@ -224,6 +227,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             q_values2 = self.critic_model2(states, actions, training=True)
             td_errors1 = q_values1 - q_targets
             td_errors2 = q_values2 - q_targets
+
             if "PER" in self.buffer_type:
                 critic_loss1 = self.mse_loss(
                     q_values1, q_targets, sample_weight=weights)
@@ -232,7 +236,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             else:
                 critic_loss1 = self.mse_loss(q_values1, q_targets)
                 critic_loss2 = self.mse_loss(q_values2, q_targets)
+            
             critic_losses = critic_loss1 + critic_loss2
+
         gradients = tape.gradient(
             critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
         self.critic_optimizer.apply_gradients(zip(
@@ -318,7 +324,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 self.soft_update(self.target_critic2.variables,
                                  self.critic_model2.variables)
 
-    def action(self, state, train=True):
+    def action(self, state, alphas, train=True):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
         if self.buffer.size() < np.max([self.batch_size, self.warmup_size]):
@@ -327,7 +333,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         # Warmup completed, sample from actor
         else:
             state = tf.expand_dims(state, 0)
-            sampled_action = (self.actor_model(state)).numpy()
+
+            alphas = tf.expand_dims(alphas, 0)
+            sampled_action = self.actor_model(state, alphas).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
                          stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
