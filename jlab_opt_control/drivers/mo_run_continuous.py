@@ -150,7 +150,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         while done is False:
             total_nsteps += 1
             episode_timesteps += 1
-            action, action_noise = agent.action(tf.convert_to_tensor(prev_state))
+            action, action_noise = agent.action(tf.convert_to_tensor(prev_state), tf.convert_to_tensor(alphas))
             # action, action_noise = agent.action([
             #     tf.convert_to_tensor(prev_state),
             #     tf.convert_to_tensor(alphas) ])
@@ -171,7 +171,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             done_buffer = (terminate or truncate) if (
                 episode_timesteps < env._max_episode_steps) else False
 
-            agent.memory((prev_state, action, reward, state, done_buffer))
+            agent.memory((prev_state, action, reward, state, done_buffer, alphas))
             episodic_reward += reward
             agent.train()
             prev_state = state
