@@ -162,6 +162,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
     def initialize_new_models(self):
         """ Initialize new models from scratch """
         td3_log.info('Running KerasTD3 initialize_new_models()')
+    
 
         self.actor_model = jlab_opt_control.models.make(
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
@@ -200,7 +201,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.target_critic2.set_weights(self.critic_model2.get_weights())
 
     @tf.function
-    def train_critic(self, states, actions, rewards, next_states, dones, weights):
+    def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
         # Generate the proper noise
         noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
         noise_clipped = tf.clip_by_value(
@@ -242,12 +243,14 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         return critic_loss1, critic_loss2, td_errors_avg
 
     @tf.function
-    def train_actor(self, states):
+    def train_actor(self, states, alphas):
         # Use Critic 1
         with tf.GradientTape() as tape:
-            actions = self.actor_model(states, training=True)
-            q_value = self.critic_model1(states, actions, training=False)
-            loss = -tf.math.reduce_mean(q_value)
+            actions = self.actor_model(states, alphas, training=True)
+            q_values = self.critic_model1(states, actions, training=False)
+            alphas_reshaped = tf.reshape(alphas, tf.shape(q_values)) # Might not be needed
+            weighted_q_values = tf.multiply(q_values, alphas_reshaped)
+            loss = -tf.math.reduce_mean(weighted_q_values)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
@@ -266,11 +269,11 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
             # Get sampling range
             if "PER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _, weights = self.buffer.sample(
+                states, actions, rewards, next_states, dones, weights, alphas = self.buffer.sample(
                     self.batch_size)
                 weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
-            elif "ER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _, _ = self.buffer.sample(
+            elif "ER" in self.buffer_type: # CHANGE THIS TO USE THE ALPHAS
+                states, actions, rewards, next_states, dones, _, alphas = self.buffer.sample(
                     self.batch_size)
             else:
                 print("ERROR: Please check configuration of agent for buffer type.")
@@ -282,14 +285,15 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             next_state_batch = tf.convert_to_tensor(
                 next_states, dtype=tf.float32)
             done_batch = tf.convert_to_tensor(dones, dtype=tf.float32)
+            alpha_batch = tf.convert_to_tensor(alphas, dtype=tf.float32)
 
             # Train critic
             if "PER" in self.buffer_type:
                 critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
-                                                                          next_state_batch, done_batch, weights_batch)
+                                                                          next_state_batch, done_batch, weights_batch, alpha_batch)
             elif "ER" in self.buffer_type:
                 critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
-                                                                          next_state_batch, done_batch, _)
+                                                                          next_state_batch, done_batch, _, alpha_batch)
 
             tf.summary.scalar('Critic Loss 1', data=critic_loss1,
                               step=int(self.ntrain_calls))
@@ -302,7 +306,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 self.buffer.update_priorities(new_priorities)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
-                actor_loss = self.train_actor(state_batch)
+                actor_loss = self.train_actor(state_batch, alpha_batch)
                 tf.summary.scalar('Actor Loss', data=actor_loss,
                                   step=int(self.ntrain_calls))
                 self.soft_update(self.target_actor.variables,

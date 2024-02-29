@@ -28,7 +28,7 @@ class MO_CriticFCNN(Model):
         self.l1 = layers.Dense(256, activation="relu",
                                input_shape=(state_dim + action_dim,))
         self.l2 = layers.Dense(256, activation="relu")
-        self.l3 = layers.Dense(1)
+        self.l3 = layers.Dense(reward_dim)
 
     def call(self, state, action, training=False):
         x = tf.concat([state, action], axis=1)

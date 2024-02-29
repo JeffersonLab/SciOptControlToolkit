@@ -25,8 +25,10 @@ class MO_ActorFCNN(Model):
         self.logdir = logdir
 
         # Actor Architecture
+        input_shape = (state_dim + reward_dim,)
+        
         self.l1 = layers.Dense(256, activation="relu",
-                               input_shape=(state_dim,))
+                               input_shape=input_shape)
         self.l2 = layers.Dense(256, activation="relu")
         self.l3 = layers.Dense(action_dim, activation='tanh')
 
@@ -38,7 +40,9 @@ class MO_ActorFCNN(Model):
         self.max_action = max_action
 
     def call(self, state, alphas, training=False):
-        a = self.l1(state)
+        concatenated_input = tf.concat([state, reward], axis=-1)
+
+        a = self.l1(concatenated_input)
         a = self.l2(a)
         a = self.l3(a)
         return a * self.action_scale + self.action_bias
