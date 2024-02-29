@@ -356,7 +356,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         return sampled_action, noise
 
     def memory(self, obs_tuple):
-        memory_with_default_priority = obs_tuple + (self.buffer.max_priority,)
+        # inefficient but can fix later
+        init_part, last_element = obs_tuple[:-1], obs_tuple[-1]
+        memory_with_default_priority = init_part + (self.buffer.max_priority,) + (last_element,)
         self.buffer.record(memory_with_default_priority)
 
     def load(self):
