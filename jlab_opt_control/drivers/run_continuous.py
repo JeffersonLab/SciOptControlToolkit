@@ -92,6 +92,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     elif 'DnC2s' in env_id:
         import jlab_opt_control.envs as gym
         env = gym.make(env_id)
+    elif 'PACES' in env_id:
+        import paces.paces_envs as gym
+        env = gym.make(env_id)
     else:
         import gymnasium as gym
         env = gym.make(env_id)
