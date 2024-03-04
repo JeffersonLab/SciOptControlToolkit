@@ -165,9 +165,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
     
 
         self.actor_model = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
         self.target_actor = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
 
         self.actor_model.save_cfg()
 
@@ -178,9 +178,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         tf.random.set_seed(seed1)
 
         self.critic_model1 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, logdir=self.logdir)
         self.target_critic1 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, logdir=self.logdir)
 
         self.critic_model1.save_cfg()
 
@@ -192,9 +192,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         tf.random.set_seed(seed2)
 
         self.critic_model2 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, logdir=self.logdir)
         self.target_critic2 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, logdir=self.logdir)
 
         self.target_actor.set_weights(self.actor_model.get_weights())
         self.target_critic1.set_weights(self.critic_model1.get_weights())

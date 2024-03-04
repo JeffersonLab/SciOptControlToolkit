@@ -273,7 +273,7 @@ class KerasTD3(jlab_opt_control.Agent):
                     self.batch_size)
             else:
                 print("ERROR: Please check configuration of agent for buffer type.")
-``
+
             # Convert to tensors
             state_batch = tf.convert_to_tensor(states, dtype=tf.float32)
             action_batch = tf.convert_to_tensor(actions, dtype=tf.float32)
