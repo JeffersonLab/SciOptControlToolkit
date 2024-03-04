@@ -207,7 +207,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         noise_clipped = tf.clip_by_value(
             noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
         next_actions = tf.clip_by_value(self.target_actor(
-            next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
+            next_states, alphas, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
 
         target_q1 = self.target_critic1(
             next_states, next_actions, training=False)
@@ -309,6 +309,8 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             # Update Priorities
             if "PER" in self.buffer_type:
                 new_priorities = td_errors.numpy()
+                # Take the sum of the td_errors 64x3 = 64x1
+                # Want them to be independent (LOW TO DO)
                 self.buffer.update_priorities(new_priorities)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
