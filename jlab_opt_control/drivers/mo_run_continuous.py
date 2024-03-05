@@ -145,6 +145,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         prev_state, _ = env.reset()
         alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
         alphas = alphas.astype(dtype=np.float32)
+        #alphas = tf.expand_dims(alphas, 0)
+        #print('loop alphas',alphas.shape)
         episode_timesteps = 0
         episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
         done = False
@@ -191,6 +193,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 #print('inference_alphas',inference_alphas.shape)
 
                 inference_alphas[r] = 1.0
+                inference_alphas  = np.expand_dims(inference_alphas, 0)
+
                 inference_prev_state, _ = env.reset()
 
                 inference_done = False
