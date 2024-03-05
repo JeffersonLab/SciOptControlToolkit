@@ -40,7 +40,7 @@ class MO_ActorFCNN(Model):
         self.max_action = max_action
 
     def call(self, state, alphas, training=False):
-        concatenated_input = tf.concat([state, reward], axis=-1)
+        concatenated_input = tf.concat([state, alphas], axis=-1)
 
         a = self.l1(concatenated_input)
         a = self.l2(a)

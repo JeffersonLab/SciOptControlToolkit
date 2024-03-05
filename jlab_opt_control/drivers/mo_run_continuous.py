@@ -71,7 +71,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         buffer_size_log = str(buffer_size)
 
     if logdir == 'None':
-        logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
+        logdir = "./mo_results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
                  + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
     else:
         logdir = logdir + "/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_date_" \
@@ -144,16 +144,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         time_start = time.process_time()
         prev_state, _ = env.reset()
         alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
+        alphas = alphas.astype(dtype=np.float32)
         episode_timesteps = 0
-        episodic_reward = 0
+        episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
         done = False
         while done is False:
             total_nsteps += 1
             episode_timesteps += 1
             action, action_noise = agent.action(tf.convert_to_tensor(prev_state), tf.convert_to_tensor(alphas))
-            # action, action_noise = agent.action([
-            #     tf.convert_to_tensor(prev_state),
-            #     tf.convert_to_tensor(alphas) ])
             assert 'numpy.ndarray' in str(type(action))
             run_openai_log.debug(f'action: {action}')
             run_openai_log.debug(f'action_noise: {action_noise}')
@@ -167,6 +165,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             assert 'numpy.ndarray' in str(type(state))
             assert state.shape == (num_states,)
             assert 'float' in str(type(reward)), str(type(reward))
+            assert reward.shape == (env.reward_space.shape[0],)
+
             done = (terminate or truncate)
             done_buffer = (terminate or truncate) if (
                 episode_timesteps < env._max_episode_steps) else False
@@ -177,41 +177,52 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             prev_state = state
 
         ep_reward_list.append(episodic_reward)
-        tf.summary.scalar('Training Reward',
-                          data=episodic_reward, step=int(ep))
+        for r in range(env.reward_space.shape[0]):
+            tf.summary.scalar(f'Training Reward Objective #{r}',
+                          data=episodic_reward[r], step=int(ep))
 
         # Run inference test
         if ep % 1 == 0:
-            inference_episodic_reward = 0
-            inference_prev_state, _ = env.reset()
-            inference_done = False
-            while inference_done is False:
-                inference_action, inference_action_noise = agent.action(
-                    tf.convert_to_tensor(inference_prev_state), train=False)
-                inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(
-                    inference_action)
-                inference_episodic_reward += inference_reward
-                inference_prev_state = inference_state
-                inference_done = (inference_terminate or inference_truncate)
-                # if done:
-                #     break
-            
+            for r in range(env.reward_space.shape[0]):
+                inference_episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
+                #inference_alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
+                inference_alphas = np.zeros(env.reward_space.shape[0])
+                inference_alphas = inference_alphas.astype(dtype=np.float32)
+                #print('inference_alphas',inference_alphas.shape)
+
+                inference_alphas[r] = 1.0
+                inference_prev_state, _ = env.reset()
+
+                inference_done = False
+                while inference_done is False:
+                    inference_action, inference_action_noise = agent.action(
+                        tf.convert_to_tensor(inference_prev_state),
+                        tf.convert_to_tensor(inference_alphas))
+                    inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
+                        env.step(inference_action)
+
+                    inference_episodic_reward += inference_reward
+                    inference_prev_state = inference_state
+                    inference_done = (inference_terminate or inference_truncate)
+                    if done:
+                        break
+                tf.summary.scalar(f'Inference Reward Objective #{r}',
+                                  data=inference_episodic_reward[r], step=int(ep))
+
             # init for first epoch
-            if (ep == 0):
-                inference_episodic_hold = inference_episodic_reward
-            
-            # % better you want inference reward to be before save
-            percent_increase = 0.05
+            # if (ep == 0):
+            #     inference_episodic_hold = inference_episodic_reward
+            #
+            # # % better you want inference reward to be before save
+            # percent_increase = 0.05
+            #
+            # if inference_episodic_reward != 0:
+            #     percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
+            #     if percentage_change >= percent_increase:
+            #         str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
+            #         agent.save(str_pct_inc)
+            #         inference_episodic_hold = inference_episodic_reward
 
-            if inference_episodic_reward != 0:
-                percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
-                if percentage_change >= percent_increase:
-                    str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
-                    agent.save(str_pct_inc)
-                    inference_episodic_hold = inference_episodic_reward
-
-        tf.summary.scalar('Inference Reward',
-                          data=inference_episodic_reward, step=int(ep))
 
         # Mean of last 10 episodes
         nepisode_mod = 10
@@ -236,7 +247,7 @@ def main(args=None):
     parser.add_argument(
         "--index", help="Index for tracking", type=int, default=0)
     parser.add_argument(
-        "--nepisodes", help="Number of episodes", type=int, default=100)
+        "--nepisodes", help="Number of episodes", type=int, default=10000)
     parser.add_argument("--nsteps", help="Number of steps",
                         type=int, default=-1)
     parser.add_argument("--bsize", help="Buffer size", type=int, default=None)

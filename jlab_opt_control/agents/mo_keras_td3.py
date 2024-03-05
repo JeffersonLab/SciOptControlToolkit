@@ -272,15 +272,18 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         """ Method used to train """
         self.ntrain_calls += 1
 
+        print('train...')
         if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
             # Get sampling range
             if "PER" in self.buffer_type:
                 states, actions, rewards, next_states, dones, weights, alphas = self.buffer.sample(
                     self.batch_size)
                 weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
+                print(f'PER train alphas: {alphas.shape}')
             elif "ER" in self.buffer_type: # CHANGE THIS TO USE THE ALPHAS
                 states, actions, rewards, next_states, dones, _, alphas = self.buffer.sample(
                     self.batch_size)
+                print(f'ER train alphas: {alphas.shape}')
             else:
                 print("ERROR: Please check configuration of agent for buffer type.")
 
@@ -292,6 +295,8 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 next_states, dtype=tf.float32)
             done_batch = tf.convert_to_tensor(dones, dtype=tf.float32)
             alpha_batch = tf.convert_to_tensor(alphas, dtype=tf.float32)
+            print(f'pre-alpha_batch: {alphas.shape}')
+            print(f'alpha_batch: {alpha_batch.shape}')
 
             # Train critic
             if "PER" in self.buffer_type:
@@ -335,8 +340,8 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         # Warmup completed, sample from actor
         else:
             state = tf.expand_dims(state, 0)
-
             alphas = tf.expand_dims(alphas, 0)
+            print(f'alpha:{alphas.shape}')
             sampled_action = self.actor_model(state, alphas).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,

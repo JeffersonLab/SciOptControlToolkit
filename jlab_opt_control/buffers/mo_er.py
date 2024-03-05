@@ -45,7 +45,7 @@ class MO_ER(Replay):
         self.dones = np.zeros((self.buffer_capacity, 1))
         self.priorities = np.ones(self.buffer_capacity)
         self.alphas = np.zeros((self.buffer_capacity, self.reward_dim))
-
+        print(f'self.alphas:{self.alphas.shape}')
         self.indices = None
         self.sample_counts = np.zeros((self.buffer_capacity, 1))
 
@@ -60,8 +60,8 @@ class MO_ER(Replay):
         self.next_states[self.current_index] = memory[3]
         self.dones[self.current_index] = memory[4]
         self.priorities[self.current_index] = memory[5]
-        self.alphas[self.current_index] = memory[6]
-
+        self.alphas[self.current_index] = memory[6][0]
+        #print(f'self.alphas[self.current_index]: {self.alphas[self.current_index].shape}')
         # Reset count of sampling experience to zero if overwriting experiences
         if (self.pointer >= self.buffer_capacity):
             self.sample_counts[self.current_index] = 0
