@@ -45,7 +45,7 @@ class MO_ER(Replay):
         self.dones = np.zeros((self.buffer_capacity, 1))
         self.priorities = np.ones(self.buffer_capacity)
         self.alphas = np.zeros((self.buffer_capacity, self.reward_dim))
-        print(f'self.alphas:{self.alphas.shape}')
+        #print(f'self.alphas:{self.alphas.shape}')
         self.indices = None
         self.sample_counts = np.zeros((self.buffer_capacity, 1))
 

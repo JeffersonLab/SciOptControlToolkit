@@ -33,6 +33,7 @@ import os
 import time
 from datetime import datetime
 
+import matplotlib.pyplot as plt
 import tensorflow as tf
 
 import numpy as np
@@ -143,13 +144,15 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         time_start = time.process_time()
         prev_state, _ = env.reset()
+        # Random option
         # alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
         # alphas = alphas.astype(dtype=np.float32)
+        # Fixed option
         alphas = np.zeros(env.reward_space.shape[0])
         alphas = alphas.astype(dtype=np.float32)
-        # print('inference_alphas',inference_alphas.shape)
-        alphas[1] = 1.0
+        alphas[0] = 1.0
         alphas = np.expand_dims(alphas, 0)
+        run_openai_log.debug(f'Train alphas: {np.sum(alphas)}')
         #alphas = tf.expand_dims(alphas, 0)
         #print('loop alphas',alphas.shape)
         episode_timesteps = 0
@@ -199,6 +202,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
                 inference_alphas[r] = 1.0
                 inference_alphas  = np.expand_dims(inference_alphas, 0)
+                run_openai_log.debug(f'Inference alphas focused: {np.sum(inference_alphas)}')
 
                 inference_prev_state, _ = env.reset()
 
@@ -206,7 +210,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 while inference_done is False:
                     inference_action, inference_action_noise = agent.action(
                         tf.convert_to_tensor(inference_prev_state),
-                        tf.convert_to_tensor(inference_alphas))
+                        tf.convert_to_tensor(inference_alphas), train=False)
                     inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
                         env.step(inference_action)
 
@@ -217,6 +221,37 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                         break
                 tf.summary.scalar(f'Inference Reward Objective #{r}',
                                   data=inference_episodic_reward[r], step=int(ep))
+
+        if (ep % 500 == 0 and ep>=2500) and "PACES-MO-CEBAF" in env_id:
+            max_inferences = 1000
+            heats, trips = [],[]
+            for i in range(max_inferences):
+                inference_prev_state, _ = env.reset()
+                inference_alphas = np.zeros(env.reward_space.shape[0])
+                inference_alphas[0] = 1 - i * (1.0 / max_inferences)
+                inference_alphas[1] = i * (1.0 / max_inferences)
+                run_openai_log.debug(f'Inference alphas scan: {np.sum(inference_alphas)}')
+                inference_alphas  = np.expand_dims(inference_alphas, 0)
+                inference_alphas = inference_alphas.astype(dtype=np.float32)
+
+                #
+                inference_action, inference_action_noise = agent.action(
+                    tf.convert_to_tensor(inference_prev_state),
+                    tf.convert_to_tensor(inference_alphas), train=False)
+                inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
+                    env.step(inference_action)
+                if inference_reward[0]>0 and inference_reward[1]>0:
+                    heats.append(inference_info['heat'])
+                    trips.append(inference_info['trip'])
+
+            if len(heats)>10:
+                plt.plot(heats,trips,'o')
+                filename = f'{logdir}/pareto_ep{ep}.png'
+                #print(f'filename: {filename}')
+                plt.xlabel('Heat Load')
+                plt.ylabel('Trip Rate')
+                plt.savefig(filename)
+                plt.clf()
 
             # init for first epoch
             # if (ep == 0):
