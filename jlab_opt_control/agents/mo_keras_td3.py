@@ -220,6 +220,8 @@ class MO_KerasTD3(jlab_opt_control.Agent):
 
         # Bellman equation for the q value
         q_targets = weighted_rewards + self.gamma * target_q * (1.0 - dones)
+        #q_targets = rewards + self.gamma * target_q * (1.0 - dones)
+        #q_targets = tf.multiply(q_targets, alphas_reshaped)
 
         # Critic 1 and 2
         with tf.GradientTape() as tape:
@@ -257,9 +259,10 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         with tf.GradientTape() as tape:
             actions = self.actor_model(states, alphas, training=True)
             q_values = self.critic_model1(states, actions, training=False)
-            alphas_reshaped = tf.reshape(alphas, tf.shape(q_values)) # Might not be needed
-            weighted_q_values = tf.multiply(q_values, alphas_reshaped)
-            loss = -tf.math.reduce_mean(weighted_q_values)
+            # alphas_reshaped = tf.reshape(alphas, tf.shape(q_values)) # Might not be needed
+            # weighted_q_values = tf.multiply(q_values, alphas_reshaped)
+            #loss = -tf.math.reduce_mean(weighted_q_values)
+            loss = -tf.math.reduce_mean(q_values)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))

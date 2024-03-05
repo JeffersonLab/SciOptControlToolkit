@@ -143,8 +143,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         time_start = time.process_time()
         prev_state, _ = env.reset()
-        alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
+        # alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
+        # alphas = alphas.astype(dtype=np.float32)
+        alphas = np.zeros(env.reward_space.shape[0])
         alphas = alphas.astype(dtype=np.float32)
+        # print('inference_alphas',inference_alphas.shape)
+        alphas[1] = 1.0
+        alphas = np.expand_dims(alphas, 0)
         #alphas = tf.expand_dims(alphas, 0)
         #print('loop alphas',alphas.shape)
         episode_timesteps = 0
