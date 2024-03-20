@@ -269,7 +269,7 @@ class KerasTD3(jlab_opt_control.Agent):
                     self.batch_size)
                 weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
             elif "ER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _, alphas = self.buffer.sample(
+                states, actions, rewards, next_states, dones, _ = self.buffer.sample(
                     self.batch_size)
             else:
                 print("ERROR: Please check configuration of agent for buffer type.")

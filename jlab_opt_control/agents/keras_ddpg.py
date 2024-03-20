@@ -238,7 +238,7 @@ class KerasDDPG(jlab_opt_control.Agent):
         if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
             # Get sampling range
             if "PER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _, weights = self.buffer.sample(
+                states, actions, rewards, next_states, dones, weights = self.buffer.sample(
                     self.batch_size)
                 weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
             elif "ER" in self.buffer_type:

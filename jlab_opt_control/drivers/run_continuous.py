@@ -25,28 +25,38 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+# Standard Library Imports
 
-import logging
 import argparse
+import logging
 import os
-
 import time
 from datetime import datetime
-
-import tensorflow as tf
-
-import numpy as np
-import jlab_opt_control.agents
-from jlab_opt_control.utils.git_utils import get_git_revision_short_hash
-from tqdm import tqdm
 import warnings
 
-warnings.filterwarnings("ignore")
+# Third-Party Imports
+import tensorflow as tf
+import numpy as np
+from tqdm import tqdm
+import gymnasium as gym
 
+# Local Application/Library Specific Imports
+import jlab_opt_control.agents
+from jlab_opt_control.utils.git_utils import get_git_revision_short_hash
+import jlab_opt_control.envs as custom_gym
+
+warnings.filterwarnings("ignore")
 
 run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
+
+# PACEs
+try:
+    import paces.paces_envs as paces_gym
+    run_openai_log.info("PACEs environments successfully imported")
+except ImportError:
+    run_openai_log.info("PACEs environments not installed")
 
 seed = 1  # time.time_ns()
 tf.random.set_seed(seed)
@@ -85,19 +95,15 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     #
     # Environment
     run_openai_log.info('Running env: {}'.format(env_id))
-    if ('HalfCheetah' or 'Hopper') in env_id:
-        import gymnasium as gym
-        env = gym.make(
-            env_id, exclude_current_positions_from_observation=False)
-    elif 'DnC2s' in env_id:
-        import jlab_opt_control.envs as gym
+
+    if env_id in gym.envs.registry:
         env = gym.make(env_id)
-    elif 'PACES' in env_id:
-        import paces.paces_envs as gym
-        env = gym.make(env_id)
+    elif env_id in custom_gym.list_registered_modules():
+        env = custom_gym.make(env_id)
+    elif 'paces_gym' in globals() and env_id in paces_gym.list_registered_modules():
+        env = paces_gym.make(env_id)
     else:
-        import gymnasium as gym
-        env = gym.make(env_id)
+        run_openai_log.error('Error finding environment')
 
     if max_nsteps != -1:
         env._max_episode_steps = max_nsteps
