@@ -28,11 +28,7 @@
 
 from jlab_opt_control.agents.registration import register, make, list_registered_modules
 from jlab_opt_control.agents.keras_td3 import KerasTD3
-from jlab_opt_control.agents.mo_keras_td3 import MO_KerasTD3
 from jlab_opt_control.agents.keras_ddpg import KerasDDPG
-from jlab_opt_control.agents.genai_keras_td3 import GenAIKerasTD3
-
-
 
 # Single Objective Agents
 register(
@@ -45,17 +41,4 @@ register(
     id='KerasDDPG-v0',
     entry_point='jlab_opt_control.agents:KerasDDPG',
     kwargs={'cfg': 'keras_ddpg.cfg'},
-)
-
-register(
-    id='GenAIKerasTD3-v0',
-    entry_point='jlab_opt_control.agents:GenAIKerasTD3',
-    kwargs={'cfg': 'genai_keras_td3.cfg'},
-)
-
-# Multi Objective Agents
-register(
-    id='MO-KerasTD3-v0',
-    entry_point='jlab_opt_control.agents:MO_KerasTD3',
-    kwargs={'cfg': 'mo_keras_td3.cfg'},
 )
