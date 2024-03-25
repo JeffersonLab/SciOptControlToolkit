@@ -198,11 +198,8 @@ class KerasDDPG(jlab_opt_control.Agent):
         with tf.GradientTape() as tape:
             q_values1 = self.critic_model1(states, actions, training=True)
             td_errors1 = q_values1 - q_targets
-            if "PER" in self.buffer_type:
-                critic_loss1 = self.mse_loss(
-                    q_values1, q_targets, sample_weight=weights)
-            else:
-                critic_loss1 = self.mse_loss(q_values1, q_targets)
+            critic_loss1 = self.mse_loss(
+                q_values1, q_targets, sample_weight=weights)
             critic_loss = critic_loss1
         gradients = tape.gradient(
             critic_loss, self.critic_model1.trainable_variables)
@@ -236,33 +233,21 @@ class KerasDDPG(jlab_opt_control.Agent):
         self.ntrain_calls += 1
 
         if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
-            # Get sampling range
-            if "PER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _, weights = self.buffer.sample(
-                    self.batch_size)
-                weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
-            elif "ER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _ = self.buffer.sample(
-                    self.batch_size)
-            else:
-                print("ERROR: Please check configuration of agent for buffer type.")
+            # Get samples
+            states, actions, rewards, next_states, dones, weights = self.buffer.sample(
+                self.batch_size)
 
             # Convert to tensors
             state_batch = tf.convert_to_tensor(states, dtype=tf.float32)
             action_batch = tf.convert_to_tensor(actions, dtype=tf.float32)
             reward_batch = tf.convert_to_tensor(rewards, dtype=tf.float32)
-            next_state_batch = tf.convert_to_tensor(
-                next_states, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(next_states, dtype=tf.float32)
             done_batch = tf.convert_to_tensor(dones, dtype=tf.float32)
+            weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
 
             # Train critic
-            if "PER" in self.buffer_type:
-                critic_loss, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
+            critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
                                                                           next_state_batch, done_batch, weights_batch)
-            elif "ER" in self.buffer_type:
-                critic_loss, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
-                                                                          next_state_batch, done_batch, _)
-
             tf.summary.scalar('Critic Loss', data=critic_loss,
                               step=int(self.ntrain_calls))
 
