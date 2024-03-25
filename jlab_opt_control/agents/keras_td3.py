@@ -264,23 +264,10 @@ class KerasTD3(jlab_opt_control.Agent):
         self.ntrain_calls += 1
 
         if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
-<<<<<<< HEAD
-            # Get sampling range
-            if "PER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, weights = self.buffer.sample(
-                    self.batch_size)
-                weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
-            elif "ER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _ = self.buffer.sample(
-                    self.batch_size)
-            else:
-                print("ERROR: Please check configuration of agent for buffer type.")
-=======
 
             # Get samples
             states, actions, rewards, next_states, dones, weights = self.buffer.sample(
                 self.batch_size)
->>>>>>> 42-fix-per
 
             # Convert to tensors
             state_batch = tf.convert_to_tensor(states, dtype=tf.float32)
