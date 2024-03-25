@@ -28,8 +28,10 @@
 
 from jlab_opt_control.models.registration import register, make, list_registered_modules
 from jlab_opt_control.models.actor_fcnn import ActorFCNN
+from jlab_opt_control.models.mo_actor_fcnn import MO_ActorFCNN
 from jlab_opt_control.models.actor_fcnn_v2 import ActorFCNN_v2
 from jlab_opt_control.models.critic_fcnn import CriticFCNN
+from jlab_opt_control.models.mo_critic_fcnn import MO_CriticFCNN
 
 register(
     id='actor_fcnn-v0',
@@ -47,4 +49,18 @@ register(
     id='critic_fcnn-v0',
     entry_point='jlab_opt_control.models:CriticFCNN',
     kwargs={'cfg': 'critic_fcnn.cfg'},
+)
+
+# Multi Objective Models
+
+register(
+    id='mo_actor_fcnn-v0',
+    entry_point='jlab_opt_control.models:MO_ActorFCNN',
+    kwargs={'cfg': 'mo_actor_fcnn.cfg'},
+)
+
+register(
+    id='mo_critic_fcnn-v0',
+    entry_point='jlab_opt_control.models:MO_CriticFCNN',
+    kwargs={'cfg': 'mo_critic_fcnn.cfg'},
 )
