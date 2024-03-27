@@ -161,6 +161,10 @@ class KerasDDPG(jlab_opt_control.Agent):
         self.target_actor = jlab_opt_control.models.make(
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
 
+        # Run through model once to initialize variables
+        self.actor_model(tf.zeros([1, self.num_states]))
+        self.target_actor(tf.zeros([1, self.num_states]))
+
         self.actor_model.save_cfg()
         
         seed1 = time.time_ns()
@@ -173,6 +177,10 @@ class KerasDDPG(jlab_opt_control.Agent):
             self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
         self.target_critic1 = jlab_opt_control.models.make(
             self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+
+        # Run through model once to initialize variables
+        self.critic_model1(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
+        self.target_critic1(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
 
         self.critic_model1.save_cfg()
 
@@ -309,19 +317,28 @@ class KerasDDPG(jlab_opt_control.Agent):
         self.buffer.record(memory_with_default_priority)
 
     def load(self):
-        """ Load the ML models """
+    """ Load the ML models """
         try:
-            self.actor_model.load_weights(
-                join(self.model_load_path, "actor_model.h5"))
-            self.target_actor.load_weights(
-                join(self.model_load_path, "target_actor.h5"))
-            self.critic_model1.load_weights(
-                join(self.model_load_path, "critic_model1.h5"))
-            self.target_critic1.load_weights(
-                join(self.model_load_path, "target_critic1.h5"))
-            ddpg_log.info('Models loaded successfully')
+            model_load_count = 0
+            for file in os.listdir(self.model_load_path):
+                if 'actor_model' in file and file.endswith('.h5'):
+                    self.actor_model.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+                elif 'target_actor' in file and file.endswith('.h5'):
+                    self.target_actor.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+                elif 'critic_model1' in file and file.endswith('.h5'):
+                    self.critic_model1.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+                elif 'target_critic1' in file and file.endswith('.h5'):
+                    self.target_critic1.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+            if model_load_count == 4:
+                ddpg_log.info('Models loaded successfully')
+            else:
+                ddpg_log.error('Models not loaded properly, please check model save directory')
         except:
-            ddpg_log.error("Error in loading the models...")
+            ddpg_log.error("Error while loading models, initializing new models...")
 
     def save(self, post_fix="test"):
         """ Save the ML models """
