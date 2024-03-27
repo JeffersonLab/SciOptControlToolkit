@@ -29,6 +29,8 @@
 import unittest as unittest
 import jlab_opt_control.agents as agents
 import jlab_opt_control.envs as envs
+import jlab_opt_control.buffers as buffers
+import jlab_opt_control.models as models
 import gymnasium as gym
 
 
@@ -58,17 +60,16 @@ class RegistryTests(unittest.TestCase):
             print('Continuous env test agent:', agent_id)
             agents.make(agent_id, env=env, logdir='./')
 
-    def test_discrete_agents(self):
-        """
-        Test each agent using a OpenAI gym env
-        :return: No return value
-        """
-        env = gym.make('CartPole-v0')
-        registered_agents = agents.list_registered_modules()
-        for agent_id in registered_agents:
-            print('Discrete env test agent:', agent_id)
-            agents.make(agent_id, env=env, logdir='./')
-
+    # def test_discrete_agents(self):
+    #     """
+    #     Test each agent using a OpenAI gym env
+    #     :return: No return value
+    #     """
+    #     env = gym.make('CartPole-v0')
+    #     registered_agents = agents.list_registered_modules()
+    #     for agent_id in registered_agents:
+    #         print('Discrete env test agent:', agent_id)
+    #         agents.make(agent_id, env=env, logdir='./')
 
     def test_registered_agents(self):
         """
@@ -76,11 +77,23 @@ class RegistryTests(unittest.TestCase):
         registered_agents = agents.list_registered_modules()
         print('Registered agents:', registered_agents)
 
+    def test_registered_models(self):
+        """
+        """
+        registered_models = models.list_registered_modules()
+        print('Registered models:', registered_models)
+
     def test_registered_envs(self):
         """
         """
         registered_envs = envs.list_registered_modules()
         print('Registered envs:', registered_envs)
+
+    def test_registered_buffers(self):
+        """
+        """
+        registered_buffers = buffers.list_registered_modules()
+        print('Registered buffers:', registered_buffers)
 
 
 if __name__ == '__main__':

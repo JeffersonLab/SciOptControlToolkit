@@ -43,24 +43,23 @@ import sys
 import shutil
 processor = platform.processor()
 
-td3_log = logging.getLogger("TD3-Agent")
-td3_log.setLevel(logging.DEBUG)
+
+ddpg_log = logging.getLogger("DDPG-Agent")
+ddpg_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class KerasTD3(jlab_opt_control.Agent):
+class KerasDDPG(jlab_opt_control.Agent):
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_td3.json'):
+    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_ddpg.json'):
         """ Define all key variables required for all agent """
 
         # Get env info
-        self.target_critic2 = None
-        self.critic_model2 = None
         self.target_critic1 = None
         self.critic_model1 = None
         self.target_actor = None
         self.actor_model = None
-        td3_log.info('Running KerasTD3 __init__')
+        ddpg_log.info('Running KerasDDPG __init__')
 
         # Environment setup
         self.env = env
@@ -70,16 +69,16 @@ class KerasTD3(jlab_opt_control.Agent):
             self.num_actions = env.action_space.shape[0]
             self.upper_bound = env.action_space.high
             self.lower_bound = env.action_space.low
-            td3_log.info(f'Action upper bound: {self.upper_bound}')
-            td3_log.info(
+            ddpg_log.info(f'Action upper bound: {self.upper_bound}')
+            ddpg_log.info(
                 f'Action upper bound: {float(env.action_space.high[0])}')
-            td3_log.info(f'Action lower bound: {self.lower_bound}')
-            td3_log.info(
+            ddpg_log.info(f'Action lower bound: {self.lower_bound}')
+            ddpg_log.info(
                 f'Action lower bound: {float(env.action_space.low[0])}')
             self.range = self.upper_bound - self.lower_bound
-            td3_log.info(f'Action range: {self.range}')
+            ddpg_log.info(f'Action range: {self.range}')
         except:
-            td3_log.error('Action space not valid for this agent.')
+            ddpg_log.error('Action space not valid for this agent.')
             sys.exit(0)
 
         # Load configuration
@@ -87,12 +86,13 @@ class KerasTD3(jlab_opt_control.Agent):
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
         self.pfn_json_file = os.path.join(full_path, cfg)
-        td3_log.debug(f'pfn_json_file:{self.pfn_json_file}')
+        ddpg_log.debug(f'pfn_json_file:{self.pfn_json_file}')
         with open(self.pfn_json_file) as json_file:
             data = json.load(json_file)
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
+        self.model_save_path = cfg_utils.cfg_get(data, 'save_model', None)
 
         self.actor_model_type = cfg_utils.cfg_get(
             data, 'actor_model', "actor_fcnn-v0")
@@ -124,7 +124,7 @@ class KerasTD3(jlab_opt_control.Agent):
             data, 'actor_learning_rate', 1e-4))
 
         if processor == 'arm':
-            td3_log.info('Using legacy Adam')
+            ddpg_log.info('Using legacy Adam')
             self.critic_optimizer = tf.keras.optimizers.legacy.Adam(
                 self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
@@ -143,24 +143,18 @@ class KerasTD3(jlab_opt_control.Agent):
 
         # update counting
         self.ntrain_calls = 0
-        self.actor_update_freq = int(
-            cfg_utils.cfg_get(data, 'actor_update_freq', 2))
-        self.critic_update_freq = int(
-            cfg_utils.cfg_get(data, 'critic_update_freq', 2))
-
-        self.noise_clip = 0.5
 
         try:
             os.mkdir(self.logdir)
         except OSError as error:
-            td3_log.warning(error)
+            ddpg_log.warning(error)
         file_writer = tf.summary.create_file_writer(self.logdir + '/metrics')
         file_writer.set_as_default()
         self.nactions = 0
 
     def initialize_new_models(self):
         """ Initialize new models from scratch """
-        td3_log.info('Running KerasTD3 initialize_new_models()')
+        ddpg_log.info('Running KerasDDPG initialize_new_models()')
 
         self.actor_model = jlab_opt_control.models.make(
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
@@ -172,11 +166,11 @@ class KerasTD3(jlab_opt_control.Agent):
         self.target_actor(tf.zeros([1, self.num_states]))
 
         self.actor_model.save_cfg()
-
+        
         seed1 = time.time_ns()
         str_seed1 = str(seed1)
         seed1 = int(str_seed1[9:-3])
-        td3_log.debug(f'seed1:{seed1}')
+        ddpg_log.debug(f'seed1:{seed1}')
         tf.random.set_seed(seed1)
 
         self.critic_model1 = jlab_opt_control.models.make(
@@ -190,68 +184,39 @@ class KerasTD3(jlab_opt_control.Agent):
 
         self.critic_model1.save_cfg()
 
-        time.sleep(1 / 10)
-        seed2 = time.time_ns()
-        str_seed2 = str(seed2)
-        seed2 = int(str_seed2[9:-3])
-        td3_log.debug(f'seed2:{seed2}')
-        tf.random.set_seed(seed2)
-
-        self.critic_model2 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
-        self.target_critic2 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
-
-        # Run through model once to initialize variables
-        self.critic_model2(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
-        self.target_critic2(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
-
         self.target_actor.set_weights(self.actor_model.get_weights())
         self.target_critic1.set_weights(self.critic_model1.get_weights())
-        self.target_critic2.set_weights(self.critic_model2.get_weights())
 
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones, weights):
         # Generate the proper noise
-        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
-        noise_clipped = tf.clip_by_value(
-            noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
-        next_actions = tf.clip_by_value(self.target_actor(
-            next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
+
+        next_actions = self.target_actor(
+            next_states, training=False)
 
         target_q1 = self.target_critic1(
             next_states, next_actions, training=False)
-        target_q2 = self.target_critic2(
-            next_states, next_actions, training=False)
-        target_q = tf.math.minimum(target_q1, target_q2)
+
+        target_q = target_q1
 
         # Bellman equation for the q value
         q_targets = rewards + self.gamma * target_q * (1.0 - dones)
 
         # Critic 1 and 2
         with tf.GradientTape() as tape:
-        
             q_values1 = self.critic_model1(states, actions, training=True)
-            q_values2 = self.critic_model2(states, actions, training=True)
-
             td_errors1 = q_values1 - q_targets
-            td_errors2 = q_values2 - q_targets
-
             critic_loss1 = self.mse_loss(
                 q_values1, q_targets, sample_weight=weights)
-            critic_loss2 = self.mse_loss(
-                q_values2, q_targets, sample_weight=weights)
-            
-            critic_losses = critic_loss1 + critic_loss2
-
+            critic_loss = critic_loss1
         gradients = tape.gradient(
-            critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
+            critic_loss, self.critic_model1.trainable_variables)
         self.critic_optimizer.apply_gradients(zip(
-            gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
+            gradients, self.critic_model1.trainable_variables))
 
-        td_errors_avg = (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
+        td_errors_avg = td_errors1
 
-        return critic_loss1, critic_loss2, td_errors_avg
+        return critic_loss, td_errors_avg
 
     @tf.function
     def train_actor(self, states):
@@ -276,7 +241,6 @@ class KerasTD3(jlab_opt_control.Agent):
         self.ntrain_calls += 1
 
         if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
-
             # Get samples
             states, actions, rewards, next_states, dones, weights = self.buffer.sample(
                 self.batch_size)
@@ -292,10 +256,7 @@ class KerasTD3(jlab_opt_control.Agent):
             # Train critic
             critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
                                                                           next_state_batch, done_batch, weights_batch)
-
-            tf.summary.scalar('Critic Loss 1', data=critic_loss1,
-                              step=int(self.ntrain_calls))
-            tf.summary.scalar('Critic Loss 2', data=critic_loss2,
+            tf.summary.scalar('Critic Loss', data=critic_loss,
                               step=int(self.ntrain_calls))
 
             # Update Priorities
@@ -303,18 +264,16 @@ class KerasTD3(jlab_opt_control.Agent):
                 new_priorities = td_errors.numpy()
                 self.buffer.update_priorities(new_priorities)
 
-            if self.ntrain_calls % self.actor_update_freq == 0:
-                actor_loss = self.train_actor(state_batch)
-                tf.summary.scalar('Actor Loss', data=actor_loss,
-                                  step=int(self.ntrain_calls))
-                self.soft_update(self.target_actor.variables,
-                                 self.actor_model.variables)
-
-            if self.ntrain_calls % self.critic_update_freq == 0:
-                self.soft_update(self.target_critic1.variables,
+            # if self.ntrain_calls % self.actor_update_freq == 0:
+            actor_loss = self.train_actor(state_batch)
+            tf.summary.scalar('Actor Loss', data=actor_loss,
+                                step=int(self.ntrain_calls))
+            
+            # Perform soft updates
+            self.soft_update(self.target_actor.variables,
+                                self.actor_model.variables)
+            self.soft_update(self.target_critic1.variables,
                                  self.critic_model1.variables)
-                self.soft_update(self.target_critic2.variables,
-                                 self.critic_model2.variables)
 
     def action(self, state, train=True, inference=False):
         """ Method used to provide the next action using the target model """
@@ -374,18 +333,12 @@ class KerasTD3(jlab_opt_control.Agent):
                 elif 'target_critic1' in file and file.endswith('.h5'):
                     self.target_critic1.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'critic_model2' in file and file.endswith('.h5'):
-                    self.critic_model2.load_weights(join(self.model_load_path, file))
-                    model_load_count += 1
-                elif 'target_critic2' in file and file.endswith('.h5'):
-                    self.target_critic2.load_weights(join(self.model_load_path, file))
-                    model_load_count += 1
-            if model_load_count == 6:
-                td3_log.info('Models loaded successfully')
+            if model_load_count == 4:
+                ddpg_log.info('Models loaded successfully')
             else:
-                td3_log.error('Models not loaded properly, please check model save directory')
+                ddpg_log.error('Models not loaded properly, please check model save directory')
         except:
-            td3_log.error("Error while loading models, initializing new models...")
+            ddpg_log.error("Error while loading models, initializing new models...")
 
     def save(self, post_fix="test"):
         """ Save the ML models """
@@ -406,13 +359,8 @@ class KerasTD3(jlab_opt_control.Agent):
                 join(destination_file_path, "critic_model1_" + post_fix + ".h5"))
             self.target_critic1.save_weights(
                 join(destination_file_path, "target_critic1_" + post_fix + ".h5"))
-            self.critic_model2.save_weights(
-                join(destination_file_path, "critic_model2_" + post_fix + ".h5"))
-            self.target_critic2.save_weights(
-                join(destination_file_path, "target_critic2_" + post_fix + ".h5"))
-            td3_log.info('Agent models saved successfully')
         except:
-            td3_log.error("Error in saving the models...")
+            ddpg_log.error("Error in saving the models...")
 
     def save_cfg(self):
         """ Save the actor cfg """
@@ -423,6 +371,6 @@ class KerasTD3(jlab_opt_control.Agent):
             destination_file_path = os.path.join(
                 destination_file_path, os.path.basename(self.pfn_json_file))
             shutil.copy(self.pfn_json_file, destination_file_path)
-            td3_log.info('Agent config saved successfully')
+            ddpg_log.info('Agent config saved successfully')
         except:
-            td3_log.error("Error in saving the agent cfg...")
+            ddpg_log.error("Error in saving the agent cfg...")

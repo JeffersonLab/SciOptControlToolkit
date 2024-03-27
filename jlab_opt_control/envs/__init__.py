@@ -4,11 +4,13 @@ from jlab_opt_control.envs.circle_env import Circle2D
 register(
     id='DnC2s-Circle2D-Statefull-v0',
     entry_point='jlab_opt_control.envs:Circle2D',
-    kwargs={'rdm_reset_mode': 'fixed', 'statefull': True, 'max_episode_steps': 1}
+    kwargs={'rdm_reset_mode': 'fixed',
+            'statefull': True, 'max_episode_steps': 1}
 )
 
 register(
     id='DnC2s-Circle2D-Stateless-v0',
     entry_point='jlab_opt_control.envs:Circle2D',
-    kwargs={'rdm_reset_mode': 'fixed', 'statefull': False, 'max_episode_steps': 1}
+    kwargs={'rdm_reset_mode': 'fixed',
+            'statefull': False, 'max_episode_steps': 1}
 )
