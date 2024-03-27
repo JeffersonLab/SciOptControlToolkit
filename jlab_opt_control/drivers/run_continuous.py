@@ -39,6 +39,7 @@ import jlab_opt_control.agents
 from jlab_opt_control.utils.git_utils import get_git_revision_short_hash
 from tqdm import tqdm
 import warnings
+from gymnasium.wrappers import FlattenObservation
 
 warnings.filterwarnings("ignore")
 
@@ -79,6 +80,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
     elif 'DnC2s' in env_id:
         import jlab_opt_control.envs as gym
         env = gym.make(env_id)
+    elif "PACES" in env_id:
+        import paces.paces_envs as gym
+        env = gym.make(env_id)
+    elif 'lcls' in env_id:
+        import src.environments as gym
+        env = gym.make(env_id)
+        env = FlattenObservation(env)
     else:
         import gymnasium as gym
         env = gym.make(env_id)
@@ -121,6 +129,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
         episode_timesteps = 0
         episodic_reward = 0
         done = False
+        count = 0
         while (done==False):
             total_nsteps += 1
             episode_timesteps += 1
@@ -145,10 +154,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
             episodic_reward += reward
             agent.train()
             prev_state = state
-
-            # End this episode when `done` is True
-            # if done:
-            #     break
+            count += 1
+            if count >= max_nsteps or done:
+                count = 0
+                break
 
         ep_reward_list.append(episodic_reward)
         tf.summary.scalar('Training Reward', data=episodic_reward, step=int(ep))
@@ -158,14 +167,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
             inference_episodic_reward = 0
             inference_prev_state, _ = env.reset()
             inference_done = False
+            count = 0
             while (inference_done==False):
                 inference_action, inference_action_noise = agent.action(tf.convert_to_tensor(inference_prev_state), train=False)
                 inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(inference_action)
                 inference_episodic_reward += inference_reward
                 inference_prev_state = inference_state
                 inference_done = (inference_terminate or inference_truncate)
-                # if done:
-                #     break
+                count += 1
+                if count >= max_nsteps or done:
+                    break
 
         tf.summary.scalar('Inference Reward', data=inference_episodic_reward, step=int(ep))
 
