@@ -254,7 +254,7 @@ class KerasDDPG(jlab_opt_control.Agent):
             weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
 
             # Train critic
-            critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
+            critic_loss, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
                                                                           next_state_batch, done_batch, weights_batch)
             tf.summary.scalar('Critic Loss', data=critic_loss,
                               step=int(self.ntrain_calls))
