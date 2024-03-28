@@ -39,5 +39,4 @@ conda activate jlab_opt_control_env (required every time you use the package)
 ```
 pip install -e . (only once)
 ```
-## Overview 
-https://github.com/JeffersonLab/SciOptControlToolkit/wiki/Overview
+## [Wiki](https://github.com/JeffersonLab/SciOptControlToolkit/wiki)
