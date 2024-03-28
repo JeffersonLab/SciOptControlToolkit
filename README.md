@@ -14,10 +14,12 @@
 ├── utests                            : Folder containing a collection of unit tests
 ├── jlab_opt_control
     ├── agents                        : Folder containing different agents
+    ├── buffers                       : Folder containing different buffers
     ├── cfgs                          : Folder containing configuration filesfor agents and environments
     ├── core                          : Folder containing base classes
     ├── drivers                       : Folder containing workflow modules / drivers
-    ├── envs                          : Folder containing different environemments 
+    ├── envs                          : Folder containing different environemments
+    ├── models                        : Folder containing different models
     ├── utils                         : Folder containing supporting tools (e.g. monitoring)
 ```
 
