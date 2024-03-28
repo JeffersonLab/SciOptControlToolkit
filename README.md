@@ -25,20 +25,24 @@
 
 ## Installing
 
-- Clone code from repo
+- Clone code from repo and move into directory
 ```
 git clone https://github.com/JeffersonLab/SciOptControlToolkit.git
 cd SciOptControlToolkit
 ```
 
-* Create default conda environment setup:
+* Create default conda environment setup: (only once)
 ```
-conda env create --file env.yaml (only once)
-conda activate jlab_opt_control_env (required every time you use the package)
+conda env create --file env.yaml
 ```
 
-- Install package in environment
+* Activate conda environment: (required every time you use the package)
 ```
-pip install -e . (only once)
+conda activate jlab_opt_control_env
 ```
-## [Wiki](https://github.com/JeffersonLab/SciOptControlToolkit/wiki)
+
+- Install the package in environment (only once)
+```
+pip install -e .
+```
+## [Documentation](https://github.com/JeffersonLab/SciOptControlToolkit/wiki)
