@@ -1,3 +1,5 @@
+################# Depricated ... will be removed soon##########################
+
 # Copyright (c) 2020, Jefferson Science Associates, LLC. All Rights Reserved. Redistribution
 # and use in source and binary forms, with or without modification, are permitted as a
 # licensed user provided that the following conditions are met:
@@ -39,58 +41,12 @@ import jlab_opt_control.agents
 from jlab_opt_control.utils.git_utils import get_git_revision_short_hash
 from tqdm import tqdm
 import warnings
-import matplotlib.pyplot as plt
 from gymnasium.wrappers import FlattenObservation
 
 warnings.filterwarnings("ignore")
 
 import logging
-
-config = {
-        # Environment
-        "action_mode": "delta",
-        "clip_magnets": True,
-        "max_quad_delta": 0.1
-        * np.array(
-            [
-                0.131072,
-                0.262144,
-                0.524288,
-                0.262144,
-                0.262144,
-                0.262144,
-                0.262144,
-                0.262144,
-                0.262144,
-                0.262144,
-                0.065536,
-                0.065536,
-                0.065536,
-                0.131072,
-            ]
-        ),
-        "magnet_init_mode": "design",
-        "target_threshold": None,  # I think 5.0 is detector limit
-        "threshold_hold": 1,
-        "backend": "cheetah",  # Don't change this
-        "tws0_mode": "curriculum",
-        "magnet_space_mode": "narrow",
-        "terminate_on_beam_loss": True,
-        # Reward (also environment)
-        "fel_intensity_transform": "ClippedLinear",
-        "magnet_change_transform": "Sigmoid",
-        "magnet_change_combiner": "Mean",
-        "magnet_change_combiner_args": {},
-        "magnet_change_combiner_weights": [1] * 14,
-        "magnet_setting_transform": "SoftPlus",
-        "magnet_setting_combiner": "Mean",
-        "magnet_setting_combiner_args": {},
-        "magnet_setting_combiner_weights": [1] * 14,
-        "final_combiner": "Mean",
-        "final_combiner_args": {},
-        "final_combiner_weights": [3, 0.5, 0.5]
-}
-
+ 
 run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
@@ -104,6 +60,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
     githash = get_git_revision_short_hash()
     run_openai_log.debug(githash)
     run_openai_log.debug(logdir)
+    
     if logdir == 'None':
         logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_hash" \
                  + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -125,33 +82,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
     elif 'DnC2s' in env_id:
         import jlab_opt_control.envs as gym
         env = gym.make(env_id)
-    elif 'fel' in env_id:
-        from lcls_fel_tuning.environments.lcls_li26hxr import FELIntensityTuning
-        # env = FELIntensityTuning(backend="cheetah", magnet_init_mode="design") 
-        env = FELIntensityTuning(
-            backend=config["backend"],
-            backend_args={"tws0_mode": config["tws0_mode"]},
-            action_mode=config["action_mode"],
-            magnet_init_mode=config["magnet_init_mode"],
-            magnet_space_mode=config["magnet_space_mode"],
-            max_quad_delta=config["max_quad_delta"],
-            target_threshold=config["target_threshold"],
-            threshold_hold=config["threshold_hold"],
-            clip_magnets=config["clip_magnets"],
-            terminate_on_beam_loss=config["terminate_on_beam_loss"],
-            fel_intensity_transform=config["fel_intensity_transform"],
-            magnet_change_transform=config["magnet_change_transform"],
-            magnet_change_combiner=config["magnet_change_combiner"],
-            magnet_change_combiner_args=config["magnet_change_combiner_args"],
-            magnet_change_combiner_weights=config["magnet_change_combiner_weights"],
-            magnet_setting_transform=config["magnet_setting_transform"],
-            magnet_setting_combiner=config["magnet_setting_combiner"],
-            magnet_setting_combiner_args=config["magnet_setting_combiner_args"],
-            magnet_setting_combiner_weights=config["magnet_setting_combiner_weights"],
-            final_combiner=config["final_combiner"],
-            final_combiner_args=config["final_combiner_args"],
-            final_combiner_weights=config["final_combiner_weights"]
-        )
+    elif 'lcls' in env_id:
+        import src.environments as gym
+        env = gym.make(env_id)
         env = FlattenObservation(env)
     else:
         import gymnasium as gym
@@ -209,6 +142,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
             assert 'float' in str(type(reward)), str(type(reward))
             done = (terminate or truncate)
             done_buffer = (terminate or truncate) if (count < max_nsteps) else False
+            
             step += 1
             agent.memory((prev_state, action, reward, state, done_buffer))
             episodic_reward += reward
@@ -277,4 +211,11 @@ if __name__ == "__main__":
     args_env_id = args.env
     args_logdir = args.logdir
 
+    print("##################################################################")
+    print("#                                                                #")
+    print("#                                                                #")
+    print("#        This script is depricated and will be removed...        #")
+    print("#                                                                #")
+    print("#                                                                #")
+    print("##################################################################")
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id, args_env_id, args_logdir)
