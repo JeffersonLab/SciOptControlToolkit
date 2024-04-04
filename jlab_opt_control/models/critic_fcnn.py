@@ -28,22 +28,20 @@ class CriticFCNN(Model):
             cfg_data = json.load(f)
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
-        activation_function = cfg_data.get('activation_function', "relu")  # Default
+        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers + ["linear"])  # Default
  
         self.logdir = logdir
 
-        if hidden_layers != len(nodes_per_layer):
+        if hidden_layers != len(nodes_per_layer) and hidden_layers != len(activation_functions)+1:
             crit_log.error("Mismatch between number of hidden layers and number of nodes per hidden layer provided in config...")
  
         # Dynamic Q network Architecture
         self.hidden_layers = []
         for i in range(hidden_layers):
-            if i == 0:
-                # Only the first layer needs the input_shape, combining state and action dimensions
-                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation="relu", input_shape=(state_dim + action_dim,)))
-            else:
-                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation="relu"))
-        self.output_layer = layers.Dense(1)  # Output layer for Q-value
+            # Layer construction with dynamic activation functions
+            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i], input_shape=(state_dim + action_dim,) if i == 0 else ()))
+        # Output layer
+        self.output_layer = layers.Dense(1, activation=activation_functions[-1])  # Last activation function for output
  
     def call(self, state, action, training=False):
         x = tf.concat([state, action], axis=1)  # Concatenate state and action as input

@@ -28,22 +28,20 @@ class ActorFCNN(Model):
             cfg_data = json.load(f)
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
-        activation_function = cfg_data.get('activation_function', "relu")  # Default
-
-        if hidden_layers != len(nodes_per_layer):
-            crit_log.error("Mismatch between number of hidden layers and number of nodes per hidden layer provided in config...")
+        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers + ["tanh"])  # Defaults
  
         self.logdir = logdir
+
+        if hidden_layers != len(nodes_per_layer) and hidden_layers != len(activation_functions)+1:
+            crit_log.error("Mismatch between number of hidden layers and number of nodes per hidden layer provided in config...")
  
         # Dynamic Actor Architecture
         self.hidden_layers = []
         for i in range(hidden_layers):
-            if i == 0:
-                # Only the first layer needs the input_shape
-                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_function, input_shape=(state_dim,)))
-            else:
-                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_function))
-        self.output_layer = layers.Dense(action_dim, activation='tanh')
+            # Layer construction with dynamic activation functions
+            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i], input_shape=(state_dim,) if i == 0 else ()))
+        # Output layer with its specified activation function
+        self.output_layer = layers.Dense(action_dim, activation=activation_functions[-1])
  
         self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
         self.action_bias = tf.constant((max_action + min_action) / 2, dtype=tf.float32)
