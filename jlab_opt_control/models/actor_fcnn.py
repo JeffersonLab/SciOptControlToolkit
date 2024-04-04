@@ -6,6 +6,7 @@ from tensorflow.keras import layers
 import shutil
 import os
 import logging
+import json
 
 act_log = logging.getLogger("Actor")
 act_log.setLevel(logging.DEBUG)
@@ -15,33 +16,41 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 class ActorFCNN(Model):
     def __init__(self, state_dim, action_dim, min_action, max_action, logdir, cfg='actor_fcnn.cfg'):
         super().__init__()
-
+ 
         # Load configuration
         absolute_path = os.path.dirname(__file__)
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
         self.pfn_json_file = os.path.join(full_path, cfg)
-
+ 
+        # Read configuration for architecture
+        with open(self.pfn_json_file, 'r') as f:
+            cfg_data = json.load(f)
+        hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
+        nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
+ 
         self.logdir = logdir
-
-        # Actor Architecture
-        self.l1 = layers.Dense(256, activation="relu",
-                               input_shape=(state_dim,))
-        self.l2 = layers.Dense(256, activation="relu")
-        self.l3 = layers.Dense(action_dim, activation='tanh')
-
-        self.action_scale = tf.constant(
-            (max_action - min_action) / 2, dtype=tf.float32)
-        self.action_bias = tf.constant(
-            (max_action + min_action) / 2, dtype=tf.float32)
-
+ 
+        # Dynamic Actor Architecture
+        self.hidden_layers = []
+        for i in range(hidden_layers):
+            if i == 0:
+                # Only the first layer needs the input_shape
+                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation="relu", input_shape=(state_dim,)))
+            else:
+                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation="relu"))
+        self.output_layer = layers.Dense(action_dim, activation='tanh')
+ 
+        self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
+        self.action_bias = tf.constant((max_action + min_action) / 2, dtype=tf.float32)
         self.max_action = max_action
-
+ 
     def call(self, state, training=False):
-        a = self.l1(state)
-        a = self.l2(a)
-        a = self.l3(a)
-        return a * self.action_scale + self.action_bias
+        x = state
+        for layer in self.hidden_layers:
+            x = layer(x)
+        x = self.output_layer(x)
+        return x * self.action_scale + self.action_bias
 
     def save_cfg(self):
         """ Save the model cfg """
