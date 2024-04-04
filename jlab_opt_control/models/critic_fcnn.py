@@ -28,8 +28,12 @@ class CriticFCNN(Model):
             cfg_data = json.load(f)
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
+        activation_function = cfg_data.get('activation_function', "relu")  # Default
  
         self.logdir = logdir
+
+        if hidden_layers != len(nodes_per_layer):
+            crit_log.error("Mismatch between number of hidden layers and number of nodes per hidden layer provided in config...")
  
         # Dynamic Q network Architecture
         self.hidden_layers = []
