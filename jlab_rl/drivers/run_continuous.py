@@ -48,9 +48,9 @@ run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
-seed = 1#time.time_ns()
-tf.random.set_seed(seed)
-np.random.seed(seed)
+#seed = 1#time.time_ns()
+#tf.random.set_seed(seed)
+#np.random.seed(seed)
 #run_openai_log.info(f'seeds {tf.random.}')
 
 def run_opt(index, max_nepisodes, max_nsteps, nwarmup, agent_id, env_id, logdir):
@@ -80,9 +80,12 @@ def run_opt(index, max_nepisodes, max_nsteps, nwarmup, agent_id, env_id, logdir)
         import jlab_rl.envs as gym
         env = gym.make(env_id)
         inference_env = gym.make(env_id)
-
+    if 'PACES' in env_id:
+        import paces.paces_envs as gym
+        env = gym.make(env_id)
+        inference_env = gym.make(env_id)
     else:
-        import gym as gym
+        import gymnasium as gym
         env = gym.make(env_id)
         inference_env = gym.make(env_id)
 
@@ -159,16 +162,44 @@ def run_opt(index, max_nepisodes, max_nsteps, nwarmup, agent_id, env_id, logdir)
         tf.summary.scalar('Episodic Training Reward', data=episodic_reward, step=int(total_steps))
 
         # Run inference test
-        if total_steps%5000 == 0:
+        if total_steps%100 == 0:
             inference_episodic_reward = 0
             inference_prev_state, _ = inference_env.reset()
             inference_done = False
-            while (inference_done==False):
-                inference_action, inference_action_noise = agent.action(tf.convert_to_tensor(inference_prev_state), train=False)
-                inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = inference_env.step(inference_action)
-                inference_episodic_reward += inference_reward
-                inference_prev_state = inference_state
-                inference_done = (inference_terminate or inference_truncate)
+            inference_x, inference_y, inference_z = [],[],[]
+            for i in range(100):
+                while (inference_done==False):
+                    inference_action, inference_action_noise = agent.action(tf.convert_to_tensor(inference_prev_state), train=False)
+                    inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = inference_env.step(inference_action)
+                    inference_episodic_reward += inference_reward
+                    inference_prev_state = inference_state
+                    inference_done = (inference_terminate or inference_truncate)
+                    inference_x.append(inference_action[0])
+                    inference_y.append(inference_action[1])
+                    inference_z.append(inference_reward)
+
+                #
+            print(f'Number of trial {len(inference_z)}')
+            if agent.num_actions == 2:
+                import matplotlib.pyplot as plt
+                from matplotlib import cm
+
+                fig = plt.figure(figsize=(12, 12))
+                ax = fig.add_subplot(111)
+                ax.set_xlabel("X")
+                ax.set_ylabel("Y")
+                ax.grid(True, linestyle='-', color='0.75')
+                # scatter with colormap mapping to z value
+                cb = ax.scatter(inference_x, inference_y, s=35, c=inference_z, marker='o',
+                                vmin=0.0, vmax=1, cmap=cm.jet);
+                plt.xlim(-1.1, 1.1)
+                plt.ylim(-1.1, 1.1)
+                plt.colorbar(cb)
+                plt.tight_layout
+                ax.set_title(f'Average Reward {np.mean(inference_reward):.4f}+-{np.std(inference_reward):.4f}')
+
+                plt.savefig(logdir + '/inference_xy_action_reward_{}.png'.format(int(total_steps/100)))
+                plt.close()
                 # if 'DnC2s' in env_id:
                 #     env.plot
                 # if done:

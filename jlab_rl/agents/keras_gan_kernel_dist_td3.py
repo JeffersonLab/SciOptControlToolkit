@@ -66,10 +66,10 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
 
         # Standard TD3 setup
         self.hidden_size = 256
-        self.batch_size = 128# 512
+        self.batch_size = 256# 512
 
         # Used for random samples
-        self.rdm_intputs = 77
+        self.rdm_intputs = 19
         self.norm_sdt = 1.0
 
         self.max_size = np.max([self.batch_size, self.min_buffer_counter])
@@ -185,10 +185,10 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
             q_values = self.critic_model1([states, training_actions], training=False)
 
             # Calculate the original TD3 loss
-            td_loss = -tf.math.reduce_mean(q_values)
+            td_loss = 0#-tf.math.reduce_mean(q_values)
 
             # Calculate the q_value combinations
-            q_values_comb = tf.math.add(tf.expand_dims(q_values, axis=1), tf.expand_dims(q_values, axis=0))
+            #q_values_comb = tf.math.add(tf.expand_dims(q_values, axis=1), tf.expand_dims(q_values, axis=0))
             # Calculate the action distance combinations
             # Dissipative term - should optimize code
             action_distance_comb = 0
@@ -197,30 +197,31 @@ class KerasKernelDistGenerativeTD3(KerasTD3):
                 total_reshaped_a_sd = tf.math.squared_difference(
                     tf.expand_dims(training_actions, axis=1),
                     tf.expand_dims(training_actions, axis=0))
-                action_distance_comb = action_distance_comb / self.action_diff_range[a]
+                action_distance_comb = action_distance_comb / self.action_diff_range
             else:
                 for a in range(self.num_actions):
                     ra = tf.reshape(training_actions[:, a], [-1])
                     ra_sd = tf.math.squared_difference(
                         tf.expand_dims(ra, axis=1), tf.expand_dims(ra, axis=0))
-                    ra_sd = ra_sd/self.action_diff_range[a]
+                    #ra_sd = ra_sd/self.action_diff_range[a]
                     action_distance_comb += ra_sd
                     #reduced_dist_action = tf.reduce_mean(ra_sd)
                     #ra_sd = tf.exp(-ra_sd)
                     #ra_sd = 1 - ra_sd + tf.eye(self.batch_size)
                     #ra_sd = ra_sd + tf.eye(self.batch_size)
 
-            action_distance_comb /= self.num_actions
-            q_action_matrix = tf.multiply(q_values_comb, action_distance_comb)
-            reduced_q_action = -tf.reduce_mean(q_action_matrix)
+            extra_loss = -tf.reduce_sum((action_distance_comb))
+            #action_distance_comb /= self.num_actions
+            #q_action_matrix = tf.multiply(q_values_comb, action_distance_comb)
+            #reduced_q_action = -tf.reduce_mean(q_action_matrix)
                     # print(f'reduced_q_action #{a}: {reduced_q_action}')
                     #
                     # #print(f'actions distance #{a}: {ra_sd}')
                     # action_distance_comb += reduced_q_action
                     # #action_distance_comb -= tf.reduce_mean(q_ra_matrix)
 
-            extra_loss = reduced_q_action
-            #extra_loss = action_distance_comb/self.num_actions
+            #extra_loss = reduced_q_action
+            #extra_loss = action_distance_comb#/self.num_actions
             #print(f'action_distance_comb: {action_distance_comb}')
             #action_distance_comb = action_distance_comb + tf.eye(self.batch_size)
             #print(f'action_distance_comb: {action_distance_comb}')

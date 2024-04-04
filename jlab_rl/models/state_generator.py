@@ -110,7 +110,7 @@ class Generator_v3(tf.keras.Model):
     self.ndims = ndims
     self.nlayers = nlayers
 
-    init = tf.keras.initializers.GlorotUniform(seed)
+    init = tf.keras.initializers.RandomUniform(minval=-5,maxval=5) #GlorotUniform(seed)
     self.nodes = 256
     self.denses1, self.denses2 = [], []
     self.bn1 = []
@@ -120,7 +120,7 @@ class Generator_v3(tf.keras.Model):
       self.bn1.append(tf.keras.layers.BatchNormalization())
 
       # Option #0
-      #self.act1.append(tf.keras.activations.relu)
+      #self.act1.append(tf.keras.activations.relu
       # Option 1
       #self.act1.append(tf.keras.layers.LeakyReLU(0.2))
       # Option #2
@@ -130,8 +130,10 @@ class Generator_v3(tf.keras.Model):
       #self.act1.append(tf.keras.activations.selu)
 
 
-    last_init = tf.random_uniform_initializer(minval=-0.001, maxval=0.001)
-    self.out = tf.keras.layers.Dense(self.ndims, kernel_initializer=last_init, activation='tanh')
+    #last_init = tf.random_uniform_initializer(minval=-0.001, maxval=0.001)
+    #self.out = tf.keras.layers.Dense(self.ndims, kernel_initializer=last_init, activation='tanh')
+    self.out = tf.keras.layers.Dense(self.ndims, activation='tanh')
+
     self.upper_bound = upper_bound
     self.lower_bound = lower_bound
 

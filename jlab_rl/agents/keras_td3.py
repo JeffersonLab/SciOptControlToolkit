@@ -311,7 +311,8 @@ class KerasTD3(jlab_rl.Agent):
                 self.soft_update(self.target_critic2.variables, self.critic_model2.variables)
 
     def action_inference(self, states):
-        actions = self.actor_model(states)
+        print(f'shape: {states.shape}')
+        actions = self.actor_model.predict(states)
         rewards = []
         for a in actions:
             self.env.reset()

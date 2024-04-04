@@ -5,8 +5,8 @@
 import numpy as np
 import pandas as pd
 import math
-from gym import spaces
-import gym
+from gymnasium import spaces
+import gymnasium as gym
 import os, sys
 
 from jlab_rl.envs.cebaf_surrogate_v0 import digitalTwin

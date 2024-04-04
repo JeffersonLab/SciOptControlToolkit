@@ -1,5 +1,5 @@
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 from jlab_rl.utils.circle_rdm import circle_rdm_samples
 
 import numpy as np

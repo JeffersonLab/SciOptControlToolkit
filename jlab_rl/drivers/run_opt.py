@@ -55,8 +55,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, warmup_size, env_id, log
 
     if 'DnC2s' in env_id:
         import jlab_rl.envs as gym
+    if 'PACES' in env_id:
+        import paces.paces_envs as gym
     else:
-        import gym
+        import gymnasium as gym
     #
     # Environment
     print('Running env: {}'.format(env_id))

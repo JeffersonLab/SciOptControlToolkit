@@ -1,8 +1,8 @@
 from typing import Union
 
-import gym
+import gymnasium as gym
 import matplotlib.pyplot as plt
-from gym import spaces
+from gymnasium import spaces
 
 import numpy as np
 import torch
