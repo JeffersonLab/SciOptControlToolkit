@@ -28,6 +28,10 @@ class ActorFCNN(Model):
             cfg_data = json.load(f)
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
+        activation_function = cfg_data.get('activation_function', "relu")  # Default
+
+        if hidden_layers != len(nodes_per_layer):
+            crit_log.error("Mismatch between number of hidden layers and number of nodes per hidden layer provided in config...")
  
         self.logdir = logdir
  
@@ -36,9 +40,9 @@ class ActorFCNN(Model):
         for i in range(hidden_layers):
             if i == 0:
                 # Only the first layer needs the input_shape
-                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation="relu", input_shape=(state_dim,)))
+                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_function, input_shape=(state_dim,)))
             else:
-                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation="relu"))
+                self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_function))
         self.output_layer = layers.Dense(action_dim, activation='tanh')
  
         self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
