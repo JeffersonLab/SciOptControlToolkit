@@ -1,9 +1,9 @@
-name: jlab_opt_control_env
+#name: jlab_opt_control_env
 channels:
   - apple
   - conda-forge
 dependencies:
-  - python=3.10  ## specify desired version
+  - python=3.9  ## specify desired version
   - pip
   - tensorflow-deps
 

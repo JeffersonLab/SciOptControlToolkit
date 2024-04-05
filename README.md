@@ -2,7 +2,7 @@
 
 ## Software Requirement
 
-- Python 3.10
+- Python 3.9
 - The optimization toolkit framework is built on [OpenAI Gymnasium](https://github.com/Farama-Foundation/Gymnasium)
 
 
@@ -14,30 +14,35 @@
 ├── utests                            : Folder containing a collection of unit tests
 ├── jlab_opt_control
     ├── agents                        : Folder containing different agents
+    ├── buffers                       : Folder containing different buffers
     ├── cfgs                          : Folder containing configuration filesfor agents and environments
     ├── core                          : Folder containing base classes
     ├── drivers                       : Folder containing workflow modules / drivers
-    ├── envs                          : Folder containing different environemments 
+    ├── envs                          : Folder containing different environemments
+    ├── models                        : Folder containing different models
     ├── utils                         : Folder containing supporting tools (e.g. monitoring)
 ```
 
 ## Installing
 
-- Clone code from repo
+- Clone code from repo and move into directory
 ```
 git clone https://github.com/JeffersonLab/SciOptControlToolkit.git
 cd SciOptControlToolkit
 ```
 
-* Create default conda environment setup:
+* Create default conda environment setup: (only once)
 ```
-conda env create --file env.yaml (only once)
-conda activate jlab_opt_control_env (required every time you use the package)
+conda env create --file env.yaml
 ```
 
-- Install package in environment
+* Activate conda environment: (required every time you use the package)
 ```
-pip install -e . (only once)
+conda activate jlab_opt_control_env
 ```
-## Overview 
-https://github.com/JeffersonLab/SciOptControlToolkit/wiki/Overview
+
+- Install the package in environment (only once)
+```
+pip install -e .
+```
+## [Documentation](https://github.com/JeffersonLab/SciOptControlToolkit/wiki)
