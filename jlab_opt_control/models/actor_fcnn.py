@@ -38,7 +38,9 @@ class ActorFCNN(Model):
                 act_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
             else:  # hidden_layers != len(activation_functions)+1
                 act_log.error("Number of activation functions (+1 for output layer) does not match the number of hidden layers in the config.")
-        
+        if activation_functions[-1] not in ["tanh", "sigmoid"]:
+            act_log.error("Final layer activation function needs to be tanh/sigmoid. Scaling for the action space will not work as intended.")
+
         # Dynamic Actor Architecture
         self.hidden_layers = []
         for i in range(hidden_layers):
