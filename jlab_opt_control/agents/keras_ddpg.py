@@ -214,7 +214,7 @@ class KerasDDPG(jlab_opt_control.Agent):
         self.critic_optimizer.apply_gradients(zip(
             gradients, self.critic_model1.trainable_variables))
 
-        td_errors_avg = td_errors1
+        td_errors_avg = tf.abs(td_errors1)
 
         return critic_loss, td_errors_avg
 
