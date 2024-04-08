@@ -74,7 +74,6 @@ class PER(ER):
             self.rewards[self.indices],
             self.next_states[self.indices],
             self.dones[self.indices],
-            self.priorities[self.indices],
             weights
         )
 

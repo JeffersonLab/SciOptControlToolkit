@@ -6,6 +6,7 @@ from tensorflow.keras import layers
 import shutil
 import os
 import logging
+import json
 
 crit_log = logging.getLogger("Critic")
 crit_log.setLevel(logging.DEBUG)
@@ -15,26 +16,44 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 class CriticFCNN(Model):
     def __init__(self, state_dim, action_dim, logdir, cfg='critic_fcnn.cfg'):
         super().__init__()
-
+ 
         # Load configuration
         absolute_path = os.path.dirname(__file__)
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
         self.pfn_json_file = os.path.join(full_path, cfg)
-
+ 
+        # Read configuration for architecture
+        with open(self.pfn_json_file, 'r') as f:
+            cfg_data = json.load(f)
+        hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
+        nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
+        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers + ["linear"])  # Default
+ 
         self.logdir = logdir
 
-        # Q network Architecture
-        self.l1 = layers.Dense(256, activation="relu",
-                               input_shape=(state_dim + action_dim,))
-        self.l2 = layers.Dense(256, activation="relu")
-        self.l3 = layers.Dense(1)
+       # Error Checking
+        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)+1:
+            if hidden_layers != len(nodes_per_layer):
+                crit_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
+            else:  # hidden_layers != len(activation_functions)+1
+                crit_log.error("Number of activation functions (+1 for output layer) does not match the number of hidden layers in the config.")
+        if activation_functions[-1] != "linear":
+            crit_log.error("Final layer activation for critic is not a linear function")
 
+        # Dynamic Q network Architecture
+        self.hidden_layers = []
+        for i in range(hidden_layers):
+            # Layer construction with dynamic activation functions
+            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i], input_shape=(state_dim + action_dim,) if i == 0 else ()))
+        # Output layer
+        self.output_layer = layers.Dense(1, activation=activation_functions[-1])  # Last activation function for output
+ 
     def call(self, state, action, training=False):
-        x = tf.concat([state, action], axis=1)
-        x = self.l1(x)
-        x = self.l2(x)
-        x = self.l3(x)
+        x = tf.concat([state, action], axis=1)  # Concatenate state and action as input
+        for layer in self.hidden_layers:
+            x = layer(x)
+        x = self.output_layer(x)
         return x
 
     def save_cfg(self):

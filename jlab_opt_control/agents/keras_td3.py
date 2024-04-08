@@ -167,6 +167,10 @@ class KerasTD3(jlab_opt_control.Agent):
         self.target_actor = jlab_opt_control.models.make(
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
 
+        # Run through model once to initialize variables
+        self.actor_model(tf.zeros([1, self.num_states]))
+        self.target_actor(tf.zeros([1, self.num_states]))
+
         self.actor_model.save_cfg()
 
         seed1 = time.time_ns()
@@ -179,6 +183,10 @@ class KerasTD3(jlab_opt_control.Agent):
             self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
         self.target_critic1 = jlab_opt_control.models.make(
             self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+
+        # Run through model once to initialize variables
+        self.critic_model1(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
+        self.target_critic1(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
 
         self.critic_model1.save_cfg()
 
@@ -193,6 +201,10 @@ class KerasTD3(jlab_opt_control.Agent):
             self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
         self.target_critic2 = jlab_opt_control.models.make(
             self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+
+        # Run through model once to initialize variables
+        self.critic_model2(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
+        self.target_critic2(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
 
         self.target_actor.set_weights(self.actor_model.get_weights())
         self.target_critic1.set_weights(self.critic_model1.get_weights())
@@ -218,19 +230,20 @@ class KerasTD3(jlab_opt_control.Agent):
 
         # Critic 1 and 2
         with tf.GradientTape() as tape:
+        
             q_values1 = self.critic_model1(states, actions, training=True)
             q_values2 = self.critic_model2(states, actions, training=True)
+
             td_errors1 = q_values1 - q_targets
             td_errors2 = q_values2 - q_targets
-            if "PER" in self.buffer_type:
-                critic_loss1 = self.mse_loss(
-                    q_values1, q_targets, sample_weight=weights)
-                critic_loss2 = self.mse_loss(
-                    q_values2, q_targets, sample_weight=weights)
-            else:
-                critic_loss1 = self.mse_loss(q_values1, q_targets)
-                critic_loss2 = self.mse_loss(q_values2, q_targets)
+
+            critic_loss1 = self.mse_loss(
+                q_values1, q_targets, sample_weight=weights)
+            critic_loss2 = self.mse_loss(
+                q_values2, q_targets, sample_weight=weights)
+            
             critic_losses = critic_loss1 + critic_loss2
+
         gradients = tape.gradient(
             critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
         self.critic_optimizer.apply_gradients(zip(
@@ -263,32 +276,22 @@ class KerasTD3(jlab_opt_control.Agent):
         self.ntrain_calls += 1
 
         if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
-            # Get sampling range
-            if "PER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, weights = self.buffer.sample(
-                    self.batch_size)
-                weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
-            elif "ER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _, alphas = self.buffer.sample(
-                    self.batch_size)
-            else:
-                print("ERROR: Please check configuration of agent for buffer type.")
+
+            # Get samples
+            states, actions, rewards, next_states, dones, weights = self.buffer.sample(
+                self.batch_size)
 
             # Convert to tensors
             state_batch = tf.convert_to_tensor(states, dtype=tf.float32)
             action_batch = tf.convert_to_tensor(actions, dtype=tf.float32)
             reward_batch = tf.convert_to_tensor(rewards, dtype=tf.float32)
-            next_state_batch = tf.convert_to_tensor(
-                next_states, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(next_states, dtype=tf.float32)
             done_batch = tf.convert_to_tensor(dones, dtype=tf.float32)
+            weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
 
             # Train critic
-            if "PER" in self.buffer_type:
-                critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
+            critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
                                                                           next_state_batch, done_batch, weights_batch)
-            elif "ER" in self.buffer_type:
-                critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
-                                                                          next_state_batch, done_batch, _)
 
             tf.summary.scalar('Critic Loss 1', data=critic_loss1,
                               step=int(self.ntrain_calls))
@@ -313,13 +316,13 @@ class KerasTD3(jlab_opt_control.Agent):
                 self.soft_update(self.target_critic2.variables,
                                  self.critic_model2.variables)
 
-    def action(self, state, train=True):
+    def action(self, state, train=True, inference=False):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
-        if self.buffer.size() < np.max([self.batch_size, self.warmup_size]):
+        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and inference == False:
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
-        # Warmup completed, sample from actor
+        # Warmup completed, sample from actor or run inference
         else:
             state = tf.expand_dims(state, 0)
             sampled_action = (self.actor_model(state)).numpy()
@@ -357,21 +360,32 @@ class KerasTD3(jlab_opt_control.Agent):
     def load(self):
         """ Load the ML models """
         try:
-            self.actor_model.load_weights(
-                join(self.model_load_path, "actor_model.h5"))
-            self.target_actor.load_weights(
-                join(self.model_load_path, "target_actor.h5"))
-            self.critic_model1.load_weights(
-                join(self.model_load_path, "critic_model1.h5"))
-            self.target_critic1.load_weights(
-                join(self.model_load_path, "target_critic1.h5"))
-            self.critic_model2.load_weights(
-                join(self.model_load_path, "critic_model2.h5"))
-            self.target_critic2.load_weights(
-                join(self.model_load_path, "target_critic2.h5"))
-            td3_log.info('Models loaded successfully')
+            model_load_count = 0
+            for file in os.listdir(self.model_load_path):
+                if 'actor_model' in file and file.endswith('.h5'):
+                    self.actor_model.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+                elif 'target_actor' in file and file.endswith('.h5'):
+                    self.target_actor.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+                elif 'critic_model1' in file and file.endswith('.h5'):
+                    self.critic_model1.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+                elif 'target_critic1' in file and file.endswith('.h5'):
+                    self.target_critic1.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+                elif 'critic_model2' in file and file.endswith('.h5'):
+                    self.critic_model2.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+                elif 'target_critic2' in file and file.endswith('.h5'):
+                    self.target_critic2.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+            if model_load_count == 6:
+                td3_log.info('Models loaded successfully')
+            else:
+                td3_log.error('Models not loaded properly, please check model save directory')
         except:
-            print("Error while loading models, initializing new models...")
+            td3_log.error("Error while loading models, initializing new models...")
 
     def save(self, post_fix="test"):
         """ Save the ML models """
