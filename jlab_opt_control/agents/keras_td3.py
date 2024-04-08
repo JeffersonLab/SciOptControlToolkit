@@ -52,8 +52,10 @@ class Actor(tf.keras.Model):
         super().__init__()
 
         # Actor Architecture
-        self.l1 = layers.Dense(256, activation="relu", input_shape=(state_dim,))
-        self.l2 = layers.Dense(256, activation="relu")
+        self.l1 = layers.Dense(256, activation="tanh", input_shape=(state_dim,))
+        self.l2 = layers.Dense(256, activation="tanh")
+        self.l21 = layers.Dense(256, activation="tanh")
+        self.l22 = layers.Dense(256, activation="tanh")
         self.l3 = layers.Dense(action_dim, activation='tanh')
 
         self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
@@ -64,6 +66,8 @@ class Actor(tf.keras.Model):
     def call(self, state, training=False):
         a = self.l1(state)
         a = self.l2(a)
+        a = self.l21(a)
+        a = self.l22(a)
         a = self.l3(a)
         return a * self.action_scale + self.action_bias
 
@@ -72,14 +76,18 @@ class Critic(tf.keras.Model):
         super().__init__()
 
         # Q network Architecture
-        self.l1 = layers.Dense(256, activation="relu", input_shape=(state_dim + action_dim,))
-        self.l2 = layers.Dense(256, activation="relu")
+        self.l1 = layers.Dense(256, activation="tanh", input_shape=(state_dim + action_dim,))
+        self.l2 = layers.Dense(256, activation="tanh")
+        self.l21 = layers.Dense(256, activation="tanh")
+        self.l22 = layers.Dense(256, activation="tanh")
         self.l3 = layers.Dense(1)
 
     def call(self, state, action, training=False):
         x = tf.concat([state, action], axis=1)
         x = self.l1(x)
         x = self.l2(x)
+        x = self.l21(x)
+        x = self.l22(x)
         x = self.l3(x)
 
         return x

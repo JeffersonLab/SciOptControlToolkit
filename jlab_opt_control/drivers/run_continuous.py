@@ -85,8 +85,15 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
         env = gym.make(env_id)
     elif 'lcls' in env_id:
         import src.environments as gym
+        from gymnasium.wrappers import FlattenObservation, FrameStack, RescaleAction, TimeLimit
+        from src.wrappers import LogTaskStatistics, PlotEpisode, RescaleObservation
         env = gym.make(env_id)
+        env.set_curriculum_difficulty(0.05)
+        env = TimeLimit(env, max_nsteps)
+        env = RescaleObservation(env, -1, 1)
+        env = RescaleAction(env, -1, 1)
         env = FlattenObservation(env)
+#         env = FrameStack(env, 1)
     else:
         import gymnasium as gym
         env = gym.make(env_id)
@@ -163,7 +170,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
         tf.summary.scalar('Training Reward', data=episodic_reward, step=int(ep))
 
         # Run inference test
-        if ep % 1 == 0:
+        if ep % 100 == 0:
             inference_episodic_reward = 0
             inference_prev_state, _ = env.reset()
             inference_done = False
@@ -174,14 +181,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir):
                 inference_episodic_reward += inference_reward
                 inference_prev_state = inference_state
                 inference_done = (inference_terminate or inference_truncate)
-                count += 1
-                if count >= max_nsteps or done:
+                count += 1  
+                if count >= max_nsteps or inference_done:
                     break
 
-        tf.summary.scalar('Inference Reward', data=inference_episodic_reward, step=int(ep))
+            tf.summary.scalar('Inference Reward', data=inference_episodic_reward, step=int(ep))
+
+        
 
         # Mean of last 10 episodes
-        nepisode_mod = 10
+        nepisode_mod = 100
         avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
         time_end = time.process_time()
         if total_nsteps % 1000 == 0:
