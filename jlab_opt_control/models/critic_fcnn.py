@@ -33,10 +33,10 @@ class CriticFCNN(Model):
         self.logdir = logdir
 
        # Error Checking
-        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)+1:
+        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)-1:
             if hidden_layers != len(nodes_per_layer):
                 crit_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
-            else:  # hidden_layers != len(activation_functions)+1
+            else:  # hidden_layers != len(activation_functions)-1
                 crit_log.error("Number of activation functions (+1 for output layer) does not match the number of hidden layers in the config.")
         if activation_functions[-1] != "linear":
             crit_log.error("Final layer activation for critic is not a linear function")
