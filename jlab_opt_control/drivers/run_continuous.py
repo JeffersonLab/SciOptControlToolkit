@@ -66,7 +66,7 @@ np.random.seed(seed)
 # run_openai_log.info(f'seeds {tf.random.}')
 
 
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag):
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty):
     githash = get_git_revision_short_hash()
     run_openai_log.debug(githash)
     run_openai_log.debug(logdir)
@@ -105,7 +105,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     elif 'paces_gym' in globals() and env_id in paces_gym.list_registered_modules():
         env = paces_gym.make(env_id)
         if 'LCLS' in env_id:
-            env.set_curriculum_difficulty(0.08)
+            env.set_curriculum_difficulty(difficulty)
             env = TimeLimit(env, max_nsteps)
             env = RescaleObservation(env, -1, 1)
             env = RescaleAction(env, -1, 1)
@@ -303,6 +303,8 @@ def main(args=None):
         "--logdir", help="Directory to save results", type=str, default='None')
     parser.add_argument(
         "--inference", help="Inference only run flag", type=str, default=None)
+    parser.add_argument(
+        "--difficulty", help="Curriculum difficulty level for LCLS env", type=float, default=0.08)
 
     # Get input arguments
     if args is not None:
@@ -319,9 +321,10 @@ def main(args=None):
     args_buf_size = args.bsize
     args_buf_type = args.btype
     args_inference = args.inference
+    args_difficulty = args.difficulty
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
-            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference)
+            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty)
 
 if __name__ == "__main__":
     main()
