@@ -33,10 +33,10 @@ class ActorFCNN(Model):
         self.logdir = logdir
 
         # Error Checking
-        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)+1:
+        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)-1:
             if hidden_layers != len(nodes_per_layer):
                 act_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
-            else:  # hidden_layers != len(activation_functions)+1
+            else:  # hidden_layers != len(activation_functions)-1
                 act_log.error("Number of activation functions (+1 for output layer) does not match the number of hidden layers in the config.")
         if activation_functions[-1] not in ["tanh"]:
             act_log.error("Final layer activation function needs to be tanh. Scaling for the action space will not work as intended.")
