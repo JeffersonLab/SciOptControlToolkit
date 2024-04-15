@@ -94,9 +94,10 @@ class EnvRegistry(object):
             id = path
 
         try:
+            print(self.disc_specs)
             return self.disc_specs[id]
         except KeyError:
-            raise env_reg_log.error('No registered agent with id: {}'.format(id))
+            raise env_reg_log.error('No registered env with id: {}'.format(id))
 
     def register(self, id, **kwargs):
         if id in self.disc_specs:

@@ -26,19 +26,18 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-from jlab_opt_control.agents.registration import register, make, list_registered_modules
-from jlab_opt_control.agents.keras_td3 import KerasTD3
-from jlab_opt_control.agents.keras_ddpg import KerasDDPG
+from jlab_opt_control.models.registration import register, make, list_registered_modules
+from jlab_opt_control.models.actor_fcnn import ActorFCNN
+from jlab_opt_control.models.critic_fcnn import CriticFCNN
 
-# Single Objective Agents
 register(
-    id='KerasTD3-v0',
-    entry_point='jlab_opt_control.agents:KerasTD3',
-    kwargs={'cfg': 'keras_td3.cfg'},
+    id='actor_fcnn-v0',
+    entry_point='jlab_opt_control.models:ActorFCNN',
+    kwargs={'cfg': 'actor_fcnn.cfg'},
 )
 
 register(
-    id='KerasDDPG-v0',
-    entry_point='jlab_opt_control.agents:KerasDDPG',
-    kwargs={'cfg': 'keras_ddpg.cfg'},
+    id='critic_fcnn-v0',
+    entry_point='jlab_opt_control.models:CriticFCNN',
+    kwargs={'cfg': 'critic_fcnn.cfg'},
 )
