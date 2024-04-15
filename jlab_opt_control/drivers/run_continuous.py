@@ -39,6 +39,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
 import gymnasium as gym
+from gymnasium.wrappers import FlattenObservation, FrameStack, RescaleAction, TimeLimit
 
 # Local Application/Library Specific Imports
 import jlab_opt_control.agents
@@ -54,6 +55,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 # PACEs
 try:
     import paces.paces_envs as paces_gym
+    from paces.paces_envs.lcls.utils.rescale_observation import RescaleObservation
     run_openai_log.info("PACEs environments successfully imported")
 except ImportError:
     run_openai_log.info("PACEs environments not installed")
@@ -102,6 +104,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         env = custom_gym.make(env_id)
     elif 'paces_gym' in globals() and env_id in paces_gym.list_registered_modules():
         env = paces_gym.make(env_id)
+        if 'LCLS' in env_id:
+            env.set_curriculum_difficulty(0.08)
+            env = TimeLimit(env, max_nsteps)
+            env = RescaleObservation(env, -1, 1)
+            env = RescaleAction(env, -1, 1)
+            env = FlattenObservation(env)
+            # env = FrameStack(env, 1)
     else:
         run_openai_log.error('Error finding environment')
 
@@ -192,7 +201,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             episode_timesteps = 0
             episodic_reward = 0
             done = False
-            step_count = 0
             while done is False:
                 total_nsteps += 1
                 episode_timesteps += 1
@@ -219,9 +227,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 episodic_reward += reward
                 agent.train()
                 prev_state = state
-                step_count += 1
-                if step_count >= max_nsteps or done:
-                    step_count = 0
+                if done:
                     break
 
             ep_reward_list.append(episodic_reward)
@@ -233,7 +239,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 inference_episodic_reward = 0
                 inference_prev_state, _ = env.reset()
                 inference_done = False
-                inf_step_count = 0
                 while inference_done is False:
                     inference_action, inference_action_noise = agent.action(
                         tf.convert_to_tensor(inference_prev_state), train=False)
@@ -242,9 +247,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                     inference_episodic_reward += inference_reward
                     inference_prev_state = inference_state
                     inference_done = (inference_terminate or inference_truncate)
-                    inf_step_count += 1
-                    if inf_step_count >= max_nsteps or inference_done:
-                        inf_step_count = 0
+                    if inference_done:
                         break
                 
                 # init for first epoch
