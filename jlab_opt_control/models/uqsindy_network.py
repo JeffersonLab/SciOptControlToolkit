@@ -17,6 +17,7 @@ uqsindy_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 class UQSINDyNetwork(Model):
+    #def __init__(self, logdir, cfg='uqsindy_network.cfg'):
     def __init__(self, num_features_in, num_features_out, batch_size, logdir, cfg='uqsindy_network.cfg'):
         super().__init__()
         
@@ -29,9 +30,12 @@ class UQSINDyNetwork(Model):
         # Read configuration for architecture
         with open(self.pfn_json_file, 'r') as f:
             cfg_data = json.load(f)
-        num_features_in = num_features_in#cfg_data.get("num_features_in", 10) #Default
-        num_features_out = num_features_out# cfg_data.get("num_features_out", 1) #Default
-        self.batch_size = batch_size# cfg_data.get("batch_size", 1024)
+        num_features_in = num_features_in  # cfg_data.get("num_features_in", 10) #Default
+        num_features_out = num_features_out  # cfg_data.get("num_features_out", 1) #Default
+        self.batch_size = batch_size  # cfg_data.get("batch_size", 1024)
+        # num_features_in = cfg_data.get("num_features_in", 10) #Default
+        # num_features_out = cfg_data.get("num_features_out", 1) #Default
+        # self.batch_size = cfg_data.get("batch_size", 1024)
 
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
@@ -69,34 +73,42 @@ class UQSINDyNetwork(Model):
     def sample_posterior(self, batch_size=1024):
         # Draw from latent distribution
         randn = tf.random.normal(shape=(batch_size, *self.mu.shape), dtype=tf.float32)
+        #print(f'randn: {randn.shape}')
         betas = self.mu[None] + randn * tf.exp(0.5 * self.log_var[None])
+        #print(f'betas 1: {betas.shape}')
 
         # Flatten last layer for use in neural network
         b, Ni, No = betas.shape
+        #print(f'b/Ni/No: {b}/{Ni}/{No}')
         betas = tf.reshape(betas, [b, Ni*No])
+        #print(f'betas 2: {betas.shape}')
 
         for layer in self.hidden_layers:
             betas = layer(betas)
         betas = self.output_layer(betas)
+        #print(f'betas 3: {betas.shape}')
 
         # Reshape last layer
         betas = tf.reshape(betas, [b, Ni, No])
+        #print(f'betas 4: {betas.shape}')
         return betas
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, nsamples=0, training=False):
         """ forward pass of model """
+        if nsamples==0:
+            nsamples = self.batch_size
         x = inputs
-        betas = self.sample_posterior(self.batch_size)
+        betas = self.sample_posterior(nsamples)
         BX = tf.einsum('nd,bdo->bno', x, betas)
         return BX
 
-    def negative_log_likelihood(self, x, y0):
-        """ Log likelihood of data given parameter distribution """
-        BX  = self(x) # Distribution of predictions from distribution of parameters
-        log_p_x = -0.5 * tf.reduce_sum(tf.square(x), axis=-1)[None] # Shape [1,N,]
-        log_p_y = -0.5 * tf.reduce_sum(tf.square(y0 - BX), axis=-1) #Shape [B,N,]
-        log_p_Xy = tf.reduce_sum(log_p_x + log_p_y, axis=1)
-        return -log_p_Xy
+    # def negative_log_likelihood(self, x, y0):
+    #     """ Log likelihood of data given parameter distribution """
+    #     BX  = self(x) # Distribution of predictions from distribution of parameters
+    #     log_p_x = -0.5 * tf.reduce_sum(tf.square(x), axis=-1)[None] # Shape [1,N,]
+    #     log_p_y = -0.5 * tf.reduce_sum(tf.square(y0 - BX), axis=-1) #Shape [B,N,]
+    #     log_p_Xy = tf.reduce_sum(log_p_x + log_p_y, axis=1)
+    #     return -log_p_Xy
 
     def kld(self):
         """ KL-Divergence of latent space from unit normal prior """

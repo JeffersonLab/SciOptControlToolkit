@@ -159,25 +159,38 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
         file_writer.set_as_default()
         self.nactions = 0
 
-        # Setup SINDy library
+        # SINDy library
         num_poly = 4
         self.library = PolynomialLibrary(degree=4, include_bias=False)
-        # SINDy models
-        # self.sindy_actor_model = jlab_opt_control.models.make('sindy_network-v0', logdir=self.logdir+'/sindy_test/')
-        # self.sindy_actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
-        self.sindy_critic_model = jlab_opt_control.models.make('uqsindy_network-v0',
-            num_features_in=num_poly, num_features_out=self.num_actions, batch_size=self.batch_size, logdir=self.logdir+'/sindy_test/')
-        self.sindy_critic_optimizer = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
-        # Init
         rng = np.random.default_rng(1)
-        init_action = tf.convert_to_tensor(rng.normal(loc=0., scale=1., size=[self.batch_size, self.num_actions]), dtype=tf.float32)
-        print(f'init_action: {init_action.shape}')
-        self.library.fit(init_action)
-        lib_batch = self.library(init_action)
-        print(f'lib_batch: {lib_batch.shape}')
+        init_states = tf.convert_to_tensor(rng.normal(loc=0., scale=1., size=[self.batch_size, self.num_states]),
+                                           dtype=tf.float32)
+        #print(f'init_states: {init_states.shape}')
+        self.library.fit(init_states)
+        lib_batch = self.library(init_states)
+        #print(f'lib_batch: {lib_batch.shape}')
+
+        # SINDy critic
+        self.sindy_critic_model = jlab_opt_control.models.make('uqsindy_network-v0',
+                                                               num_features_in=self.library.output_dim_,
+                                                               num_features_out=1,# assuming a scalar reward
+                                                               batch_size=self.batch_size,
+                                                               logdir=self.logdir + '/sindy_test/')
+        self.sindy_critic_optimizer = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
         self.sindy_critic_model(lib_batch)
 
-
+        # SINDy Actor
+        # self.sindy_actor_model = jlab_opt_control.models.make('sindy_network-v0',
+        #     num_features_in=self.library.output_dim_, num_features_out=self.num_actions, logdir=self.logdir+'/sindy_test/')
+        # self.sindy_actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
+        # self.sindy_actor_model(lib_batch)
+        self.sindy_actor_model = jlab_opt_control.models.make('uqsindy_network-v0',
+                                                              num_features_in=self.library.output_dim_,
+                                                              num_features_out=self.num_actions,
+                                                              batch_size=self.batch_size,
+                                                              logdir=self.logdir+'/sindy_test/')
+        self.sindy_actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
+        self.sindy_actor_model(lib_batch)
 
     def initialize_new_models(self):
         """ Initialize new models from scratch """
@@ -274,23 +287,19 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
 
         return critic_loss1, critic_loss2, td_errors_avg
 
-    def train_sindy_critic(self, states, actions):
-        #print(f'actions: {actions.shape}')
-        lib_batch = self.library(actions)
-        #print(f'lib_batch: {lib_batch.shape}')
-        with tf.GradientTape() as tape:
-            q_values = self.critic_model1(states, actions)
-            #print(f'q_values: {q_values.shape}')
-            neg_log_p_Xy = self.sindy_critic_model.negative_log_likelihood(lib_batch, q_values)
-            kld = self.sindy_critic_model.kld()
-            loss = tf.reduce_mean(neg_log_p_Xy) + kld
-        gradients = tape.gradient(loss, self.sindy_critic_model.trainable_variables)
-        self.sindy_critic_optimizer.apply_gradients(zip(gradients, self.sindy_critic_model.trainable_variables))
-        sindy_q_values = self.sindy_critic_model(lib_batch)
-        rel_mean_diff = tf.abs( tf.reduce_mean(sindy_q_values)-tf.reduce_mean(q_values) )/ tf.abs(tf.reduce_mean(q_values))
-        print(f'sindy_q_values/q_values: {tf.reduce_mean(sindy_q_values)}/{tf.reduce_mean(q_values)} '
-              f'({rel_mean_diff})')
-        return loss, rel_mean_diff
+    # @tf.function
+    # def train_sindy_critic(self, states, actions):
+    #     lib_batch = self.library(states)
+    #     with tf.GradientTape() as tape:
+    #         q_values = self.critic_model1(states, actions)
+    #         neg_log_p_Xy = self.sindy_critic_model.negative_log_likelihood(lib_batch, q_values)
+    #         kld = self.sindy_critic_model.kld()
+    #         loss = tf.reduce_mean(neg_log_p_Xy) + kld
+    #     gradients = tape.gradient(loss, self.sindy_critic_model.trainable_variables)
+    #     self.sindy_critic_optimizer.apply_gradients(zip(gradients, self.sindy_critic_model.trainable_variables))
+    #     sindy_q_values = self.sindy_critic_model(lib_batch)
+    #     rel_mean_diff = tf.abs( tf.reduce_mean(sindy_q_values)-tf.reduce_mean(q_values) )/ tf.abs(tf.reduce_mean(q_values))
+    #     return loss, rel_mean_diff
 
     @tf.function
     def train_actor(self, states):
@@ -298,11 +307,68 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
         with tf.GradientTape() as tape:
             actions = self.actor_model(states, training=True)
             q_value = self.critic_model1(states, actions, training=False)
-            loss = -tf.math.reduce_mean(q_value)
+            td3_loss = -tf.math.reduce_mean(q_value)
+
+            # Include SINdy loss from action distance
+            lib_batch = self.library(states)
+            sindy_actions = self.sindy_actor_model(lib_batch)
+            # print(f'actions: {actions.shape}')
+            # print(f'sindy_actions: {sindy_actions.shape}')
+            actions_dist = 0
+            sindy_actions_dist = 0
+            for a in range(self.num_actions):
+                sub_actions = tf.reshape(actions[:, a], [-1])
+                sub_actions_dist = tf.math.squared_difference(
+                    tf.expand_dims(sub_actions, axis=1), tf.expand_dims(sub_actions, axis=0))
+                actions_dist += sub_actions_dist
+                #
+                sub_sindy_actions = tf.reshape(sindy_actions[:, a], [-1])
+                sub_sindy_actions_dist = tf.math.squared_difference(
+                    tf.expand_dims(sub_sindy_actions, axis=1), tf.expand_dims(sub_sindy_actions, axis=0))
+                sindy_actions_dist += sub_sindy_actions_dist
+
+            actions_dist = tf.reshape(actions_dist,shape=(-1,1))
+            sindy_actions_dist = tf.reshape(sindy_actions_dist,shape=(-1,1))
+            print(f'actions_dist: {actions_dist.shape}')
+            print(f'sindy_actions_dist: {sindy_actions_dist.shape}')
+            actions_dist = tf.sort(actions_dist)
+            sindy_actions_dist = tf.sort(sindy_actions_dist)
+            # Simple linear distance loss term for now
+            extra_loss = tf.reduce_mean(tf.abs(actions_dist - sindy_actions_dist))
+            loss = td3_loss + extra_loss
+
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
-        self.actor_optimizer.apply_gradients(
-            zip(gradient, self.actor_model.trainable_variables))
+        self.actor_optimizer.apply_gradients(zip(gradient, self.actor_model.trainable_variables))
+        return loss, td3_loss, extra_loss
+
+    def train_sindy_actor(self, states):
+        # Use Critic 1
+        lib_batch = self.library(states)
+        with tf.GradientTape() as tape:
+            actions = self.sindy_actor_model(lib_batch)
+            print(f'actions: {actions.shape}')
+            q_value = self.critic_model1(states, actions, training=False)
+            print(f'q_value: {q_value.shape}')
+            loss = -tf.math.reduce_mean(q_value)
+        gradient = tape.gradient(loss, self.sindy_actor_model.trainable_variables)
+        self.sindy_actor_optimizer.apply_gradients(zip(gradient, self.sindy_actor_model.trainable_variables))
         return loss
+
+    @tf.function
+    def train_uq_sindy_actor(self, states):
+        # Use Critic 1
+        nsamples = 10
+        lib_batch = self.library(states)
+        repeated_states = tf.repeat(states, nsamples, axis=0)
+        with tf.GradientTape() as tape:
+            actions = self.sindy_actor_model(lib_batch, nsamples=nsamples)
+            actions = tf.reshape(actions, shape=(-1, self.num_actions))
+            q_value = self.critic_model1(repeated_states, actions, training=False)
+            loss = -tf.math.reduce_mean(q_value)
+        gradient = tape.gradient(loss, self.sindy_actor_model.trainable_variables)
+        self.sindy_actor_optimizer.apply_gradients(zip(gradient, self.sindy_actor_model.trainable_variables))
+        return loss
+
 
     @tf.function
     def soft_update(self, target_weights, weights):
@@ -336,20 +402,29 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
                               step=int(self.ntrain_calls))
             tf.summary.scalar('Critic Loss 2', data=critic_loss2,
                               step=int(self.ntrain_calls))
-            # SINDy
-            sindy_loss, sindy_rel_loss_diff = self.train_sindy_critic(state_batch, action_batch)
-            tf.summary.scalar('Critic SINDy', data=sindy_loss,
-                              step=int(self.ntrain_calls))
-            tf.summary.scalar('Critic SINDy Rel Loss Diff', data=sindy_rel_loss_diff,
-                              step=int(self.ntrain_calls))
+            # # SINDy Critic
+            # sindy_loss, sindy_rel_loss_diff = self.train_sindy_critic(state_batch, action_batch)
+            # tf.summary.scalar('Critic SINDy Loss', data=sindy_loss,
+            #                   step=int(self.ntrain_calls))
+            # tf.summary.scalar('Critic SINDy Rel Loss Diff', data=sindy_rel_loss_diff,
+            #                   step=int(self.ntrain_calls))
+
+            # SINDy Actor
+            sindy_actor_loss = self.train_uq_sindy_actor(state_batch)
+            tf.summary.scalar('Actor SINDy Loss', data=sindy_actor_loss, step=int(self.ntrain_calls))
+
             # Update Priorities
             if "PER" in self.buffer_type:
                 new_priorities = td_errors.numpy()
                 self.buffer.update_priorities(new_priorities)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
-                actor_loss = self.train_actor(state_batch)
+                actor_loss, td3_loss, extra_loss = self.train_actor(state_batch)
                 tf.summary.scalar('Actor Loss', data=actor_loss,
+                                  step=int(self.ntrain_calls))
+                tf.summary.scalar('Actor TD3 Loss', data=td3_loss,
+                                  step=int(self.ntrain_calls))
+                tf.summary.scalar('Actor SINDy Loss', data=extra_loss,
                                   step=int(self.ntrain_calls))
                 self.soft_update(self.target_actor.variables,
                                  self.actor_model.variables)
@@ -371,8 +446,9 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
             state = tf.expand_dims(state, 0)
             sampled_action = (self.actor_model(state)).numpy()
             if train:
-                noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                         stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
+                # noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
+                #          stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
+                noise = np.zeros(self.num_actions)
                 sampled_action = np.clip(
                     sampled_action + noise, self.lower_bound, self.upper_bound)
             else:
