@@ -10,11 +10,13 @@ class MyTestCase(unittest.TestCase):
     def setUp(self):
         rng = np.random.default_rng(1)
         # Create data following parameters from UQ-SINDy paper
-        self.X = rng.normal(loc=0., scale=1., size=[400, 10])
+        self.X = rng.normal(loc=0., scale=1., size=[400, 9])
+        print('self.X:',self.X.shape)
         eps = rng.normal(loc=0., scale=0.25, size=[400, 1])
-        self.beta = np.array([[0.3, 0.2, -0.3, 0, 0, 0, 0, 0, 0, 0]]).T
-
+        self.beta = np.array([[0.3, 0.2, -0.3, 0, 0, 0, 0, 0, 0]]).T
+        print('self.beta:',self.beta.shape)
         self.y0 = self.X @ self.beta + eps
+        print('self.y0:',self.y0.shape)
 
     def test_numpy_lstsq(self):
         beta = np.linalg.lstsq(self.X, self.y0, rcond=None)[0]
@@ -55,8 +57,11 @@ class MyTestCase(unittest.TestCase):
 
     def test_uqsindy_network(self):
         # Convert everything to tensors
+        print(f'self.X: {self.X.shape}')
         X_batch = tf.convert_to_tensor(self.X, dtype=tf.float32)
         y0_batch = tf.convert_to_tensor(self.y0, dtype=tf.float32)
+        print(f'X_batch: {X_batch.shape}')
+        print(f'y0_batch: {y0_batch.shape}')
 
         # Setup model
         model = jlab_opt_control.models.make('uqsindy_network-v0', logdir='results/test')
@@ -68,6 +73,7 @@ class MyTestCase(unittest.TestCase):
         library = PolynomialLibrary(degree=1, include_bias=False)
         library.fit(X_batch)
         lib_batch = library(X_batch)
+        print(f'lib_batch: {lib_batch.shape}')
 
         # Run through model once to initialize variables
         model(lib_batch)

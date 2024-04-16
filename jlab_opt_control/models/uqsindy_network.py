@@ -17,7 +17,7 @@ uqsindy_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 class UQSINDyNetwork(Model):
-    def __init__(self, logdir, cfg='uqsindy_network.cfg'):
+    def __init__(self, num_features_in, num_features_out, batch_size, logdir, cfg='uqsindy_network.cfg'):
         super().__init__()
         
         # Load configuration
@@ -29,9 +29,9 @@ class UQSINDyNetwork(Model):
         # Read configuration for architecture
         with open(self.pfn_json_file, 'r') as f:
             cfg_data = json.load(f)
-        num_features_in = cfg_data.get("num_features_in", 10) #Default
-        num_features_out = cfg_data.get("num_features_out", 1) #Default
-        self.batch_size = cfg_data.get("batch_size", 1024)
+        num_features_in = num_features_in#cfg_data.get("num_features_in", 10) #Default
+        num_features_out = num_features_out# cfg_data.get("num_features_out", 1) #Default
+        self.batch_size = batch_size# cfg_data.get("batch_size", 1024)
 
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
