@@ -46,3 +46,21 @@ conda activate jlab_opt_control_env
 pip install -e .
 ```
 ## [Documentation](https://github.com/JeffersonLab/SciOptControlToolkit/wiki)
+
+## Cite this software
+
+```
+@misc{SOCT,
+  author = {Malachi Schram, Kishan Rajput, Armen Kasparian},
+  title = {Scientific Optimization Control Toolkit (SOCT)},
+  year = {2024},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{JeffersonLab/SciOptControlToolkit}},
+}
+```
+
+## Contacts
+
+If you have any questions or concerns regarding SOCT, please contact Malachi Schram (schram@jlab.org), Kishan Rajput (kishan@jlab.org), Armen Kasparian (armenk@jlab.org).
+
