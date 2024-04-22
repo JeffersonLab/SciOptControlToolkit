@@ -106,6 +106,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         env = paces_gym.make(env_id)
         if 'LCLS' in env_id:
             env.set_curriculum_difficulty(difficulty)
+            # Check if max_nsteps is not defined, set it to default (10) for lcls env
+            if max_nsteps <= 0:
+                max_nsteps = 10 
             env = TimeLimit(env, max_nsteps)
             env = RescaleObservation(env, -1, 1)
             env = RescaleAction(env, -1, 1)
