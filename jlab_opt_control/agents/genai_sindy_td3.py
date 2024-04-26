@@ -160,24 +160,27 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
         self.nactions = 0
 
         # SINDy library
-        num_poly = 4
-        self.library = PolynomialLibrary(degree=4, include_bias=False)
+        num_poly = 3
+        self.library = PolynomialLibrary(degree=num_poly, include_bias=False)
         rng = np.random.default_rng(1)
         init_states = tf.convert_to_tensor(rng.normal(loc=0., scale=1., size=[self.batch_size, self.num_states]),
                                            dtype=tf.float32)
         #print(f'init_states: {init_states.shape}')
         self.library.fit(init_states)
         lib_batch = self.library(init_states)
-        #print(f'lib_batch: {lib_batch.shape}')
+        td3_log.debug(f'lib shape:{lib_batch.shape}')
 
         # SINDy critic
-        self.sindy_critic_model = jlab_opt_control.models.make('uqsindy_network-v0',
-                                                               num_features_in=self.library.output_dim_,
-                                                               num_features_out=1,# assuming a scalar reward
-                                                               batch_size=self.batch_size,
-                                                               logdir=self.logdir + '/sindy_test/')
-        self.sindy_critic_optimizer = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
-        self.sindy_critic_model(lib_batch)
+        # self.sindy_critic_model = jlab_opt_control.models.make('uqsindy_network-v0',
+        #                                                        num_features_in=self.library.output_dim_,
+        #                                                        num_features_out=1,
+        #                                                        min_action = env.action_space.low
+        #                                                        max_action = env.action_space.high
+        #                                                        # assuming a scalar reward
+        #                                                        batch_size=self.batch_size,
+        #                                                        logdir=self.logdir + '/sindy_test/')
+        # self.sindy_critic_optimizer = tf.keras.optimizers.legacy.Adam(self.critic_lr, epsilon=1e-08)
+        # self.sindy_critic_model(lib_batch)
 
         # SINDy Actor
         # self.sindy_actor_model = jlab_opt_control.models.make('sindy_network-v0',
@@ -187,6 +190,8 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
         self.sindy_actor_model = jlab_opt_control.models.make('uqsindy_network-v0',
                                                               num_features_in=self.library.output_dim_,
                                                               num_features_out=self.num_actions,
+                                                              min_action=env.action_space.low,
+                                                              max_action = env.action_space.high,
                                                               batch_size=self.batch_size,
                                                               logdir=self.logdir+'/sindy_test/')
         self.sindy_actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
@@ -312,6 +317,7 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
             # Include SINdy loss from action distance
             lib_batch = self.library(states)
             sindy_actions = self.sindy_actor_model(lib_batch)
+            #print(f'sindy_action min/max: {tf.math.reduce_max(sindy_actions)} / {tf.math.reduce_min(sindy_actions)}')
             # print(f'actions: {actions.shape}')
             # print(f'sindy_actions: {sindy_actions.shape}')
             actions_dist = 0
@@ -329,8 +335,8 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
 
             actions_dist = tf.reshape(actions_dist,shape=(-1,1))
             sindy_actions_dist = tf.reshape(sindy_actions_dist,shape=(-1,1))
-            print(f'actions_dist: {actions_dist.shape}')
-            print(f'sindy_actions_dist: {sindy_actions_dist.shape}')
+            #print(f'actions_dist: {actions_dist.shape}')
+            #print(f'sindy_actions_dist: {sindy_actions_dist.shape}')
             actions_dist = tf.sort(actions_dist)
             sindy_actions_dist = tf.sort(sindy_actions_dist)
             # Simple linear distance loss term for now
@@ -357,14 +363,18 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
     @tf.function
     def train_uq_sindy_actor(self, states):
         # Use Critic 1
-        nsamples = 10
-        lib_batch = self.library(states)
+        nsamples = 25
+        #print(f'train states: {states.shape}')
         repeated_states = tf.repeat(states, nsamples, axis=0)
+        #print(f'train repeated_states: {repeated_states.shape}')
+        lib_batch = self.library(repeated_states)
+        #print(f'train lib_batch: {lib_batch.shape}')
+
         with tf.GradientTape() as tape:
-            actions = self.sindy_actor_model(lib_batch, nsamples=nsamples)
-            actions = tf.reshape(actions, shape=(-1, self.num_actions))
+            actions = self.sindy_actor_model(lib_batch, nsamples=1)
+            #actions = tf.reshape(actions, shape=(-1, self.num_actions))
             q_value = self.critic_model1(repeated_states, actions, training=False)
-            loss = -tf.math.reduce_mean(q_value)
+            loss = -tf.math.reduce_mean(q_value) #+ self.sindy_actor_model.kld()
         gradient = tape.gradient(loss, self.sindy_actor_model.trainable_variables)
         self.sindy_actor_optimizer.apply_gradients(zip(gradient, self.sindy_actor_model.trainable_variables))
         return loss
@@ -441,13 +451,25 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
         if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and inference == False:
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
+            sindy_action_mu = np.zeros(self.num_actions)
+            sindy_action_std = np.zeros(self.num_actions)
         # Warmup completed, sample from actor or run inference
         else:
             state = tf.expand_dims(state, 0)
             sampled_action = (self.actor_model(state)).numpy()
+            lib = self.library(tf.repeat(state,1,axis=0))
+            #print(f'lib: {lib.shape}')
+            sindy_actions = self.sindy_actor_model(lib, nsamples=1)
+            #print(f'sindy_actions: {sindy_actions.shape}')
+            #sindy_action_mu = np.mean(sindy_actions)
+            #sindy_action_std = np.std(sindy_actions)
+            # print(f'sindy_actions: {sindy_actions.shape}')
+            # print(f'sampled_action: {sampled_action.shape}')
+            # print(f'sindy_action_mu: {sindy_action_mu.shape}')
+
             if train:
-                # noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                #          stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
+                noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
+                         stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
                 noise = np.zeros(self.num_actions)
                 sampled_action = np.clip(
                     sampled_action + noise, self.lower_bound, self.upper_bound)
@@ -459,17 +481,33 @@ class GenAISINDyTD3(jlab_opt_control.Agent):
             assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
                 f"Sampled action shape is incorrect... {sampled_action.shape}"
 
+            # sindy_action_mu = sindy_action.flatten()
+            # sindy_action_std = sindy_action_std.flatten()
+            # noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
+            #          stddev=sindy_action_std, dtype=tf.float32)).numpy()
+            sampled_action = np.reshape(sindy_actions,-1) #np.clip( sindy_action_mu + noise, self.lower_bound, self.upper_bound)
+        #print(f'sampled_action: {sampled_action.shape}')
+
+
         # Log the training action(s) taken
         if train:
             self.nactions = self.nactions + 1
             if self.num_actions == 0:
                 tf.summary.scalar('Action', data=sampled_action,
                                   step=int(self.nactions))
+                # tf.summary.scalar('SINDy Action Mean', data=sindy_action_mu,
+                #                       step=int(self.nactions))
+                # tf.summary.scalar('SINDy Action STD', data=sindy_action_std,
+                #                       step=int(self.nactions))
             else:
                 for i in range(self.num_actions):
                     tf.summary.scalar('Action #{}'.format(
                         i), data=sampled_action[i], step=int(self.nactions))
-
+                    # tf.summary.scalar('SINDy Action Mean', data=sindy_action_mu[i],
+                    #                   step=int(self.nactions))
+                    # tf.summary.scalar('SINDy Action STD', data=sindy_action_std[i],
+                    #                   step=int(self.nactions))
+\
         # Insure action output by actor is in legal environment range
         return sampled_action, noise
 
