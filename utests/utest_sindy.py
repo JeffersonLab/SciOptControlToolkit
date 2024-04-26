@@ -94,7 +94,7 @@ class MyTestCase(unittest.TestCase):
             gradients = tape.gradient(loss, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         
-        beta = tf.reduce_mean(model.sample_posterior(batch_size=10), axis=0).numpy()
+        beta = tf.reduce_mean(model.sample_posterior(sampling_size=10), axis=0).numpy()
         print(f'self.beta: {self.beta.shape}')
         print(f'beta: {beta.shape}')
         #self.assertTrue(np.allclose(beta, self.beta, atol=5e-2))

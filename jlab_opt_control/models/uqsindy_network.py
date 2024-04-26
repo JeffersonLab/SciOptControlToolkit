@@ -119,13 +119,13 @@ class UQSINDyNetwork(Model):
         # BX = tf.keras.layers.Lambda(lambda x: ((x + 1.0) * (upper_bound - lower_bound)) / 2.0 + self.lower_bound)(BX)
         return BX
 
-    # def negative_log_likelihood(self, x, y0):
-    #     """ Log likelihood of data given parameter distribution """
-    #     BX  = self(x) # Distribution of predictions from distribution of parameters
-    #     log_p_x = -0.5 * tf.reduce_sum(tf.square(x), axis=-1)[None] # Shape [1,N,]
-    #     log_p_y = -0.5 * tf.reduce_sum(tf.square(y0 - BX), axis=-1) #Shape [B,N,]
-    #     log_p_Xy = tf.reduce_sum(log_p_x + log_p_y, axis=1)
-    #     return -log_p_Xy
+    def negative_log_likelihood(self, x, y0):
+        """ Log likelihood of data given parameter distribution """
+        BX  = self(x) # Distribution of predictions from distribution of parameters
+        log_p_x = -0.5 * tf.reduce_sum(tf.square(x), axis=-1)[None] # Shape [1,N,]
+        log_p_y = -0.5 * tf.reduce_sum(tf.square(y0 - BX), axis=-1) #Shape [B,N,]
+        log_p_Xy = tf.reduce_sum(log_p_x + log_p_y, axis=1)
+        return -log_p_Xy
 
     def kld(self):
         """ KL-Divergence of latent space from unit normal prior """
