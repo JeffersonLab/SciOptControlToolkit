@@ -29,6 +29,7 @@
 from jlab_opt_control.agents.registration import register, make, list_registered_modules
 from jlab_opt_control.agents.keras_td3 import KerasTD3
 from jlab_opt_control.agents.keras_ddpg import KerasDDPG
+from jlab_opt_control.agents.keras_sindy_td3 import KerasSINDyTD3
 
 # Single Objective Agents
 register(
@@ -41,4 +42,10 @@ register(
     id='KerasDDPG-v0',
     entry_point='jlab_opt_control.agents:KerasDDPG',
     kwargs={'cfg': 'keras_ddpg.cfg'},
+)
+
+register(
+    id='KerasSINDyTD3-v0',
+    entry_point='jlab_opt_control.agents:KerasSINDyTD3',
+    kwargs={'cfg': 'keras_td3.cfg'},
 )
