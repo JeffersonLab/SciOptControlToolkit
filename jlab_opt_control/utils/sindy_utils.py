@@ -1,9 +1,11 @@
 import tensorflow as tf
 
+
 class PolynomialLibrary(tf.keras.layers.Layer):
-    '''
+    """
     Library of polynomial functions up to a specified degree
-    '''
+    """
+
     def __init__(self, degree=3, include_bias=False):
         super().__init__()
         self.degree = degree
@@ -28,18 +30,18 @@ class PolynomialLibrary(tf.keras.layers.Layer):
         if self.degree > 0:
             for i in range(L):
                 library.append(x[:, i])
-        
+
         if self.degree > 1:
             for i in range(L):
                 for j in range(i, L):
                     library.append(x[:, i] * x[:, j])
-        
+
         if self.degree > 2:
             for i in range(L):
                 for j in range(i, L):
                     for k in range(j, L):
                         library.append(x[:, i] * x[:, j] * x[:, k])
-        
+
         if self.degree > 3:
             for i in range(L):
                 for j in range(i, L):
