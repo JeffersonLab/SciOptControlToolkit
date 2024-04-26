@@ -22,38 +22,38 @@ class MyTestCase(unittest.TestCase):
         beta = np.linalg.lstsq(self.X, self.y0, rcond=None)[0]
         self.assertTrue(np.allclose(beta, self.beta, atol=5e-2))
 
-    # def test_sindy_network(self):
-    #     # Setup model
-    #     model = jlab_opt_control.models.make('sindy_network-v0', logdir='results/test')
-    #
-    #     # Setup optimizers
-    #     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-2, epsilon=1e-8)
-    #
-    #     # Setup library
-    #     library = PolynomialLibrary(degree=1, include_bias=False)
-    #     library.fit(tf.zeros([1, self.beta.shape[0]]))
-    #
-    #     # Run through model once to initialize variables
-    #     model(tf.zeros([1, library.output_dim_]))
-    #
-    #     # Create loss function
-    #     mse_loss = tf.keras.losses.MeanSquaredError()
-    #
-    #     # Train model
-    #     n_steps = 100
-    #     for step in range(n_steps):
-    #         X_batch = tf.convert_to_tensor(self.X, dtype=tf.float32)
-    #         y0_batch = tf.convert_to_tensor(self.y0, dtype=tf.float32)
-    #         lib_batch = library(X_batch)
-    #         with tf.GradientTape() as tape:
-    #             y1 = model(lib_batch)
-    #             loss = mse_loss(y0_batch, y1)
-    #
-    #         gradients = tape.gradient(loss, model.trainable_variables)
-    #         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    #
-    #     beta = model.coefs.numpy()
-    #     self.assertTrue(np.allclose(beta, self.beta, atol=5e-2))
+    def test_sindy_network(self):
+        # Setup model
+        model = jlab_opt_control.models.make('sindy_network-v0', logdir='results/test')
+
+        # Setup optimizers
+        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-2, epsilon=1e-8)
+
+        # Setup library
+        library = PolynomialLibrary(degree=1, include_bias=False)
+        library.fit(tf.zeros([1, self.beta.shape[0]]))
+
+        # Run through model once to initialize variables
+        model(tf.zeros([1, library.output_dim_]))
+
+        # Create loss function
+        mse_loss = tf.keras.losses.MeanSquaredError()
+
+        # Train model
+        n_steps = 100
+        for step in range(n_steps):
+            X_batch = tf.convert_to_tensor(self.X, dtype=tf.float32)
+            y0_batch = tf.convert_to_tensor(self.y0, dtype=tf.float32)
+            lib_batch = library(X_batch)
+            with tf.GradientTape() as tape:
+                y1 = model(lib_batch)
+                loss = mse_loss(y0_batch, y1)
+
+            gradients = tape.gradient(loss, model.trainable_variables)
+            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+        beta = model.coefs.numpy()
+        self.assertTrue(np.allclose(beta, self.beta, atol=5e-2))
 
     def test_uqsindy_network(self):
         # Convert everything to tensors
