@@ -169,7 +169,7 @@ class KerasSINDyTD3(KerasTD3):
         init_states = tf.convert_to_tensor(rng.normal(loc=0., scale=1., size=[self.batch_size, self.num_states]), dtype=tf.float32)
 
         # SINDy Poly library
-        num_poly = 4
+        num_poly = 2
         self.library = PolynomialLibrary(degree=num_poly, include_bias=False)
         self.library.fit(init_states)
         lib_batch = self.library(init_states)
