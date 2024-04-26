@@ -28,7 +28,10 @@
 
 from jlab_opt_control.models.registration import register, make, list_registered_modules
 from jlab_opt_control.models.actor_fcnn import ActorFCNN
+from jlab_opt_control.models.actor_fcnn_v2 import ActorFCNN_v2
 from jlab_opt_control.models.critic_fcnn import CriticFCNN
+from jlab_opt_control.models.sindy_network import SINDyNetwork
+from jlab_opt_control.models.uqsindy_network import UQSINDyNetwork
 
 register(
     id='actor_fcnn-v0',
@@ -37,7 +40,25 @@ register(
 )
 
 register(
+    id='actor_fcnn-v2',
+    entry_point='jlab_opt_control.models:ActorFCNN_v2',
+    kwargs={'cfg': 'actor_fcnn.cfg'},
+)
+
+register(
     id='critic_fcnn-v0',
     entry_point='jlab_opt_control.models:CriticFCNN',
     kwargs={'cfg': 'critic_fcnn.cfg'},
+)
+
+register(
+    id='sindy_network-v0',
+    entry_point='jlab_opt_control.models:SINDyNetwork',
+    kwargs={'cfg': 'sindy_network.cfg'}
+)
+
+register(
+    id='uqsindy_network-v0',
+    entry_point='jlab_opt_control.models:UQSINDyNetwork',
+    kwargs={'cfg': 'uqsindy_network.cfg'}
 )
