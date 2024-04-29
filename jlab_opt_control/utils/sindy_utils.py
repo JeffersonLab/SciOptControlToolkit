@@ -52,6 +52,7 @@ class PolynomialLibrary(tf.keras.layers.Layer):
 
         return tf.stack(library, axis=1)  # [B, L]
 
+
 class FourierLibrary(tf.keras.layers.Layer):
     """
     Library of fourier functions up to a specified number of frequencies
@@ -120,4 +121,3 @@ class FourierLibrary(tf.keras.layers.Layer):
 
         library = tf.concat(library, axis=1)  # [n_samples, n_features]
         return library
-
