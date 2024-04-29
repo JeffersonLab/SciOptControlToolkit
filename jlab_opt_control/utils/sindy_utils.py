@@ -21,6 +21,7 @@ class PolynomialLibrary(tf.keras.layers.Layer):
         self.output_dim_ = y.shape[-1]
         return y
 
+    @tf.function
     def call(self, x):
         B, L = x.shape
         library = []
