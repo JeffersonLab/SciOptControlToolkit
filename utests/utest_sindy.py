@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 import jlab_opt_control.models
-from jlab_opt_control.utils.sindy_utils import PolynomialLibrary
+from jlab_opt_control.utils.sindy_lib_utils import PolynomialLibrary
 import tensorflow as tf
 
 class MyTestCase(unittest.TestCase):
