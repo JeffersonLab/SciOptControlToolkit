@@ -169,7 +169,7 @@ class KerasSINDyTD3(KerasTD3):
         init_states = tf.convert_to_tensor(rng.normal(loc=0., scale=1., size=[self.batch_size, self.num_states]), dtype=tf.float32)
 
         # SINDy Poly library
-        num_poly = 2
+        num_poly = 4
         self.library = PolynomialLibrary(degree=num_poly, include_bias=False)
         self.library.fit(init_states)
         lib_batch = self.library(init_states)
@@ -198,7 +198,7 @@ class KerasSINDyTD3(KerasTD3):
               batch_size=self.batch_size,
               logdir=self.logdir+'/sindy_test/')
         self.target_actor(lib_batch)
-        self.actor_model.save_cfg()
+        self.target_actor.save_cfg()
 
         # TD3 Critic
         seed1 = time.time_ns()
@@ -244,6 +244,7 @@ class KerasSINDyTD3(KerasTD3):
         lib_batch = self.library(states)
         next_actions = self.target_actor(lib_batch, nsamples=1)
         next_actions = tf.clip_by_value(next_actions, self.lower_bound, self.upper_bound)
+        next_actions = next_actions[0,:,:]
         target_q1 = self.target_critic1(
             next_states, next_actions, training=False)
         target_q2 = self.target_critic2(
@@ -280,15 +281,23 @@ class KerasSINDyTD3(KerasTD3):
 
     @tf.function
     def train_actor(self, states):
+        #print('train_actor')
         # Use Critic 1
-        nsamples = 25
-        repeated_states = tf.repeat(states, nsamples, axis=0)
-        lib_batch = self.library(repeated_states)
+        nsamples = 50
+        repeated_states = tf.repeat(states[None], nsamples, axis=0)
+        #repeated_states = tf.repeat(states, nsamples, axis=0)
         # Use Critic 1
         with tf.GradientTape() as tape:
-            actions = self.actor_model(lib_batch, nsamples=1)
+            lib_batch = self.library(states)
+            actions = self.actor_model(lib_batch, nsamples=nsamples)
+            repeated_states = tf.reshape(repeated_states, shape=(-1, repeated_states.shape[-1]))
+            actions = tf.reshape(actions, shape=(-1, actions.shape[-1]))
+            #actions = tf.reshape(actions,shape=(states[None], nsamples))# -1, actions.shape[-1]))
+            # print(f'lib_batch: {lib_batch.shape}')
+            #print(f'actions: {actions.shape}')
+            # print(f'states: {states.shape}')
             q_value = self.critic_model1(repeated_states, actions, training=False)
-            loss = -tf.math.reduce_mean(q_value)
+            loss = -tf.math.reduce_mean(q_value) # + actions_error
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
@@ -308,8 +317,8 @@ class KerasSINDyTD3(KerasTD3):
             if train:
                 sampled_action = self.actor_model(lib, nsamples=1).numpy()
             else:
-                sampled_actions = self.actor_model(lib, nsamples=35).numpy()
-                sampled_action = np.median(sampled_actions, axis=0)
+                sampled_action = self.actor_model(lib, nsamples=1).numpy()
+                #sampled_action = np.median(sampled_actions, axis=0)
                 noise = np.zeros(self.num_actions)
 
             sampled_action = sampled_action.flatten()
