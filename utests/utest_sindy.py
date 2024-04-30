@@ -77,6 +77,8 @@ class MyTestCase(unittest.TestCase):
             "uqsindy_network-v0",
             num_features_in=library.output_dim_,
             num_features_out=y0_batch.shape[1],
+            max_action=np.array([None]),
+            min_action=np.array([None]),
             batch_size=self.X.shape[0],
             logdir="results/test",
         )
