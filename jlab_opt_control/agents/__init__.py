@@ -33,19 +33,19 @@ from jlab_opt_control.agents.keras_sindy_td3 import KerasSINDyTD3
 
 # Single Objective Agents
 register(
-    id='KerasTD3-v0',
-    entry_point='jlab_opt_control.agents:KerasTD3',
-    kwargs={'cfg': 'keras_td3.cfg'},
+    id="KerasTD3-v0",
+    entry_point="jlab_opt_control.agents:KerasTD3",
+    kwargs={"cfg": "keras_td3.cfg"},
 )
 
 register(
-    id='KerasDDPG-v0',
-    entry_point='jlab_opt_control.agents:KerasDDPG',
-    kwargs={'cfg': 'keras_ddpg.cfg'},
+    id="KerasDDPG-v0",
+    entry_point="jlab_opt_control.agents:KerasDDPG",
+    kwargs={"cfg": "keras_ddpg.cfg"},
 )
 
 register(
-    id='KerasSINDyTD3-v0',
-    entry_point='jlab_opt_control.agents:KerasSINDyTD3',
-    kwargs={'cfg': 'keras_td3.cfg'},
+    id="KerasSINDyTD3-v0",
+    entry_point="jlab_opt_control.agents:KerasSINDyTD3",
+    kwargs={"cfg": "keras_td3.cfg"},
 )

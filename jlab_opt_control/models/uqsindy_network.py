@@ -100,9 +100,7 @@ class UQSINDyNetwork(Model):
             trainable=True,
         )
 
-        ortho_init = tf.keras.initializers.Orthogonal(
-            gain=1.0, seed=None
-        )
+        ortho_init = tf.keras.initializers.Orthogonal(gain=1.0, seed=None)
         zeros_init = tf.keras.initializers.Zeros()
 
         # Network architecture
@@ -111,17 +109,19 @@ class UQSINDyNetwork(Model):
         for i in range(hidden_layers):
             # Layer construction with dynamic activation functions
             self.hidden_layers.append(
-                layers.Dense(nodes_per_layer[i],
-                             kernel_initializer=ortho_init,
-                             bias_initializer=zeros_init,
-                             activation=activation_functions[i])
+                layers.Dense(
+                    nodes_per_layer[i],
+                    kernel_initializer=ortho_init,
+                    bias_initializer=zeros_init,
+                    activation=activation_functions[i],
+                )
             )
         # Output layer with its specified activation function
         self.output_layer = layers.Dense(
             total_features,
             kernel_initializer=ortho_init,
             bias_initializer=zeros_init,
-            activation=activation_functions[-1]
+            activation=activation_functions[-1],
         )
 
     @tf.function
@@ -154,18 +154,18 @@ class UQSINDyNetwork(Model):
     def call(self, inputs, nsamples=0, training=False):
         """forward pass of model"""
         if nsamples == 0:
-            #print(f'HERE')
+            # print(f'HERE')
             nsamples = self.batch_size
-        #print(f'nsamples: {nsamples}')
+        # print(f'nsamples: {nsamples}')
         x = inputs
         betas = self.sample_posterior(nsamples)
-        #print(f'betas: {betas.shape}')
+        # print(f'betas: {betas.shape}')
         BX = tf.einsum("nd,bdo->bno", x, betas)
         # print(f'BX per-tanh: {BX.shape}')
         if self.using_tanh:
             BX = tf.keras.activations.tanh(BX[:, :, :])
             BX = BX * self.action_scale + self.action_bias
-        #print(f'BX post tanh: {BX.shape}')
+        # print(f'BX post tanh: {BX.shape}')
 
         # upper_bound = 2
         # lower_bound = -2
