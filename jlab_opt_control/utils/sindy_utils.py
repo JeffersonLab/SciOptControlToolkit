@@ -21,6 +21,7 @@ class PolynomialLibrary(tf.keras.layers.Layer):
         self.output_dim_ = y.shape[-1]
         return y
 
+    @tf.function
     def call(self, x):
         B, L = x.shape
         library = []
@@ -50,6 +51,7 @@ class PolynomialLibrary(tf.keras.layers.Layer):
                             library.append(x[:, i] * x[:, j] * x[:, k] * x[:, l])
 
         return tf.stack(library, axis=1)  # [B, L]
+
 
 class FourierLibrary(tf.keras.layers.Layer):
     """
@@ -119,4 +121,3 @@ class FourierLibrary(tf.keras.layers.Layer):
 
         library = tf.concat(library, axis=1)  # [n_samples, n_features]
         return library
-

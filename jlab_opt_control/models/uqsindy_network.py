@@ -53,7 +53,7 @@ class UQSINDyNetwork(Model):
         # self.batch_size = cfg_data.get("batch_size", 1024)
 
         self.using_tanh = False
-        if max_action != None and min_action != None:
+        if max_action.any() != None and min_action.any != None:
             self.action_scale = tf.constant(
                 (max_action - min_action) / 2, dtype=tf.float32
             )
@@ -88,17 +88,20 @@ class UQSINDyNetwork(Model):
 
         # Parameters
         self.mu = tf.Variable(
-            initial_value=tf.zeros(
+            initial_value=tf.ones(
                 [num_features_in, num_features_out], dtype=tf.float32
             ),
             trainable=True,
         )
         self.log_var = tf.Variable(
-            initial_value=tf.zeros(
+            initial_value=tf.ones(
                 [num_features_in, num_features_out], dtype=tf.float32
             ),
             trainable=True,
         )
+
+        ortho_init = tf.keras.initializers.Orthogonal(gain=1.0, seed=None)
+        zeros_init = tf.keras.initializers.Zeros()
 
         # Network architecture
         total_features = num_features_in * num_features_out
@@ -106,11 +109,19 @@ class UQSINDyNetwork(Model):
         for i in range(hidden_layers):
             # Layer construction with dynamic activation functions
             self.hidden_layers.append(
-                layers.Dense(nodes_per_layer[i], activation=activation_functions[i])
+                layers.Dense(
+                    nodes_per_layer[i],
+                    kernel_initializer=ortho_init,
+                    bias_initializer=zeros_init,
+                    activation=activation_functions[i],
+                )
             )
         # Output layer with its specified activation function
         self.output_layer = layers.Dense(
-            total_features, activation=activation_functions[-1]
+            total_features,
+            kernel_initializer=ortho_init,
+            bias_initializer=zeros_init,
+            activation=activation_functions[-1],
         )
 
     @tf.function
@@ -143,15 +154,18 @@ class UQSINDyNetwork(Model):
     def call(self, inputs, nsamples=0, training=False):
         """forward pass of model"""
         if nsamples == 0:
+            # print(f'HERE')
             nsamples = self.batch_size
+        # print(f'nsamples: {nsamples}')
         x = inputs
         betas = self.sample_posterior(nsamples)
+        # print(f'betas: {betas.shape}')
         BX = tf.einsum("nd,bdo->bno", x, betas)
-        # print(f'BX: {BX.shape}')
+        # print(f'BX per-tanh: {BX.shape}')
         if self.using_tanh:
-            BX = tf.keras.activations.tanh(BX[0, :, :])
+            BX = tf.keras.activations.tanh(BX[:, :, :])
             BX = BX * self.action_scale + self.action_bias
-        # print(f'BX: {BX.shape}')
+        # print(f'BX post tanh: {BX.shape}')
 
         # upper_bound = 2
         # lower_bound = -2
