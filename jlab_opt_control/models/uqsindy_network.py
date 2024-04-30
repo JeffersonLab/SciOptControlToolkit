@@ -53,7 +53,7 @@ class UQSINDyNetwork(Model):
         # self.batch_size = cfg_data.get("batch_size", 1024)
 
         self.using_tanh = False
-        if max_action.any() != None and min_action.any != None:
+        if max_action.any() != None and min_action.any() != None:
             self.action_scale = tf.constant(
                 (max_action - min_action) / 2, dtype=tf.float32
             )

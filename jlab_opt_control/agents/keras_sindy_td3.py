@@ -29,7 +29,8 @@
 import logging
 import jlab_opt_control as jlab_opt_control
 from jlab_opt_control.agents.keras_td3 import KerasTD3
-from jlab_opt_control.utils.sindy_utils import PolynomialLibrary, FourierLibrary
+from jlab_opt_control.utils.sindy_lib.polynomial_library import PolynomialLibrary
+from jlab_opt_control.utils.sindy_lib.fourier_library import FourierLibrary
 import jlab_opt_control.utils.cfg_utils as cfg_utils
 import jlab_opt_control.buffers
 import jlab_opt_control.models
