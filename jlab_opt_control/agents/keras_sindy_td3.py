@@ -357,7 +357,7 @@ class KerasSINDyTD3(KerasTD3):
 
         if self.ntrain_calls % self.plot_every_ntrain == 0:
             feature_names = self.library.get_feature_names()
-            action_names = [f"Action {i}" for i in range(min(self.num_actions, 1))]
+            action_names = [f"Action {i}" for i in range(max(self.num_actions, 1))]
             fig = self.actor_model.plot_coefficients(feature_names, action_names)
 
             # Convert figure to an image tensor and log
