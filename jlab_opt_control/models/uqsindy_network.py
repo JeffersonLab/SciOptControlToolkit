@@ -13,6 +13,10 @@ import json
 import logging
 import shutil
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
 uqsindy_log = logging.getLogger("UQ-SINDy")
 uqsindy_log.setLevel(logging.DEBUG)
 logging.basicConfig(format="%(asctime)s %(levelname)s:%(name)s:%(message)s")
@@ -123,6 +127,42 @@ class UQSINDyNetwork(Model):
             bias_initializer=zeros_init,
             activation=activation_functions[-1],
         )
+
+    def plot_coefficients(self, feature_names, action_names):
+        """Plot coefficient distribution using Box-Whisker plot"""
+        weight_dist = self.sample_posterior()
+
+        assert len(feature_names) == weight_dist.shape[1]
+        assert len(action_names) == weight_dist.shape[2]
+
+        # Use Pandas dataframe to collect data
+        df = []
+        for i, action in enumerate(action_names):
+            df.append(pd.DataFrame(weight_dist[:, :, i], columns=feature_names))
+            df[-1]["action"] = action
+        df = pd.concat(df, ignore_index=True).reset_index()
+        df = pd.melt(
+            df,
+            id_vars=["index", "action"],
+            value_vars=feature_names,
+            var_name="Term",
+            value_name="Coefficient",
+        )
+
+        # Generate coefficients boxplot using Seaborn
+        fig, ax = plt.subplots(dpi=150)
+        sns.boxplot(
+            data=df,
+            x="Coefficient",
+            y="Term",
+            hue="action",
+            whis=(0, 100),
+            ax=ax,
+        )
+        ax.axvline(0, color="grey", zorder=-10)
+        plt.tight_layout()
+
+        return fig
 
     @tf.function
     def sample_posterior(self, sampling_size=1024):

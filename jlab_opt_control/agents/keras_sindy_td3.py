@@ -356,38 +356,9 @@ class KerasSINDyTD3(KerasTD3):
         super().train()
 
         if self.ntrain_calls % self.plot_every_ntrain == 0:
-            t = time.time()
-            # Log the SINDy parameter distributions
-            weight_dist = self.actor_model.sample_posterior()
             feature_names = self.library.get_feature_names()
-            action_names = [f"Action {i}" for i in range(weight_dist.shape[2])]
-
-            # Use Pandas dataframe for Seaborn plotting
-            df = []
-            for i, action in enumerate(action_names):
-                df.append(pd.DataFrame(weight_dist[:, :, i], columns=feature_names))
-                df[-1]["action"] = action
-            df = pd.concat(df, ignore_index=True).reset_index()
-            df = pd.melt(
-                df,
-                id_vars=["index", "action"],
-                value_vars=feature_names,
-                var_name="Term",
-                value_name="Coefficient",
-            )
-
-            # Generate box-whisker figure using Seaborn
-            fig, ax = plt.subplots(dpi=150)
-            sns.boxplot(
-                data=df,
-                x="Coefficient",
-                y="Term",
-                hue="action",
-                whis=(0, 100),
-                ax=ax,
-            )
-            ax.axvline(0, color="grey", zorder=-10)
-            plt.tight_layout()
+            action_names = [f"Action {i}" for i in range(min(self.num_actions, 1))]
+            fig = self.actor_model.plot_coefficients(feature_names, action_names)
 
             # Convert figure to an image tensor and log
             buf = io.BytesIO()
