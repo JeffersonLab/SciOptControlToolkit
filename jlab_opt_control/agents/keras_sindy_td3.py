@@ -45,6 +45,12 @@ import platform
 import sys
 import shutil
 
+import io
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+import seaborn as sns
+import pandas as pd
+
 processor = platform.processor()
 
 td3_log = logging.getLogger("TD3-Agent")
@@ -97,6 +103,7 @@ class KerasSINDyTD3(KerasTD3):
         self.warmup_size = int(cfg_utils.cfg_get(data, "warmup_size", 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, "batch_size", 100))
         self.model_load_path = cfg_utils.cfg_get(data, "load_model", None)
+        self.plot_every_ntrain = int(cfg_utils.cfg_get(data, "plot_every_ntrain", 200))
 
         self.actor_model_type = cfg_utils.cfg_get(data, "actor_model", "actor_fcnn-v0")
         self.critic_model_type = cfg_utils.cfg_get(
@@ -343,6 +350,24 @@ class KerasSINDyTD3(KerasTD3):
             zip(gradient, self.actor_model.trainable_variables)
         )
         return loss
+
+    def train(self):
+        """Method used to train"""
+        super().train()
+
+        if self.ntrain_calls % self.plot_every_ntrain == 0:
+            feature_names = self.library.get_feature_names()
+            action_names = [f"Action {i}" for i in range(max(self.num_actions, 1))]
+            fig = self.actor_model.plot_coefficients(feature_names, action_names)
+
+            # Convert figure to an image tensor and log
+            buf = io.BytesIO()
+            canvas = FigureCanvasAgg(fig)
+            canvas.print_png(buf)
+            tensor = tf.image.decode_png(buf.getvalue(), channels=4)
+            tf.summary.image(
+                "SINDy Weights", data=tensor[None], step=int(self.ntrain_calls)
+            )
 
     def action(self, state, train=True, inference=False):
         """Method used to provide the next action using the target model"""

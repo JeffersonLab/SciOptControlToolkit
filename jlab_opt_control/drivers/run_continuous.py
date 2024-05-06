@@ -224,7 +224,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 assert 'float' in str(type(reward)), str(type(reward))
                 done = (terminate or truncate)
                 done_buffer = (terminate or truncate) if (
-                    episode_timesteps < env._max_episode_steps) else False
+                    episode_timesteps <= env._max_episode_steps) else False
 
                 agent.memory((prev_state, action, reward, state, done_buffer))
                 episodic_reward += reward
