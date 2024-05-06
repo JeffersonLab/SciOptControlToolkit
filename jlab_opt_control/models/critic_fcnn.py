@@ -33,11 +33,10 @@ class CriticFCNN(Model):
         self.logdir = logdir
 
        # Error Checking
-        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions):
-            if hidden_layers != len(nodes_per_layer):
-                crit_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
-            else:  # hidden_layers != len(activation_functions)
-                crit_log.error("Number of activation functions does not match the number of hidden layers in the config.")
+        if hidden_layers != len(nodes_per_layer):
+            crit_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
+        elif hidden_layers != len(activation_functions):
+            crit_log.error("Number of activation functions does not match the number of hidden layers in the config.")
 
         # Dynamic Q network Architecture
         self.hidden_layers = []
