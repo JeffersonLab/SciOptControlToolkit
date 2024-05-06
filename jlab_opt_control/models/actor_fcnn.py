@@ -28,18 +28,15 @@ class ActorFCNN(Model):
             cfg_data = json.load(f)
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
-        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers + ["tanh"])  # Defaults
+        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers)  # Defaults
  
         self.logdir = logdir
 
         # Error Checking
-        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)+1:
-            if hidden_layers != len(nodes_per_layer):
-                act_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
-            else:  # hidden_layers != len(activation_functions)+1
-                act_log.error("Number of activation functions (+1 for output layer) does not match the number of hidden layers in the config.")
-        if activation_functions[-1] not in ["tanh"]:
-            act_log.error("Final layer activation function needs to be tanh. Scaling for the action space will not work as intended.")
+        if hidden_layers != len(nodes_per_layer):
+            act_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
+        elif hidden_layers != len(activation_functions):
+            act_log.error("Number of activation functions does not match the number of hidden layers in the config.")
 
         # Dynamic Actor Architecture
         self.hidden_layers = []
@@ -47,7 +44,7 @@ class ActorFCNN(Model):
             # Layer construction with dynamic activation functions
             self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i], input_shape=(state_dim,) if i == 0 else ()))
         # Output layer with its specified activation function
-        self.output_layer = layers.Dense(action_dim, activation=activation_functions[-1])
+        self.output_layer = layers.Dense(action_dim, activation="tanh")
  
         self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
         self.action_bias = tf.constant((max_action + min_action) / 2, dtype=tf.float32)
