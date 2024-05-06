@@ -57,14 +57,14 @@ class UQSINDyNetwork(Model):
         # self.batch_size = cfg_data.get("batch_size", 1024)
 
         self.using_tanh = False
-        if max_action.any() != None and min_action.any() != None:
-            self.action_scale = tf.constant(
-                (max_action - min_action) / 2, dtype=tf.float32
-            )
-            self.action_bias = tf.constant(
-                (max_action + min_action) / 2, dtype=tf.float32
-            )
-            self.using_tanh = True
+        # if max_action.any() != None and min_action.any() != None:
+        #     self.action_scale = tf.constant(
+        #         (max_action - min_action) / 2, dtype=tf.float32
+        #     )
+        #     self.action_bias = tf.constant(
+        #         (max_action + min_action) / 2, dtype=tf.float32
+        #     )
+        #     self.using_tanh = True
 
         hidden_layers = cfg_data.get(
             "hidden_layers", 2
@@ -133,7 +133,7 @@ class UQSINDyNetwork(Model):
         weight_dist = self.sample_posterior()
 
         assert len(feature_names) == weight_dist.shape[1]
-        assert len(action_names) == weight_dist.shape[2]
+        assert len(action_names) == weight_dist.shape[2], f"number weights: {weight_dist.shape[2]}"
 
         # Use Pandas dataframe to collect data
         df = []
@@ -202,9 +202,9 @@ class UQSINDyNetwork(Model):
         # print(f'betas: {betas.shape}')
         BX = tf.einsum("nd,bdo->bno", x, betas)
         # print(f'BX per-tanh: {BX.shape}')
-        if self.using_tanh:
-            BX = tf.keras.activations.tanh(BX[:, :, :])
-            BX = BX * self.action_scale + self.action_bias
+        # if self.using_tanh:
+        #     BX = tf.keras.activations.tanh(BX[:, :, :])
+        #     BX = BX * self.action_scale + self.action_bias
         # print(f'BX post tanh: {BX.shape}')
 
         # upper_bound = 2
