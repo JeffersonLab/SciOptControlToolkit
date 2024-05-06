@@ -36,7 +36,7 @@ class ActorFCNN(Model):
         if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions):
             if hidden_layers != len(nodes_per_layer):
                 act_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
-            else:  # hidden_layers != len(activation_functions)-1
+            else:  # hidden_layers != len(activation_functions)
                 act_log.error("Number of activation functions does not match the number of hidden layers in the config.")
 
         # Dynamic Actor Architecture
