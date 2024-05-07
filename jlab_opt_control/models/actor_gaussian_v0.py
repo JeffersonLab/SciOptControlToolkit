@@ -47,7 +47,7 @@ class ActorGaussian(Model):
             # Layer construction with dynamic activation functions
             self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i], input_shape=(state_dim,) if i == 0 else ()))
         # Output layer with its specified activation function
-        self.mean_layer = layers.Dense(action_dim, activation="tanh")
+        self.mean_layer = layers.Dense(action_dim)
         self.std_layer = layers.Dense(action_dim, activation="tanh")
  
         self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
@@ -62,8 +62,8 @@ class ActorGaussian(Model):
         log_std = self.std_layer(x)
         # clip log_std to avoid explosion
         # log_std = tf.clip_by_value(log_std, -20.0, 1.0)
-        log_std = (log_std * 11) - 9
-        mean = mean * 3
+        log_std = (log_std * 11) - 10
+        # mean = mean * 3
 
         std = tf.exp(log_std)
 
