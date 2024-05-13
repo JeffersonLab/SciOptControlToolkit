@@ -43,7 +43,7 @@ import sys
 import shutil
 processor = platform.processor()
 
-sac_log = logging.getLogger("TD3-Agent")
+sac_log = logging.getLogger("SAC-Agent")
 sac_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
@@ -178,7 +178,7 @@ class KerasSAC(jlab_opt_control.Agent):
 
     def initialize_new_models(self):
         """ Initialize new models from scratch """
-        sac_log.info('Running KerasTD3 initialize_new_models()')
+        sac_log.info('Running KerasSAC initialize_new_models()')
 
         self.actor_model = jlab_opt_control.models.make(
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
