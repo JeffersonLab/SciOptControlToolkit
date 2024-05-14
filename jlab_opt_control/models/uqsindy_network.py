@@ -67,9 +67,9 @@ class UQSINDyNetwork(Model):
         #     self.using_tanh = True
 
         hidden_layers = cfg_data.get(
-            "hidden_layers", 2
+            "hidden_layers", 3
         )  # Default to 2 if not specified
-        nodes_per_layer = cfg_data.get("nodes_per_layer", [256, 256])  # Default
+        nodes_per_layer = cfg_data.get("nodes_per_layer", [256, 256, 256])  # Default
         activation_functions = cfg_data.get(
             "activation_functions", ["tanh"] * hidden_layers + ["linear"]
         )  # Defaults

@@ -260,6 +260,11 @@ class KerasTD3(jlab_opt_control.Agent):
             actions = self.actor_model(states, training=True)
             q_value = self.critic_model1(states, actions, training=False)
             loss = -tf.math.reduce_mean(q_value)
+            with tf.GradientTape(persistent=True) as tape2:
+                dq_da, dq_ds = tape2.gradient(q_value, [actions, states])
+                print(f'dq_da: {dq_da}')
+                print(f'dq_ds: {dq_ds}')
+
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))

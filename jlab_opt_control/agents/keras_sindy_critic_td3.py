@@ -196,8 +196,8 @@ class KerasSINDyCriticTD3(KerasTD3):
         td3_log.debug(f"init_states_action:{init_states_action.shape}")
 
         # SINDy Poly library
-        num_poly = 2
-        self.library = PolynomialLibrary(degree=num_poly, include_bias=False)
+        num_poly = 6
+        self.library = PolynomialLibrary(degree=num_poly, include_bias=False, include_interaction=False)
         self.library.fit(init_states_action)
         lib_batch = self.library(init_states_action)
         td3_log.debug(f"lib shape:{lib_batch.shape}")
@@ -266,14 +266,14 @@ class KerasSINDyCriticTD3(KerasTD3):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones, weights):
         # Generate the proper noise
-        next_actions = self.target_actor(states)
-        next_actions = tf.clip_by_value(
-            next_actions, self.lower_bound, self.upper_bound
-        )
-        #next_states_actions = tf.concat(next_states, next_actions, axis=1)
+        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
+        noise_clipped = tf.clip_by_value(
+            noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
+        next_actions = tf.clip_by_value(self.target_actor(
+            next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
+
         next_states_actions = tf.keras.layers.Concatenate(axis=1)([next_states, next_actions])
         td3_log.debug(f"next_states_actions:{next_states_actions.shape}")
-        #sys.exit()
         next_lib_batch = self.library(next_states_actions)
         target_q1 = self.target_critic1(next_lib_batch)
         target_q2 = self.target_critic2(next_lib_batch)
@@ -284,7 +284,6 @@ class KerasSINDyCriticTD3(KerasTD3):
 
         # Critic 1 and 2
         with tf.GradientTape() as tape:
-            #states_actions = tf.concat(states,actions, axis=1)
             states_actions = tf.keras.layers.Concatenate(axis=1)([states, actions])
             lib_batch = self.library(states_actions)
             q_values1 = self.critic_model1(lib_batch)
