@@ -196,11 +196,15 @@ class KerasSINDyCriticTD3(KerasTD3):
         td3_log.debug(f"init_states_action:{init_states_action.shape}")
 
         # SINDy Poly library
-        num_poly = 6
-        self.library = PolynomialLibrary(degree=num_poly, include_bias=False, include_interaction=False)
+        num_poly = 4
+        self.library = PolynomialLibrary(degree=num_poly, include_bias=False, include_interaction=True)
+        #self.library = PolynomialLibrary(degree=num_poly, include_bias=False, include_interaction=False)
         self.library.fit(init_states_action)
         lib_batch = self.library(init_states_action)
-        td3_log.debug(f"lib shape:{lib_batch.shape}")
+
+        # self.library = FourierLibrary(n_frequencies=4)
+        # self.library.fit(init_states_action)
+        # lib_batch = self.library(init_states_action)
 
         # SINDy Critic
         seed1 = time.time_ns()
