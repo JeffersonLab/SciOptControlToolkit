@@ -44,13 +44,18 @@ def run(cfg="benchmark.cfg", args={'train': False}):
             if env_name in run:
                 agent_name = run.split("_")[2]
                 r = np.load(os.path.join(os.path.join(path, run), "results.npy"))
+                if "Cheetah" in env_name and len(r) < 500:
+                    continue
                 if agent_name in results:
                     results[agent_name].append(r)
                 else:
                     results[agent_name] = [r]
-
-        for agent_name in results:
+        plt.clf()
+        print(env_name)
+        agents = sorted(list(results.keys()))
+        for agent_name in agents:
             agent_results = np.array(results[agent_name])
+            print("Number of entries for agent ", agent_name, ":  ", agent_results.shape[0])
             mean = np.mean(agent_results, axis=0)
             std = np.std(agent_results, axis=0)
             plt.plot(mean, label=str(agent_name))
@@ -60,9 +65,9 @@ def run(cfg="benchmark.cfg", args={'train': False}):
         plt.ylabel("Reward", fontsize=18)
         plt.xticks(fontsize=15)
         plt.yticks(fontsize=15)
-        plt.savefig(env_name+"_benchmark.png", dpi=300, bbox_inches="tight")
         plt.title(env_name, fontsize=20)
         plt.grid()
+        plt.savefig(env_name+"_benchmark.png", dpi=300, bbox_inches="tight")
         plt.show()
 
 
