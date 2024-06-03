@@ -93,6 +93,7 @@ class KerasTD3(jlab_opt_control.Agent):
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
+        self.exploration_noise_fraction = float(cfg_utils.cfg_get(data, 'exploration_noise_fraction', 0.1))
 
         self.actor_model_type = cfg_utils.cfg_get(
             data, 'actor_model', "actor_fcnn-v0")
@@ -328,7 +329,7 @@ class KerasTD3(jlab_opt_control.Agent):
             sampled_action = (self.actor_model(state)).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                         stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
+                         stddev=self.actor_model.action_scale * self.exploration_noise_fraction, dtype=tf.float32)).numpy()
                 sampled_action = np.clip(
                     sampled_action + noise, self.lower_bound, self.upper_bound)
             else:
