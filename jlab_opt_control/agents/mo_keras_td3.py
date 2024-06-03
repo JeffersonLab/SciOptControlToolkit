@@ -32,7 +32,6 @@ import jlab_opt_control.utils.cfg_utils as cfg_utils
 import jlab_opt_control.buffers
 import jlab_opt_control.models
 import tensorflow as tf
-from tensorflow.keras import layers
 import numpy as np
 import os
 from os.path import join
@@ -41,9 +40,16 @@ import json
 import platform
 import sys
 import shutil
+
+import io
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+import seaborn as sns
+import pandas as pd
+
 processor = platform.processor()
 
-td3_log = logging.getLogger("TD3-Agent")
+td3_log = logging.getLogger("MO-TD3-Agent")
 td3_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
@@ -60,7 +66,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.critic_model1 = None
         self.target_actor = None
         self.actor_model = None
-        td3_log.info('Running KerasTD3 __init__')
+        td3_log.info('Running MO KerasTD3 __init__')
 
         # Environment setup
         self.env = env
@@ -69,6 +75,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             self.num_states = env.observation_space.shape[0]
             self.num_actions = env.action_space.shape[0]
             self.num_rewards = env.reward_space.shape[0]
+            td3_log.info(f'Num states: {self.num_states}')
+            td3_log.info(f'Num actions: {self.num_actions}')
+            td3_log.info(f'Num rewards: {self.num_rewards}')
             self.upper_bound = env.action_space.high
             self.lower_bound = env.action_space.low
             td3_log.info(f'Action upper bound: {self.upper_bound}')
@@ -130,10 +139,14 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
                 self.actor_lr, epsilon=1e-08)
+            self.lyapunov_optimizer = tf.keras.optimizers.legacy.Adam(
+                self.actor_lr, epsilon=1e-08)
         else:
             self.critic_optimizer = tf.keras.optimizers.Adam(
                 self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.Adam(
+                self.actor_lr, epsilon=1e-08)
+            self.lyapunov_optimizer = tf.keras.optimizers.Adam(
                 self.actor_lr, epsilon=1e-08)
 
         self.initialize_new_models()
@@ -200,8 +213,22 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.target_critic1.set_weights(self.critic_model1.get_weights())
         self.target_critic2.set_weights(self.critic_model2.get_weights())
 
+        # NN for Lyapunov function
+        self.lyapunov_func = jlab_opt_control.models.make(
+            'critic_fcnn-v0', state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+        self.lyapunov_func(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
+
     @tf.function
-    def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
+    def train_lyapunov_func(self, states, actions, lyapunov_variables):
+        with tf.GradientTape() as tape:
+            lyapunov_variable_predict = self.lyapunov_func(states, actions, training=True)
+            loss = self.mse_loss(lyapunov_variable_predict, lyapunov_variables)
+        gradients = tape.gradient( loss, self.lyapunov_func.trainable_variables)
+        self.lyapunov_optimizer.apply_gradients(zip(gradients, self.lyapunov_func.trainable_variables))
+        return loss
+
+    @tf.function
+    def train_critic(self, states, actions, rewards, next_states, dones, alphas):
         # Generate the proper noise
         noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
         noise_clipped = tf.clip_by_value(
@@ -210,34 +237,28 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             next_states, alphas, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
 
         target_q1 = self.target_critic1(
-            next_states, next_actions, training=False)
+            next_states, next_actions, alphas, training=False)
         target_q2 = self.target_critic2(
-            next_states, next_actions, training=False)
+            next_states, next_actions, alphas, training=False)
         target_q = tf.math.minimum(target_q1, target_q2)
 
-        alphas_reshaped = tf.reshape(alphas, tf.shape(rewards)) # Might not be needed
-        weighted_rewards = tf.multiply(rewards, alphas_reshaped)
+        #alphas_reshaped = tf.reshape(alphas, tf.shape(rewards)) # Might not be needed
+        #weighted_rewards = tf.multiply(rewards, alphas_reshaped)
 
         # Bellman equation for the q value
-        q_targets = weighted_rewards + self.gamma * target_q * (1.0 - dones)
-        #q_targets = rewards + self.gamma * target_q * (1.0 - dones)
+        #q_targets = weighted_rewards + self.gamma * target_q * (1.0 - dones)
+        q_targets = rewards + self.gamma * target_q * (1.0 - dones)
         #q_targets = tf.multiply(q_targets, alphas_reshaped)
 
         # Critic 1 and 2
         with tf.GradientTape() as tape:
-            q_values1 = self.critic_model1(states, actions, training=True)
-            q_values2 = self.critic_model2(states, actions, training=True)
+            q_values1 = self.critic_model1(states, actions, alphas, training=True)
+            q_values2 = self.critic_model2(states, actions, alphas, training=True)
             td_errors1 = q_values1 - q_targets
             td_errors2 = q_values2 - q_targets
 
-            if "PER" in self.buffer_type:
-                critic_loss1 = self.mse_loss(
-                    q_values1, q_targets, sample_weight=weights)
-                critic_loss2 = self.mse_loss(
-                    q_values2, q_targets, sample_weight=weights)
-            else:
-                critic_loss1 = self.mse_loss(q_values1, q_targets)
-                critic_loss2 = self.mse_loss(q_values2, q_targets)
+            critic_loss1 = self.mse_loss(q_values1, q_targets)
+            critic_loss2 = self.mse_loss(q_values2, q_targets)
             
             critic_losses = critic_loss1 + critic_loss2
 
@@ -256,19 +277,29 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         # alphas = tf.expand_dims(alphas, 1)
         # print('train_actor:', alphas.shape)
         # Use Critic 1
-        with tf.GradientTape() as tape:
-            actions = self.actor_model(states, alphas, training=True)
-            q_values = self.critic_model1(states, actions, training=False)
-            # alphas_reshaped = tf.reshape(alphas, tf.shape(q_values)) # Might not be needed
-            # weighted_q_values = tf.multiply(q_values, alphas_reshaped)
-            #loss = -tf.math.reduce_mean(weighted_q_values)
-            loss = -tf.math.reduce_mean(q_values)
-        gradient = tape.gradient(loss, self.actor_model.trainable_variables)
+        with tf.GradientTape() as tape0:
+            with tf.GradientTape() as tape1:
+                actions = self.actor_model(states, alphas, training=True)
+                q_values = self.critic_model1(states, actions, alphas, training=False)
+                #print(f'qualues: {q_values[0]}')
+                #alphas_reshaped = tf.reshape(alphas, tf.shape(q_values)) # Might not be needed
+                #weighted_q_values = tf.multiply(q_values, alphas_reshaped)
+                #print(f'weighted_q_values: {weighted_q_values[0]}')
+                #loss = -tf.math.reduce_mean(weighted_q_values)
+                loss_td3 = -tf.math.reduce_mean(q_values)
+                # Lyapunov constraint (L1 norm)
+                lyapunov_vars = self.lyapunov_func(states, actions, training=False)
+                lyapunov_mean = tf.reduce_mean(lyapunov_vars)
+                lyapunov_std = tf.math.reduce_std(lyapunov_vars)
+                lyapunov_diff = tf.abs(lyapunov_vars - self.env.target_energy)
+            dlv_da = tf.abs(tape1.gradient(lyapunov_diff, actions))
+            lyapunov_loss = tf.math.reduce_mean(dlv_da)
+            loss = loss_td3 + 10*lyapunov_loss
+        gradient = tape0.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
-        #print('train_actor loss:',loss)
 
-        return loss
+        return loss, lyapunov_loss, lyapunov_mean,  lyapunov_std
 
     @tf.function
     def soft_update(self, target_weights, weights):
@@ -289,7 +320,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
                 #print(f'PER train alphas: {alphas.shape}')
             elif "ER" in self.buffer_type: # CHANGE THIS TO USE THE ALPHAS
-                states, actions, rewards, next_states, dones, _, alphas = self.buffer.sample(
+                states, actions, rewards, next_states, dones, alphas, lyapunov_vars = self.buffer.sample(
                     self.batch_size)
                 #print(f'ER train alphas: {alphas.shape}')
             else:
@@ -303,16 +334,19 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 next_states, dtype=tf.float32)
             done_batch = tf.convert_to_tensor(dones, dtype=tf.float32)
             alpha_batch = tf.convert_to_tensor(alphas, dtype=tf.float32)
-            #print(f'pre-alpha_batch: {alphas.shape}')
-            #print(f'alpha_batch: {alpha_batch.shape}')
+            lyapunov_batch = tf.convert_to_tensor(lyapunov_vars, dtype=tf.float32)
+
+            # Train Lyapunov func
+            lyapunov_loss = self.train_lyapunov_func(state_batch, action_batch, lyapunov_batch)
+            tf.summary.scalar('Lyapunov Loss', data=lyapunov_loss, step=int(self.ntrain_calls))
 
             # Train critic
             if "PER" in self.buffer_type:
                 critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
-                                                                          next_state_batch, done_batch, weights_batch, alpha_batch)
+                                                                          next_state_batch, done_batch, alpha_batch)
             elif "ER" in self.buffer_type:
                 critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
-                                                                          next_state_batch, done_batch, _, alpha_batch)
+                                                                          next_state_batch, done_batch, alpha_batch)
 
             tf.summary.scalar('Critic Loss 1', data=critic_loss1,
                               step=int(self.ntrain_calls))
@@ -327,8 +361,15 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 self.buffer.update_priorities(new_priorities)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
-                actor_loss = self.train_actor(state_batch, alpha_batch)
+                actor_loss, actor_lyapunov_loss, actor_lyapunov_mean, actor_lyapunov_std = self.train_actor(state_batch, alpha_batch)
+                #actor_loss = self.train_actor(state_batch, alpha_batch)
                 tf.summary.scalar('Actor Loss', data=actor_loss,
+                                  step=int(self.ntrain_calls))
+                tf.summary.scalar('Actor Lyapunov Loss', data=actor_lyapunov_loss,
+                                  step=int(self.ntrain_calls))
+                tf.summary.scalar('Actor Lyapunov Mean', data=actor_lyapunov_mean,
+                                  step=int(self.ntrain_calls))
+                tf.summary.scalar('Actor Lyapunov STD', data=actor_lyapunov_std,
                                   step=int(self.ntrain_calls))
                 self.soft_update(self.target_actor.variables,
                                  self.actor_model.variables)
@@ -338,6 +379,24 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                                  self.critic_model1.variables)
                 self.soft_update(self.target_critic2.variables,
                                  self.critic_model2.variables)
+
+            if self.ntrain_calls % 100 == 0:
+                # Convert figure to an image tensor and log
+                rdm_states = tf.random.uniform(shape=(1000,self.num_states),
+                                               minval=self.lower_bound,
+                                               minmax=self.upper_bound)
+                rdm_actions = tf.random.uniform(shape=(1000,self.num_actions),
+                                               minval=self.lower_bound,
+                                               minmax=self.upper_bound)
+                q_scan = self.target_critic1([rdm_states, rdm_actions])
+                buf = io.BytesIO()
+                canvas = FigureCanvasAgg(fig)
+                canvas.print_png(buf)
+                tensor = tf.image.decode_png(buf.getvalue(), channels=4)
+                tf.summary.image(
+                    "q-values", data=tensor[None], step=int(self.ntrain_calls)
+                )
+
         #print('outside of train...')
 
 
@@ -351,7 +410,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         else:
             state = tf.expand_dims(state, 0)
             #alphas = tf.expand_dims(alphas, 0)
-            #print(f'alpha:{alphas.shape}')
+            #td3_log.info(f'alpha:{alphas.shape}')
             sampled_action = self.actor_model(state, alphas).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
@@ -381,10 +440,12 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         return sampled_action, noise
 
     def memory(self, obs_tuple):
-        # inefficient but can fix later
-        init_part, last_element = obs_tuple[:-1], obs_tuple[-1]
-        memory_with_default_priority = init_part + (self.buffer.max_priority,) + (last_element,)
+        memory_with_default_priority = obs_tuple + (self.buffer.max_priority,)
         self.buffer.record(memory_with_default_priority)
+        # inefficient but can fix later
+        # init_part, last_element = obs_tuple[:-1], obs_tuple[-1]
+        # memory_with_default_priority = init_part + (self.buffer.max_priority,) + (last_element,)
+        # self.buffer.record(memory_with_default_priority)
 
     def load(self):
         """ Load the ML models """

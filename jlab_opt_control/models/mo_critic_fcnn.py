@@ -30,8 +30,8 @@ class MO_CriticFCNN(Model):
         self.l2 = layers.Dense(256, activation="relu")
         self.l3 = layers.Dense(reward_dim)
 
-    def call(self, state, action, training=False):
-        x = tf.concat([state, action], axis=1)
+    def call(self, state, action, alphas, training=False):
+        x = tf.concat([state, action, alphas], axis=1)
         x = self.l1(x)
         x = self.l2(x)
         x = self.l3(x)

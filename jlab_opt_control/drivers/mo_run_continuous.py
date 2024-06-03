@@ -151,20 +151,22 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         alphas[1] = 1.0
         alphas = np.expand_dims(alphas, 0)
         #alphas = tf.expand_dims(alphas, 0)
-        #print('loop alphas',alphas.shape)
+        #run_openai_log.info(f'loop alphas {alphas.shape}')
         episode_timesteps = 0
         episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
         done = False
         while done is False:
             total_nsteps += 1
             episode_timesteps += 1
-            action, action_noise = agent.action(tf.convert_to_tensor(prev_state), tf.convert_to_tensor(alphas))
+            action, action_noise = agent.action(tf.convert_to_tensor(prev_state),
+                                                tf.convert_to_tensor(alphas))
             assert 'numpy.ndarray' in str(type(action))
             run_openai_log.debug(f'action: {action}')
             run_openai_log.debug(f'action_noise: {action_noise}')
 
             # Take a step
             state, reward, terminate, truncate, info = env.step(action)
+            lyapunov_var = info['energy']
             run_openai_log.debug(f'reward: {reward}')
             run_openai_log.debug(f'reward: {type(reward)}')
 
@@ -176,9 +178,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
             done = (terminate or truncate)
             done_buffer = (terminate or truncate) if (
-                episode_timesteps < env._max_episode_steps) else False
+                episode_timesteps <= env._max_episode_steps) else False
 
-            agent.memory((prev_state, action, reward, state, done_buffer, alphas))
+            agent.memory((prev_state, action, reward, state, done_buffer, alphas, lyapunov_var))
             episodic_reward += reward
             agent.train()
             prev_state = state
@@ -190,34 +192,44 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
         # Run inference test
         if ep % 1 == 0:
+            inference_episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
+            inference_alphas = np.zeros(env.reward_space.shape[0])
+            inference_alphas = inference_alphas.astype(dtype=np.float32)
+            inference_alphas[1] = 1.0
+            inference_alphas  = np.expand_dims(inference_alphas, 0)
+            #run_openai_log.debug(f'inference_alphas {inference_alphas.shape}' )
+            #run_openai_log.info(f'inference_alphas {inference_alphas}' )
+
+            inference_prev_state, _ = env.reset()
+
+            inference_done = False
+            while inference_done is False:
+                inference_action, inference_action_noise = agent.action(
+                    tf.convert_to_tensor(inference_prev_state),
+                    tf.convert_to_tensor(inference_alphas))
+                inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
+                    env.step(inference_action)
+
+                inference_episodic_reward += inference_reward
+                inference_prev_state = inference_state
+                inference_done = (inference_terminate or inference_truncate)
+                tf.summary.scalar(f'Inference Energy', data=inference_info['energy'], step=int(ep))
+                tf.summary.scalar(f'Inference Heat', data=inference_info['heat'], step=int(ep))
+                tf.summary.scalar(f'Inference Trip', data=inference_info['trip'], step=int(ep))
+                if done:
+                    break
+
+
             for r in range(env.reward_space.shape[0]):
-                inference_episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
-                #inference_alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
-                inference_alphas = np.zeros(env.reward_space.shape[0])
-                inference_alphas = inference_alphas.astype(dtype=np.float32)
-                #print('inference_alphas',inference_alphas.shape)
-
-                inference_alphas[r] = 1.0
-                inference_alphas  = np.expand_dims(inference_alphas, 0)
-
-                inference_prev_state, _ = env.reset()
-
-                inference_done = False
-                while inference_done is False:
-                    inference_action, inference_action_noise = agent.action(
-                        tf.convert_to_tensor(inference_prev_state),
-                        tf.convert_to_tensor(inference_alphas))
-                    inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
-                        env.step(inference_action)
-
-                    inference_episodic_reward += inference_reward
-                    inference_prev_state = inference_state
-                    inference_done = (inference_terminate or inference_truncate)
-                    if done:
-                        break
                 tf.summary.scalar(f'Inference Reward Objective #{r}',
                                   data=inference_episodic_reward[r], step=int(ep))
 
+            if total_nsteps % 1000 == 0:
+                run_openai_log.info(
+                    "Inference episode * {} * heat/trip ==> {}/{} - ({})".format(ep,
+                                                                           inference_info['heat'],
+                                                                           inference_info['trip'],
+                                                                           inference_terminate))
             # init for first epoch
             # if (ep == 0):
             #     inference_episodic_hold = inference_episodic_reward
@@ -231,6 +243,50 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             #         str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
             #         agent.save(str_pct_inc)
             #         inference_episodic_hold = inference_episodic_reward
+
+
+        # if ep % 1 == 0:
+        #     for r in range(env.reward_space.shape[0]):
+        #         inference_episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
+        #         #inference_alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
+        #         inference_alphas = np.zeros(env.reward_space.shape[0])
+        #         inference_alphas = inference_alphas.astype(dtype=np.float32)
+        #         #print('inference_alphas',inference_alphas.shape)
+        #
+        #         inference_alphas[r] = 1.0
+        #         inference_alphas  = np.expand_dims(inference_alphas, 0)
+        #
+        #         inference_prev_state, _ = env.reset()
+        #
+        #         inference_done = False
+        #         while inference_done is False:
+        #             inference_action, inference_action_noise = agent.action(
+        #                 tf.convert_to_tensor(inference_prev_state),
+        #                 tf.convert_to_tensor(inference_alphas))
+        #             inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
+        #                 env.step(inference_action)
+        #
+        #             inference_episodic_reward += inference_reward
+        #             inference_prev_state = inference_state
+        #             inference_done = (inference_terminate or inference_truncate)
+        #             if done:
+        #                 break
+        #         tf.summary.scalar(f'Inference Reward Objective #{r}',
+        #                           data=inference_episodic_reward[r], step=int(ep))
+        #
+        #     # init for first epoch
+        #     # if (ep == 0):
+        #     #     inference_episodic_hold = inference_episodic_reward
+        #     #
+        #     # # % better you want inference reward to be before save
+        #     # percent_increase = 0.05
+        #     #
+        #     # if inference_episodic_reward != 0:
+        #     #     percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
+        #     #     if percentage_change >= percent_increase:
+        #     #         str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
+        #     #         agent.save(str_pct_inc)
+        #     #         inference_episodic_hold = inference_episodic_reward
 
 
         # Mean of last 10 episodes
