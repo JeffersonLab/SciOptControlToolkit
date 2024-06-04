@@ -30,6 +30,7 @@ from jlab_opt_control.models.registration import register, make, list_registered
 from jlab_opt_control.models.actor_fcnn import ActorFCNN
 from jlab_opt_control.models.actor_fcnn_v2 import ActorFCNN_v2
 from jlab_opt_control.models.critic_fcnn import CriticFCNN
+from jlab_opt_control.models.critic_fcnn_v2 import CriticFCNN_v2
 from jlab_opt_control.models.sindy_network import SINDyNetwork
 from jlab_opt_control.models.uqsindy_network import UQSINDyNetwork
 
@@ -50,6 +51,13 @@ register(
     entry_point='jlab_opt_control.models:CriticFCNN',
     kwargs={'cfg': 'critic_fcnn.cfg'},
 )
+
+register(
+    id='critic_fcnn-v2',
+    entry_point='jlab_opt_control.models:CriticFCNN_v2',
+    kwargs={'cfg': 'critic_fcnn_v2.cfg'},
+)
+
 
 register(
     id='sindy_network-v0',
