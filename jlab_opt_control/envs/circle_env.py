@@ -80,7 +80,7 @@ class Circle2D(gym.Env):
         if self.nsteps >= self._max_episode_steps:
             return self.states, reward, True, True, {}
 
-        return self.states, reward, False, False, {}
+        return self.states, reward, True, True, {}
 
     def reset(self):
         if self.rdm_reset_mode == 'uniform':

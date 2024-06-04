@@ -95,10 +95,8 @@ class KerasTD3(jlab_opt_control.Agent):
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
         self.exploration_noise_fraction = float(cfg_utils.cfg_get(data, 'exploration_noise_fraction', 0.1))
 
-        self.actor_model_type = cfg_utils.cfg_get(
-            data, 'actor_model', "actor_fcnn-v0")
-        self.critic_model_type = cfg_utils.cfg_get(
-            data, 'critic_model', "critic_fcnn-v0")
+        self.actor_model_type = cfg_utils.cfg_get(data, 'actor_model', "actor_fcnn-v0")
+        self.critic_model_type = cfg_utils.cfg_get(data, 'critic_model', "critic_fcnn-v0")
 
         self.logdir = logdir
 
