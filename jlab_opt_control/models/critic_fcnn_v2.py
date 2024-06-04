@@ -37,6 +37,7 @@ class CriticFCNN_v2(Model):
 
         # Dynamic Q network Architecture
         init = tf.keras.initializers.GlorotUniform()
+        self.init_bn = tf.keras.layers.BatchNormalization()
         #init = tf.keras.initializers.RandomUniform(minval=-5, maxval=5)  # GlorotUniform(seed)
         self.denses1, self.bn1, self.act1 = [], [], []
         for i in range(self.hidden_layers):
@@ -50,6 +51,7 @@ class CriticFCNN_v2(Model):
  
     def call(self, state, action, training=False):
         x = tf.concat([state, action], axis=1)  # Concatenate state and action as input
+        x = self.init_bn(x)
         for i in range(self.hidden_layers):
             x = self.denses1[i](x)
             x = self.bn1[i](x)
