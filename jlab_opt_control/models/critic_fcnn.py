@@ -33,6 +33,7 @@ class CriticFCNN(Model):
         self.logdir = logdir
 
        # Error Checking
+        self.init_bn = tf.keras.layers.BatchNormalization()
         if hidden_layers != len(nodes_per_layer):
             crit_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
         elif hidden_layers != len(activation_functions):
@@ -48,6 +49,7 @@ class CriticFCNN(Model):
  
     def call(self, state, action, training=False):
         x = tf.concat([state, action], axis=1)  # Concatenate state and action as input
+        x = self.init_bn(x)
         for layer in self.hidden_layers:
             x = layer(x)
         x = self.output_layer(x)
