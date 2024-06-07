@@ -53,6 +53,12 @@ register(
 )
 
 register(
+    id='critic_fcnn-v1',
+    entry_point='jlab_opt_control.models:CriticFCNN_v1',
+    kwargs={'cfg': 'critic_fcnn_v1.cfg'},
+)
+
+register(
     id='critic_fcnn-v2',
     entry_point='jlab_opt_control.models:CriticFCNN_v2',
     kwargs={'cfg': 'critic_fcnn_v2.cfg'},
