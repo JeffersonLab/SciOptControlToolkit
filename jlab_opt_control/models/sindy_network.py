@@ -23,8 +23,12 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(name)s:%(message)s")
 
 
 class SINDyNetwork(Model):
-    def __init__(self, logdir, cfg="sindy_network.cfg"):
-        # def __init__(self, num_features_in, num_features_out, logdir, cfg="sindy_network.cfg"):
+    def __init__(
+            self, 
+            num_features_in,
+            num_features_out,
+            logdir='./results', 
+            cfg="sindy_network.cfg"):
         super().__init__()
 
         # Load configuration
@@ -36,10 +40,12 @@ class SINDyNetwork(Model):
         # Read configuration for architecture
         with open(self.pfn_json_file, "r") as f:
             cfg_data = json.load(f)
-        # num_features_in = num_features_in
-        # num_features_out = num_features_out
-        num_features_in = cfg_data.get("num_features_in", 10)  # Default
-        num_features_out = cfg_data.get("num_features_out", 1)  # Default
+        num_features_in = (
+            num_features_in  # cfg_data.get("num_features_in", 10) #Default
+        )
+        num_features_out = (
+            num_features_out  # cfg_data.get("num_features_out", 1) #Default
+        )
 
         self.logdir = logdir
 
@@ -54,7 +60,7 @@ class SINDyNetwork(Model):
         assert len(action_names) == self.coefs.shape[1]
 
         # Use Pandas dataframe to collect data
-        df = pd.DataFrame(data=self.coefs.numpy(), columns=feature_names)
+        df = pd.DataFrame(data=self.coefs.numpy().T, columns=feature_names)
         df["action"] = action_names
         df = pd.melt(
             df,

@@ -266,6 +266,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                         str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
                         agent.save(str_pct_inc)
                         inference_episodic_hold = inference_episodic_reward
+                
+                if ep % 10000 == 0:
+                    agent.save("epoch_" + str(ep))
 
             tf.summary.scalar('Inference Reward',
                             data=inference_episodic_reward, step=int(ep))
@@ -287,6 +290,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
             with open(logdir + '/results.npy', 'wb') as f:
                 np.save(f, np.array(ep_reward_list))
+        agent.save('epoch_' + str(ep))
 
 def main(args=None):
     parser = argparse.ArgumentParser()

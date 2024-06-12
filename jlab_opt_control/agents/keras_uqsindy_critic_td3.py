@@ -134,7 +134,7 @@ class KerasSINDyCriticTD3(KerasTD3):
         self.gamma = float(cfg_utils.cfg_get(data, "discount", 0.99))
 
         # Setup Optimizers
-        self.critic_lr = float(cfg_utils.cfg_get(data, "critic_learning_rate", 5e-2))#5e-4))
+        self.critic_lr = float(cfg_utils.cfg_get(data, "critic_learning_rate", 5e-4))
         self.actor_lr = float(cfg_utils.cfg_get(data, "actor_learning_rate", 1e-4))
 
         if processor == "arm":
@@ -196,11 +196,15 @@ class KerasSINDyCriticTD3(KerasTD3):
         td3_log.debug(f"init_states_action:{init_states_action.shape}")
 
         # SINDy Poly library
-        num_poly = 4
-        self.library = PolynomialLibrary(degree=num_poly, include_bias=False, include_interaction=True)
-        #self.library = FourierLibrary(n_frequencies=num_poly)
+        num_poly = 5
+        self.library = PolynomialLibrary(degree=num_poly, include_bias=True, include_interaction=True)
+        #self.library = PolynomialLibrary(degree=num_poly, include_bias=False, include_interaction=False)
         self.library.fit(init_states_action)
         lib_batch = self.library(init_states_action)
+
+        #self.library = FourierLibrary(n_frequencies=4)
+        #self.library.fit(init_states_action)
+        #lib_batch = self.library(init_states_action)
 
         # SINDy Critic
         seed1 = time.time_ns()
@@ -210,16 +214,22 @@ class KerasSINDyCriticTD3(KerasTD3):
         tf.random.set_seed(seed1)
 
         self.critic_model1 = jlab_opt_control.models.make(
-            "sindy_network-v0",
+            "uqsindy_network-v0",
             num_features_in=self.library.output_dim_,
             num_features_out=1,
+            min_action=None,
+            max_action=None,
+            batch_size=self.batch_size,
             logdir=self.logdir + "/sindy_test/",
         )
         self.critic_model1(lib_batch)
         self.target_critic1 = jlab_opt_control.models.make(
-            "sindy_network-v0",
+            "uqsindy_network-v0",
             num_features_in=self.library.output_dim_,
             num_features_out=1,
+            min_action=None,
+            max_action=None,
+            batch_size=self.batch_size,
             logdir=self.logdir + "/sindy_test/",
         )
         self.target_critic1(lib_batch)
@@ -232,16 +242,22 @@ class KerasSINDyCriticTD3(KerasTD3):
         tf.random.set_seed(seed2)
 
         self.critic_model2 = jlab_opt_control.models.make(
-            "sindy_network-v0",
+            "uqsindy_network-v0",
             num_features_in=self.library.output_dim_,
             num_features_out=1,
+            min_action=None,
+            max_action=None,
+            batch_size=self.batch_size,
             logdir=self.logdir + "/sindy_test/",
         )
         self.critic_model2(lib_batch)
         self.target_critic2 = jlab_opt_control.models.make(
-            "sindy_network-v0",
+            "uqsindy_network-v0",
             num_features_in=self.library.output_dim_,
             num_features_out=1,
+            min_action=None,
+            max_action=None,
+            batch_size=self.batch_size,
             logdir=self.logdir + "/sindy_test/",
         )
         self.target_critic2(lib_batch)
@@ -371,6 +387,48 @@ class KerasSINDyCriticTD3(KerasTD3):
 
         # Insure action output by actor is in legal environment range
         return sampled_action, noise
+
+    # def action(self, state, train=True, inference=False):
+    #     """Method used to provide the next action using the target model"""
+    #     # Warmup experience sample
+    #     noise = np.zeros(self.num_actions)
+    #     if (
+    #         self.buffer.size() < np.max([self.batch_size, self.warmup_size])
+    #     ) and inference == False:
+    #         sampled_action = self.env.action_space.sample()
+    #     # Warmup completed, sample from actor or run inference
+    #     else:
+    #         state = tf.expand_dims(state, 0)
+    #         lib = self.library(state)
+    #         # Training
+    #         if train:
+    #             sampled_action = self.actor_model(lib, nsamples=1).numpy()
+    #         else:
+    #             sampled_action = self.actor_model(lib, nsamples=1).numpy()
+    #
+    #         sampled_action = sampled_action.flatten()
+    #         noise = noise.flatten()
+    #         assert sampled_action.shape == self.num_actions or sampled_action.shape == (
+    #             self.num_actions,
+    #         ), f"Sampled action shape is incorrect... {sampled_action.shape}"
+    #
+    #     # Log the training action(s) taken
+    #     if train:
+    #         self.nactions = self.nactions + 1
+    #         if self.num_actions == 0:
+    #             tf.summary.scalar(
+    #                 "Action", data=sampled_action, step=int(self.nactions)
+    #             )
+    #         else:
+    #             for i in range(self.num_actions):
+    #                 tf.summary.scalar(
+    #                     "Action #{}".format(i),
+    #                     data=sampled_action[i],
+    #                     step=int(self.nactions),
+    #                 )
+    #
+    #     # Insure action output by actor is in legal environment range
+    #     return sampled_action, noise
 
     def memory(self, obs_tuple):
         memory_with_default_priority = obs_tuple + (self.buffer.max_priority,)

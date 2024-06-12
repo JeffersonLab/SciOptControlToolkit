@@ -31,6 +31,7 @@ from jlab_opt_control.agents.keras_td3 import KerasTD3
 from jlab_opt_control.agents.keras_ddpg import KerasDDPG
 from jlab_opt_control.agents.keras_sindy_td3 import KerasSINDyTD3
 from jlab_opt_control.agents.keras_sindy_critic_td3 import KerasSINDyCriticTD3
+from jlab_opt_control.agents.keras_joint_critic_td3 import KerasJointCriticTD3
 
 # Single Objective Agents
 register(
@@ -48,7 +49,13 @@ register(
 register(
     id="KerasSINDyCriticTD3-v0",
     entry_point="jlab_opt_control.agents:KerasSINDyCriticTD3",
-    kwargs={"cfg": "keras_td3.cfg"},
+    kwargs={"cfg": "keras_sindy_td3.cfg"},
+)
+
+register(
+    id="KerasJointCriticTD3-v0",
+    entry_point="jlab_opt_control.agents:KerasJointCriticTD3",
+    kwargs={"cfg": "keras_joint_td3.cfg"},
 )
 
 register(
