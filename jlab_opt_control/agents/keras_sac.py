@@ -133,14 +133,14 @@ class KerasSAC(jlab_opt_control.Agent):
                 self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
                 self.actor_lr, epsilon=1e-08)
-            self.alpha_optimier = tf.keras.optimizers.legacy.Adam(
+            self.alpha_optimizer = tf.keras.optimizers.legacy.Adam(
                 self.actor_lr, epsilon=1e-08) #Adam([self.log_alpha], lr=args.lr)
         else:
             self.critic_optimizer = tf.keras.optimizers.Adam(
                 self.critic_lr, epsilon=1e-08)
             self.actor_optimizer = tf.keras.optimizers.Adam(
                 self.actor_lr, epsilon=1e-08)
-            self.alpha_optimier = tf.keras.optimizers.Adam(
+            self.alpha_optimizer = tf.keras.optimizers.Adam(
                 self.actor_lr, epsilon=1e-08) #Adam([self.log_alpha], lr=args.lr)
 
         self.initialize_new_models()
