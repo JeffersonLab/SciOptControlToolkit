@@ -28,84 +28,22 @@
 
 import logging
 import jlab_opt_control as jlab_opt_control
-from jlab_opt_control.agents.keras_td3 import KerasTD3
+from jlab_opt_control.agents.keras_sindy_critic_td3 import KerasSINDyCriticTD3
 import jlab_opt_control.buffers
 import jlab_opt_control.models
 import tensorflow as tf
+
 import numpy as np
-from os.path import join
 import platform
+
 processor = platform.processor()
 
 td3_log = logging.getLogger("TD3-Agent")
 td3_log.setLevel(logging.DEBUG)
-logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
+logging.basicConfig(format="%(asctime)s %(levelname)s:%(name)s:%(message)s")
 
 
-class KerasUncertaintyTD3(KerasTD3):
-
-    @tf.function
-    def train_critic(self, states, actions, rewards, next_states, dones, weights):
-        # Generate the proper noise
-        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
-        noise_clipped = tf.clip_by_value(
-            noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
-        next_actions = tf.clip_by_value(self.target_actor(
-            next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
-
-        target_q1, _ = self.target_critic1(next_states, next_actions, training=False)
-        target_q2, _ = self.target_critic2(next_states, next_actions, training=False)
-        target_q = tf.math.minimum(target_q1, target_q2)
-
-        # Bellman equation for the q value
-        q_targets = rewards + self.gamma * target_q * (1.0 - dones)
-
-        # Critic 1 and 2
-        with tf.GradientTape() as tape:
-        
-            q_values1, q_logvar1 = self.critic_model1(states, actions, training=True)
-            q_values2, q_logvar2 = self.critic_model2(states, actions, training=True)
-
-            q_values1 = q_values1 + tf.random.normal(tf.shape(q_values1), dtype=tf.float32) * tf.exp(0.5 * q_logvar1)
-            q_values2 = q_values2 + tf.random.normal(tf.shape(q_values2), dtype=tf.float32) * tf.exp(0.5 * q_logvar2)
-
-            td_errors1 = q_values1 - q_targets
-            td_errors2 = q_values2 - q_targets
-
-            beta = 1e-5
-            critic_loss1 = self.mse_loss(q_values1, q_targets, sample_weight=weights) \
-                + beta * 0.5 * tf.reduce_sum(q_values1*q_values1 + tf.exp(q_logvar1) - q_logvar1 - 1)
-            critic_loss2 = self.mse_loss(q_values2, q_targets, sample_weight=weights) \
-                + beta * 0.5 * tf.reduce_sum(q_values2*q_values2 + tf.exp(q_logvar2) - q_logvar2 - 1)
-            
-            critic_losses = critic_loss1 + critic_loss2
-
-        gradients = tape.gradient(
-            critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
-        self.critic_optimizer.apply_gradients(zip(
-            gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
-
-        td_errors_avg = (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
-
-        return critic_loss1, critic_loss2, td_errors_avg
-
-    @tf.function
-    def train_actor(self, states):
-        # Use Critic 1
-        with tf.GradientTape() as tape:
-            actions = self.actor_model(states, training=True)
-            q_value, _ = self.critic_model1(states, actions, training=False)
-            loss = -tf.math.reduce_mean(q_value)
-            with tf.GradientTape(persistent=True) as tape2:
-                dq_da, dq_ds = tape2.gradient(q_value, [actions, states])
-                print(f'dq_da: {dq_da}')
-                print(f'dq_ds: {dq_ds}')
-
-        gradient = tape.gradient(loss, self.actor_model.trainable_variables)
-        self.actor_optimizer.apply_gradients(
-            zip(gradient, self.actor_model.trainable_variables))
-        return loss
-
+class KerasSINDyUncertaintyTD3(KerasSINDyCriticTD3):
     def action(self, state, train=True, inference=False):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
@@ -122,11 +60,19 @@ class KerasUncertaintyTD3(KerasTD3):
                     maxval=self.upper_bound, 
                     dtype=tf.float32)).numpy()
                 sampled_states = np.repeat(state, N, axis=0)
-                _, q_logvar = self.critic_model1(sampled_states, sampled_actions, training=False)
 
-                # Choose the action with the highest uncertainty
-                action_idx = np.argmax(np.exp(0.5 * q_logvar))
-                sampled_action = sampled_actions[action_idx, None]
+                # NN Critic evaluation
+                q_values = self.critic_model1(sampled_states, sampled_actions, training=False).numpy()
+
+                # SINDy Critic evaluation
+                sampled_states_actions = tf.keras.layers.Concatenate(axis=1)([sampled_states, sampled_actions])
+                lib_batch = self.library(sampled_states_actions)
+                s_values = self.critic_sindy(lib_batch, training=False).numpy()
+
+                # Uncertainty is defined by discrepancy between NN and SINDy
+                unc = np.abs(q_values - s_values)
+                action_idx = np.argmax(unc)
+                sampled_action = sampled_actions[action_idx, None]                                          
             else: # Choose the actor model output
                 sampled_action = (self.actor_model(state)).numpy()
 

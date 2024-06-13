@@ -28,23 +28,16 @@
 
 from jlab_opt_control.agents.registration import register, make, list_registered_modules
 from jlab_opt_control.agents.keras_td3 import KerasTD3
-from jlab_opt_control.agents.keras_uncertainty_td3 import KerasUncertaintyTD3
 from jlab_opt_control.agents.keras_ddpg import KerasDDPG
-from jlab_opt_control.agents.keras_sindy_td3 import KerasSINDyTD3
 from jlab_opt_control.agents.keras_sindy_critic_td3 import KerasSINDyCriticTD3
-from jlab_opt_control.agents.keras_joint_critic_td3 import KerasJointCriticTD3
+from jlab_opt_control.agents.keras_uncertainty_td3 import KerasUncertaintyTD3
+from jlab_opt_control.agents.keras_sindy_uncertainty_td3 import KerasSINDyUncertaintyTD3
 
 # Single Objective Agents
 register(
     id="KerasTD3-v0",
     entry_point="jlab_opt_control.agents:KerasTD3",
     kwargs={"cfg": "keras_td3.cfg"},
-)
-
-register(
-    id="KerasUncertaintyTD3-v0",
-    entry_point="jlab_opt_control.agents:KerasUncertaintyTD3",
-    kwargs={"cfg": "keras_uncertainty_td3.cfg"},
 )
 
 register(
@@ -56,17 +49,17 @@ register(
 register(
     id="KerasSINDyCriticTD3-v0",
     entry_point="jlab_opt_control.agents:KerasSINDyCriticTD3",
-    kwargs={"cfg": "keras_sindy_td3.cfg"},
+    kwargs={"cfg": "keras_sindy_critic_td3.cfg"},
 )
 
 register(
-    id="KerasJointCriticTD3-v0",
-    entry_point="jlab_opt_control.agents:KerasJointCriticTD3",
-    kwargs={"cfg": "keras_joint_td3.cfg"},
+    id="KerasUncertaintyTD3-v0",
+    entry_point="jlab_opt_control.agents:KerasUncertaintyTD3",
+    kwargs={"cfg": "keras_uncertainty_td3.cfg"},
 )
 
 register(
-    id="KerasSINDyTD3-v0",
-    entry_point="jlab_opt_control.agents:KerasSINDyTD3",
-    kwargs={"cfg": "keras_td3.cfg"},
+    id="KerasSINDyUncertaintyTD3-v0",
+    entry_point="jlab_opt_control.agents:KerasSINDyUncertaintyTD3",
+    kwargs={"cfg": "keras_sindy_uncertainty_td3.cfg"},
 )

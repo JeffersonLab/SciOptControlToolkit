@@ -42,14 +42,6 @@ from os.path import join
 import time
 import json
 import platform
-import sys
-import shutil
-
-import io
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-import seaborn as sns
-import pandas as pd
 
 processor = platform.processor()
 
@@ -61,131 +53,35 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(name)s:%(message)s")
 class KerasSINDyCriticTD3(KerasTD3):
 
     def __init__(
-        self, env, logdir, buffer_type=None, buffer_size=None, cfg="keras_td3.json"
+        self, env, logdir, buffer_type=None, buffer_size=None, cfg="keras_SINDy_critic_td3.cfg"
     ):
         """Define all key variables required for all agent"""
+        super().__init__(env, logdir, buffer_type, buffer_size, cfg)
 
-        # Get env info
-        self.target_critic2 = None
-        self.critic_model2 = None
-        self.target_critic1 = None
-        self.critic_model1 = None
-        self.target_actor = None
-        self.actor_model = None
-        td3_log.info("Running KerasTD3 __init__")
-
-        # Environment setup
-        self.env = env
-        try:
-            assert "Box" in str(type(env.action_space)), "Invalid action space"
-            self.num_states = env.observation_space.shape[0]
-            self.num_actions = env.action_space.shape[0]
-            self.upper_bound = env.action_space.high
-            self.lower_bound = env.action_space.low
-            td3_log.info(f"Action upper bound: {self.upper_bound}")
-            td3_log.info(f"Action upper bound: {float(env.action_space.high[0])}")
-            td3_log.info(f"Action lower bound: {self.lower_bound}")
-            td3_log.info(f"Action lower bound: {float(env.action_space.low[0])}")
-            self.range = self.upper_bound - self.lower_bound
-            td3_log.info(f"Action range: {self.range}")
-        except:
-            td3_log.error("Action space not valid for this agent.")
-            sys.exit(0)
-
-        # Load configuration
-        absolute_path = os.path.dirname(__file__)
-        relative_path = "../cfgs/"
-        full_path = os.path.join(absolute_path, relative_path)
-        self.pfn_json_file = os.path.join(full_path, cfg)
-        td3_log.debug(f"pfn_json_file:{self.pfn_json_file}")
+        # Extract relevant information for SINDy critic
         with open(self.pfn_json_file) as json_file:
             data = json.load(json_file)
-        self.warmup_size = int(cfg_utils.cfg_get(data, "warmup_size", 10000))
-        self.batch_size = int(cfg_utils.cfg_get(data, "batch_size", 100))
-        self.model_load_path = cfg_utils.cfg_get(data, "load_model", None)
-        self.plot_every_ntrain = int(cfg_utils.cfg_get(data, "plot_every_ntrain", 200))
-
-        self.actor_model_type = cfg_utils.cfg_get(data, "actor_model", "actor_fcnn-v0")
-        self.critic_model_type = cfg_utils.cfg_get(
-            data, "critic_model", "critic_fcnn-v0"
-        )
-
-        self.logdir = logdir
-
-        self.mse_loss = tf.keras.losses.MeanSquaredError()
-
-        # Buffer
-        if buffer_type is None:
-            self.buffer_type = cfg_utils.cfg_get(data, "buffer_type", None)
-        else:
-            self.buffer_type = buffer_type
-
-        self.buffer = jlab_opt_control.buffers.make(
-            self.buffer_type,
-            state_dim=self.num_states,
-            action_dim=self.num_actions,
-            logdir=self.logdir,
-            buffer_size=buffer_size,
-        )
-        self.buffer.save_cfg()
-
-        # Used to update target networks
-        self.tau = float(cfg_utils.cfg_get(data, "tau", 0.005))
-        self.gamma = float(cfg_utils.cfg_get(data, "discount", 0.99))
-
-        # Setup Optimizers
-        self.critic_lr = float(cfg_utils.cfg_get(data, "critic_learning_rate", 5e-2))#5e-4))
-        self.actor_lr = float(cfg_utils.cfg_get(data, "actor_learning_rate", 1e-4))
+            
+        self.critic_sindy = None
+        self.sindy_model_type = cfg_utils.cfg_get(data, "sindy_model", "sindy_network-v0")
+        self.sindy_lr = float(cfg_utils.cfg_get(data, "sindy_learning_rate", 1e-4))
 
         if processor == "arm":
             td3_log.info("Using legacy Adam")
-            self.critic_optimizer = tf.keras.optimizers.legacy.Adam(
-                self.critic_lr, epsilon=1e-08
-            )
-            self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
-                self.actor_lr, epsilon=1e-08
+            self.sindy_optimizer = tf.keras.optimizers.legacy.Adam(
+                self.sindy_lr, epsilon=1e-08
             )
         else:
-            self.critic_optimizer = tf.keras.optimizers.Adam(
-                self.critic_lr, epsilon=1e-08
-            )
-            self.actor_optimizer = tf.keras.optimizers.Adam(
-                self.actor_lr, epsilon=1e-08
+            self.sindy_optimizer = tf.keras.optimizers.Adam(
+                self.sindy_lr, epsilon=1e-08
             )
 
-        self.initialize_new_models()
+        self.initialize_sindy_model()
+    
+    def initialize_sindy_model(self):
+        """Initialize new SINDy model from scratch"""
 
-        # Load models for retraining
-        if self.model_load_path is not None:
-            self.load()
-
-        # update counting
-        self.ntrain_calls = 0
-        self.actor_update_freq = int(cfg_utils.cfg_get(data, "actor_update_freq", 2))
-        self.critic_update_freq = int(cfg_utils.cfg_get(data, "critic_update_freq", 2))
-
-        self.noise_clip = 0.5
-
-        try:
-            os.mkdir(self.logdir)
-        except OSError as error:
-            td3_log.warning(error)
-        file_writer = tf.summary.create_file_writer(self.logdir + "/metrics")
-        file_writer.set_as_default()
-        self.nactions = 0
-
-    def initialize_new_models(self):
-        """Initialize new models from scratch"""
-        td3_log.info("Running KerasTD3 initialize_new_models()")
-
-        self.actor_model = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-        self.target_actor = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-
-        # Run through model once to initialize variables
-        self.actor_model(tf.zeros([1, self.num_states]))
-        self.target_actor(tf.zeros([1, self.num_states]))
+        td3_log.info("Initializing SINDy critic models")
 
         # Make intial state for init
         rng = np.random.default_rng(1)
@@ -197,7 +93,7 @@ class KerasSINDyCriticTD3(KerasTD3):
 
         # SINDy Poly library
         num_poly = 4
-        self.library = PolynomialLibrary(degree=num_poly, include_bias=False, include_interaction=True)
+        self.library = PolynomialLibrary(degree=num_poly, include_bias=True, include_interaction=True)
         #self.library = FourierLibrary(n_frequencies=num_poly)
         self.library.fit(init_states_action)
         lib_batch = self.library(init_states_action)
@@ -209,98 +105,36 @@ class KerasSINDyCriticTD3(KerasTD3):
         td3_log.debug(f"seed1:{seed1}")
         tf.random.set_seed(seed1)
 
-        self.critic_model1 = jlab_opt_control.models.make(
-            "sindy_network-v0",
+        self.critic_sindy = jlab_opt_control.models.make(
+            self.sindy_model_type,
             num_features_in=self.library.output_dim_,
             num_features_out=1,
             logdir=self.logdir + "/sindy_test/",
         )
-        self.critic_model1(lib_batch)
-        self.target_critic1 = jlab_opt_control.models.make(
-            "sindy_network-v0",
-            num_features_in=self.library.output_dim_,
-            num_features_out=1,
-            logdir=self.logdir + "/sindy_test/",
-        )
-        self.target_critic1(lib_batch)
-
-        time.sleep(0.5)
-        seed2 = time.time_ns()
-        str_seed2 = str(seed2)
-        seed2 = int(str_seed2[9:-3])
-        td3_log.debug(f"seed2:{seed2}")
-        tf.random.set_seed(seed2)
-
-        self.critic_model2 = jlab_opt_control.models.make(
-            "sindy_network-v0",
-            num_features_in=self.library.output_dim_,
-            num_features_out=1,
-            logdir=self.logdir + "/sindy_test/",
-        )
-        self.critic_model2(lib_batch)
-        self.target_critic2 = jlab_opt_control.models.make(
-            "sindy_network-v0",
-            num_features_in=self.library.output_dim_,
-            num_features_out=1,
-            logdir=self.logdir + "/sindy_test/",
-        )
-        self.target_critic2(lib_batch)
-
-        #
-        self.target_actor.set_weights(self.actor_model.get_weights())
-        self.target_critic1.set_weights(self.critic_model1.get_weights())
-        self.target_critic2.set_weights(self.critic_model2.get_weights())
+        self.critic_sindy(lib_batch)
 
     @tf.function
-    def train_critic(self, states, actions, rewards, next_states, dones, weights):
-        # Generate the proper noise
-        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
-        noise_clipped = tf.clip_by_value(
-            noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
-        next_actions = tf.clip_by_value(self.target_actor(
-            next_states, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
-
-        next_states_actions = tf.keras.layers.Concatenate(axis=1)([next_states, next_actions])
-        td3_log.debug(f"next_states_actions:{next_states_actions.shape}")
-        next_lib_batch = self.library(next_states_actions)
-        target_q1 = self.target_critic1(next_lib_batch)
-        target_q2 = self.target_critic2(next_lib_batch)
-        target_q = tf.math.minimum(target_q1, target_q2)
-
-        # Bellman equation for the q value
-        q_targets = rewards + self.gamma * target_q * (1.0 - dones)
-
-        # Critic 1 and 2
+    def train_sindy_critic(self, states, actions, weights):
+        target_q1 = self.critic_model1(
+            states, actions, training=False)
+        target_q2 = self.critic_model2(
+            states, actions, training=False)
+        q_targets = tf.math.minimum(target_q1, target_q2)
         with tf.GradientTape() as tape:
+            # SINDy Critic Predictions
             states_actions = tf.keras.layers.Concatenate(axis=1)([states, actions])
             lib_batch = self.library(states_actions)
-            q_values1 = self.critic_model1(lib_batch)
-            q_values2 = self.critic_model2(lib_batch)
+            s_values = self.critic_sindy(lib_batch)
 
-            td_errors1 = q_values1 - q_targets
-            td_errors2 = q_values2 - q_targets
+            sindy_loss = self.mse_loss(s_values, q_targets, sample_weight=weights)
 
-            critic_loss1 = self.mse_loss(q_values1, q_targets, sample_weight=weights)
-            critic_loss2 = self.mse_loss(q_values2, q_targets, sample_weight=weights)
-
-            critic_losses = critic_loss1 + critic_loss2
-
+        # Update SINDy Critic
         gradients = tape.gradient(
-            critic_losses,
-            self.critic_model1.trainable_variables
-            + self.critic_model2.trainable_variables,
-        )
-        self.critic_optimizer.apply_gradients(
-            zip(
-                gradients,
-                self.critic_model1.trainable_variables
-                + self.critic_model2.trainable_variables,
-            )
-        )
-
-        td_errors_avg = (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
-
-        return critic_loss1, critic_loss2, td_errors_avg
+            sindy_loss, self.critic_sindy.trainable_variables)
+        self.sindy_optimizer.apply_gradients(zip(
+            gradients, self.critic_sindy.trainable_variables))
+        
+        return sindy_loss
 
     @tf.function
     def train_actor(self, states):
@@ -309,7 +143,8 @@ class KerasSINDyCriticTD3(KerasTD3):
             actions = self.actor_model(states, training=True)
             states_actions = tf.keras.layers.Concatenate(axis=1)([states, actions])
             lib_batch = self.library(states_actions)
-            q_value = self.critic_model1(lib_batch)
+            #q_value = self.critic_model1(states, actions, training=False)
+            q_value = self.critic_sindy(lib_batch, training=False) # Train agent with SINDy critic
             loss = -tf.math.reduce_mean(q_value)
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
@@ -317,64 +152,55 @@ class KerasSINDyCriticTD3(KerasTD3):
         return loss
 
     def train(self):
-        """Method used to train"""
-        super().train()
+        """ Method used to train """
+        self.ntrain_calls += 1
 
-        if self.ntrain_calls % self.plot_every_ntrain == 0:
-            feature_names = self.library.get_feature_names()
-            #action_names = [f"Action {i}" for i in range(max(self.num_actions, 1))]
-            fig = self.critic_model1.plot_coefficients(feature_names, ['qvalue'])
+        if self.buffer.size() > np.max([self.batch_size, self.warmup_size]):
 
-            # Convert figure to an image tensor and log
-            buf = io.BytesIO()
-            canvas = FigureCanvasAgg(fig)
-            canvas.print_png(buf)
-            tensor = tf.image.decode_png(buf.getvalue(), channels=4)
-            tf.summary.image(
-                "SINDy Weights", data=tensor[None], step=int(self.ntrain_calls)
-            )
+            # Get samples
+            states, actions, rewards, next_states, dones, weights = self.buffer.sample(
+                self.batch_size)
 
-    def action(self, state, train=True, inference=False):
-        """ Method used to provide the next action using the target model """
-        # Warmup experience sample
-        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and inference == False:
-            sampled_action = self.env.action_space.sample()
-            noise = np.zeros(self.num_actions)
-        # Warmup completed, sample from actor or run inference
-        else:
-            state = tf.expand_dims(state, 0)
-            sampled_action = (self.actor_model(state)).numpy()
-            #print(f'sampled_action: {sampled_action}')
-            if train:
-                noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                         stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
-                sampled_action = np.clip(
-                    sampled_action + noise, self.lower_bound, self.upper_bound)
-            else:
-                noise = np.zeros(self.num_actions)
+            # Convert to tensors
+            state_batch = tf.convert_to_tensor(states, dtype=tf.float32)
+            action_batch = tf.convert_to_tensor(actions, dtype=tf.float32)
+            reward_batch = tf.convert_to_tensor(rewards, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(next_states, dtype=tf.float32)
+            done_batch = tf.convert_to_tensor(dones, dtype=tf.float32)
+            weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
 
-            sampled_action = sampled_action.flatten()
-            noise = noise.flatten()
-            assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
-                f"Sampled action shape is incorrect... {sampled_action.shape}"
+            # Train critic
+            critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
+                                                                          next_state_batch, done_batch, weights_batch)
 
-        # Log the training action(s) taken
-        if train:
-            self.nactions = self.nactions + 1
-            if self.num_actions == 0:
-                tf.summary.scalar('Action', data=sampled_action,
-                                  step=int(self.nactions))
-            else:
-                for i in range(self.num_actions):
-                    tf.summary.scalar('Action #{}'.format(
-                        i), data=sampled_action[i], step=int(self.nactions))
+            tf.summary.scalar('Critic Loss 1', data=critic_loss1,
+                              step=int(self.ntrain_calls))
+            tf.summary.scalar('Critic Loss 2', data=critic_loss2,
+                              step=int(self.ntrain_calls))
+            
+            # Train SINDy Critic
+            sindy_loss = self.train_sindy_critic(state_batch, action_batch, weights_batch)
+            tf.summary.scalar('SINDy Loss', data=sindy_loss,
+                              step=int(self.ntrain_calls))
 
-        # Insure action output by actor is in legal environment range
-        return sampled_action, noise
+            # Update Priorities
+            if "PER" in self.buffer_type:
+                new_priorities = td_errors.numpy()
+                self.buffer.update_priorities(new_priorities)
 
-    def memory(self, obs_tuple):
-        memory_with_default_priority = obs_tuple + (self.buffer.max_priority,)
-        self.buffer.record(memory_with_default_priority)
+            # Train actor
+            if self.ntrain_calls % self.actor_update_freq == 0:
+                actor_loss = self.train_actor(state_batch)
+                tf.summary.scalar('Actor Loss', data=actor_loss,
+                                  step=int(self.ntrain_calls))
+                self.soft_update(self.target_actor.variables,
+                                 self.actor_model.variables)
+
+            if self.ntrain_calls % self.critic_update_freq == 0:
+                self.soft_update(self.target_critic1.variables,
+                                 self.critic_model1.variables)
+                self.soft_update(self.target_critic2.variables,
+                                 self.critic_model2.variables)
 
     def load(self):
         """Load the ML models"""
@@ -399,7 +225,10 @@ class KerasSINDyCriticTD3(KerasTD3):
                 elif "target_critic2" in file and file.endswith(".h5"):
                     self.target_critic2.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-            if model_load_count == 6:
+                elif "critic_sindy" in file and file.endswith(".h5"):
+                    self.critic_sindy.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+            if model_load_count == 7:
                 td3_log.info("Models loaded successfully")
             else:
                 td3_log.error(
@@ -437,20 +266,9 @@ class KerasSINDyCriticTD3(KerasTD3):
             self.target_critic2.save_weights(
                 join(destination_file_path, "target_critic2_" + post_fix + ".h5")
             )
+            self.critic_sindy.save_weights(
+                join(destination_file_path, "critic_sindy_" + post_fix + ".h5")
+            )
             td3_log.info("Agent models saved successfully")
         except:
             td3_log.error("Error in saving the models...")
-
-    def save_cfg(self):
-        """Save the actor cfg"""
-        try:
-            destination_file_path = os.path.join(self.logdir, "cfgs/")
-            if not os.path.exists(destination_file_path):
-                os.makedirs(destination_file_path)
-            destination_file_path = os.path.join(
-                destination_file_path, os.path.basename(self.pfn_json_file)
-            )
-            shutil.copy(self.pfn_json_file, destination_file_path)
-            td3_log.info("Agent config saved successfully")
-        except:
-            td3_log.error("Error in saving the agent cfg...")
