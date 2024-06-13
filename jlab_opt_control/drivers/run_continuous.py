@@ -263,12 +263,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 if inference_episodic_reward != 0:
                     percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
                     if percentage_change >= percent_increase:
-                        str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
+                        str_pct_inc = f'epoch_{ep:05d}_{int(100*percentage_change):03d}'
                         agent.save(str_pct_inc)
                         inference_episodic_hold = inference_episodic_reward
                 
                 if ep % 10000 == 0:
-                    agent.save("epoch_" + str(ep))
+                    agent.save(f'epoch_{ep:05d}')
 
             tf.summary.scalar('Inference Reward',
                             data=inference_episodic_reward, step=int(ep))
