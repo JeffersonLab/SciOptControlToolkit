@@ -33,7 +33,7 @@ class ActorFCNN(Model):
         self.logdir = logdir
 
         # Error Checking
-        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)+1:
+        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)-1:
             if hidden_layers != len(nodes_per_layer):
                 act_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
             else:  # hidden_layers != len(activation_functions)+1
