@@ -28,7 +28,7 @@ class CriticFCNN(Model):
             cfg_data = json.load(f)
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
-        self.use_batch_norm = cfg_data.get('use_bn', True)  # Default True
+        self.use_batch_norm = cfg_data.get('use_bn', "True")  # Default True
         activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers + ["linear"])  # Default
  
         self.logdir = logdir
@@ -43,9 +43,10 @@ class CriticFCNN(Model):
             crit_log.error("Final layer activation for critic is not a linear function")
 
         # Dynamic Q network Architecture
-        if self.use_batch_norm:
+        print(self.use_batch_norm)
+        if self.use_batch_norm == "True":
             self.init_bn = tf.keras.layers.BatchNormalization()
-            crit_log.log("Using batch normalization in Critic")
+            crit_log.info("Using batch normalization in Critic")
 
         self.hidden_layers = []
         for i in range(hidden_layers):
@@ -56,7 +57,7 @@ class CriticFCNN(Model):
  
     def call(self, state, action, training=False):
         x = tf.concat([state, action], axis=1)  # Concatenate state and action as input
-        if self.use_batch_norm:
+        if self.use_batch_norm == "True":
             x = self.init_bn(x)
         for layer in self.hidden_layers:
             x = layer(x)
