@@ -1,0 +1,12 @@
+ipykernel==6.29.3
+tensorflow==2.15.*
+gymnasium==0.29.1
+gymnasium[mujoco]==0.29.1
+matplotlib==3.8.3
+torch==2.2.1
+scipy==1.12.0
+tqdm==4.66.2
+pandas==2.2.1
+unittest2==1.1.0
+numpy==1.26.4
+jupyter==1.0.0
