@@ -34,7 +34,7 @@ class CriticFCNN(Model):
         self.logdir = logdir
 
        # Error Checking
-        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)+1:
+        if hidden_layers != len(nodes_per_layer) or hidden_layers != len(activation_functions)-1:
             if hidden_layers != len(nodes_per_layer):
                 crit_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
             else:  # hidden_layers != len(activation_functions)+1
@@ -43,7 +43,6 @@ class CriticFCNN(Model):
             crit_log.error("Final layer activation for critic is not a linear function")
 
         # Dynamic Q network Architecture
-        print(self.use_batch_norm)
         if self.use_batch_norm == "True":
             self.init_bn = tf.keras.layers.BatchNormalization()
             crit_log.info("Using batch normalization in Critic")
