@@ -29,6 +29,7 @@
 from jlab_opt_control.models.registration import register, make, list_registered_modules
 from jlab_opt_control.models.actor_fcnn import ActorFCNN
 from jlab_opt_control.models.critic_fcnn import CriticFCNN
+from jlab_opt_control.models.critic_fcnn_v1 import CriticFCNN_v1
 
 register(
     id='actor_fcnn-v0',
@@ -40,4 +41,10 @@ register(
     id='critic_fcnn-v0',
     entry_point='jlab_opt_control.models:CriticFCNN',
     kwargs={'cfg': 'critic_fcnn.cfg'},
+)
+
+register(
+    id='critic_fcnn-v1',
+    entry_point='jlab_opt_control.models:CriticFCNN_v1',
+    kwargs={'cfg': 'critic_fcnn_v1.cfg'},
 )
