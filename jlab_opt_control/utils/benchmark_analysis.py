@@ -79,7 +79,7 @@ def main(args=None):
         args = parser.parse_args(args)
     else:
         args = parser.parse_args()
-    kwargs = {'train': False}
+    kwargs = {'train': args.train}
     run(args=kwargs)
 
 
