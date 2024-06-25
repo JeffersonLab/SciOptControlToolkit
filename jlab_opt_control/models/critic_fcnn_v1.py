@@ -13,8 +13,8 @@ crit_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class CriticFCNN(Model):
-    def __init__(self, state_dim, action_dim, logdir, cfg='critic_fcnn.cfg'):
+class CriticFCNN_v1(Model):
+    def __init__(self, state_dim, action_dim, logdir, cfg='critic_fcnn_v1.cfg'):
         super().__init__()
  
         # Load configuration
@@ -39,6 +39,8 @@ class CriticFCNN(Model):
             crit_log.error("Number of activation functions does not match the number of hidden layers in the config.")
 
         # Dynamic Q network Architecture
+        self.init_bn = tf.keras.layers.BatchNormalization()
+
         self.hidden_layers = []
         for i in range(hidden_layers):
             # Layer construction with dynamic activation functions
@@ -48,6 +50,7 @@ class CriticFCNN(Model):
  
     def call(self, state, action, training=False):
         x = tf.concat([state, action], axis=1)  # Concatenate state and action as input
+        x = self.init_bn(x)
         for layer in self.hidden_layers:
             x = layer(x)
         x = self.output_layer(x)

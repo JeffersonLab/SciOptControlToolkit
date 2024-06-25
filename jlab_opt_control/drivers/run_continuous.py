@@ -39,6 +39,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
 import gymnasium as gym
+from gymnasium.wrappers import FlattenObservation, FrameStack, RescaleAction, TimeLimit
 
 # Local Application/Library Specific Imports
 import jlab_opt_control.agents
@@ -54,6 +55,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 # PACEs
 try:
     import paces.paces_envs as paces_gym
+    from paces.paces_envs.lcls.utils.rescale_observation import RescaleObservation
     run_openai_log.info("PACEs environments successfully imported")
 except ImportError:
     run_openai_log.info("PACEs environments not installed")
@@ -64,7 +66,7 @@ np.random.seed(seed)
 # run_openai_log.info(f'seeds {tf.random.}')
 
 
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag):
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty):
     githash = get_git_revision_short_hash()
     run_openai_log.debug(githash)
     run_openai_log.debug(logdir)
@@ -102,6 +104,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         env = custom_gym.make(env_id)
     elif 'paces_gym' in globals() and env_id in paces_gym.list_registered_modules():
         env = paces_gym.make(env_id)
+        if 'LCLS' in env_id:
+            env.set_curriculum_difficulty(difficulty)
+            # Check if max_nsteps is not defined, set it to default (10) for lcls env
+            if max_nsteps <= 0:
+                max_nsteps = 10 
+            env = TimeLimit(env, max_nsteps)
+            env = RescaleObservation(env, -1, 1)
+            env = RescaleAction(env, -1, 1)
+            env = FlattenObservation(env)
+            # env = FrameStack(env, 1)
     else:
         run_openai_log.error('Error finding environment')
 
@@ -211,13 +223,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 assert state.shape == (num_states,)
                 assert 'float' in str(type(reward)), str(type(reward))
                 done = (terminate or truncate)
-                done_buffer = (terminate or truncate) if (
-                    episode_timesteps < env._max_episode_steps) else False
+                done_buffer = terminate
 
                 agent.memory((prev_state, action, reward, state, done_buffer))
                 episodic_reward += reward
                 agent.train()
                 prev_state = state
+                if done:
+                    break
 
             ep_reward_list.append(episodic_reward)
             tf.summary.scalar('Training Reward',
@@ -236,8 +249,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                     inference_episodic_reward += inference_reward
                     inference_prev_state = inference_state
                     inference_done = (inference_terminate or inference_truncate)
-                    # if done:
-                    #     break
+                    if inference_done:
+                        break
                 
                 # init for first epoch
                 if (ep == 0):
@@ -292,6 +305,8 @@ def main(args=None):
         "--logdir", help="Directory to save results", type=str, default='None')
     parser.add_argument(
         "--inference", help="Inference only run flag", type=str, default=None)
+    parser.add_argument(
+        "--difficulty", help="Curriculum difficulty level for LCLS env", type=float, default=0.08)
 
     # Get input arguments
     if args is not None:
@@ -308,9 +323,10 @@ def main(args=None):
     args_buf_size = args.bsize
     args_buf_type = args.btype
     args_inference = args.inference
+    args_difficulty = args.difficulty
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
-            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference)
+            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty)
 
 if __name__ == "__main__":
     main()
