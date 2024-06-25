@@ -60,7 +60,7 @@ try:
 except ImportError:
     run_openai_log.info("PACEs environments not installed")
 
-seed = seed = time.time_ns() % np.power(2, 32) #1  # time.time_ns()
+seed = time.time_ns() % np.power(2, 32)  # Numpy seed must be between 0 and 2^32 - 1
 tf.random.set_seed(seed)
 np.random.seed(seed)
 # run_openai_log.info(f'seeds {tf.random.}')

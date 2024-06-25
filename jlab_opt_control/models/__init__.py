@@ -28,6 +28,7 @@
 
 from jlab_opt_control.models.registration import register, make, list_registered_modules
 from jlab_opt_control.models.actor_fcnn import ActorFCNN
+from jlab_opt_control.models.actor_gaussian_v0 import ActorGaussian
 from jlab_opt_control.models.actor_fcnn_v2 import ActorFCNN_v2
 from jlab_opt_control.models.critic_fcnn import CriticFCNN
 from jlab_opt_control.models.critic_fcnn_v1 import CriticFCNN_v1
@@ -42,8 +43,8 @@ register(
 )
 
 register(
-    id='actor_fcnn-v2',
-    entry_point='jlab_opt_control.models:ActorFCNN_v2',
+    id='actor_gaussian-v0',
+    entry_point='jlab_opt_control.models:ActorGaussian',
     kwargs={'cfg': 'actor_fcnn.cfg'},
 )
 
@@ -51,6 +52,12 @@ register(
     id='critic_fcnn-v0',
     entry_point='jlab_opt_control.models:CriticFCNN',
     kwargs={'cfg': 'critic_fcnn.cfg'},
+)
+
+register(
+    id='actor_fcnn-v2',
+    entry_point='jlab_opt_control.models:ActorFCNN_v2',
+    kwargs={'cfg': 'actor_fcnn.cfg'},
 )
 
 register(
