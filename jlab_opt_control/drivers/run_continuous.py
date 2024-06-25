@@ -66,7 +66,7 @@ np.random.seed(seed)
 # run_openai_log.info(f'seeds {tf.random.}')
 
 
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty):
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold):
     githash = get_git_revision_short_hash()
     run_openai_log.debug(githash)
     run_openai_log.debug(logdir)
@@ -149,6 +149,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
     # To store reward history of each episode
     ep_reward_list = []
+    inf_ep_reward_list = []
     # To store average reward history of last few episodes
     avg_reward_list = []
 
@@ -180,9 +181,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
             ep_reward_list.append(inference_episodic_reward)
 
-            # Mean of last 10 episodes
-            nepisode_mod = 10
-            avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
+            avg_reward = np.mean(ep_reward_list[-nepisode_avg:])
             time_end = time.process_time()
             if total_nsteps % 1000 == 0:
                 run_openai_log.info(
@@ -256,22 +255,21 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 if (ep == 0):
                     inference_episodic_hold = inference_episodic_reward
                 
-                # % better you want inference reward to be before save
-                percent_increase = 0.05
 
-                if inference_episodic_reward != 0:
-                    percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
-                    if percentage_change >= percent_increase:
+                inf_ep_reward_list.append(inference_episodic_reward)
+                inf_avg_reward = np.mean(inf_ep_reward_list[-nepisode_avg:])
+
+                if inf_avg_reward != 0:
+                    percentage_change = (inf_avg_reward - inference_episodic_hold) / abs(inference_episodic_hold)
+                    if percentage_change >= model_save_threshold:
                         str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
                         agent.save(str_pct_inc)
-                        inference_episodic_hold = inference_episodic_reward
+                        inference_episodic_hold = inf_avg_reward
 
             tf.summary.scalar('Inference Reward',
                             data=inference_episodic_reward, step=int(ep))
 
-            # Mean of last 10 episodes
-            nepisode_mod = 10
-            avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
+            avg_reward = np.mean(ep_reward_list[-nepisode_avg:])
             time_end = time.process_time()
             if total_nsteps % 1000 == 0:
                 run_openai_log.info(
@@ -307,6 +305,10 @@ def main(args=None):
         "--inference", help="Inference only run flag", type=str, default=None)
     parser.add_argument(
         "--difficulty", help="Curriculum difficulty level for LCLS env", type=float, default=0.08)
+    parser.add_argument(
+        "--nepisode_avg", help="Number of episodes to average the reward over", type=int, default=20)
+    parser.add_argument(
+        "--model_save_threshold", help="Percentage increase threshold (in fraction) to save the model", type=float, default=0.05)
 
     # Get input arguments
     if args is not None:
@@ -324,9 +326,11 @@ def main(args=None):
     args_buf_type = args.btype
     args_inference = args.inference
     args_difficulty = args.difficulty
+    args_nepisode_avg = args.nepisode_avg
+    args_model_save_threshold = args.model_save_threshold
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
-            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty)
+            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold)
 
 if __name__ == "__main__":
     main()
