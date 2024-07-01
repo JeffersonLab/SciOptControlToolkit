@@ -92,7 +92,7 @@ class KerasSINDyCriticTD3(KerasTD3):
         td3_log.debug(f"init_states_action:{init_states_action.shape}")
 
         # SINDy Poly library
-        num_poly = 4
+        num_poly = 5
         self.library = PolynomialLibrary(degree=num_poly, include_bias=True, include_interaction=True)
         #self.library = FourierLibrary(n_frequencies=num_poly)
         self.library.fit(init_states_action)
