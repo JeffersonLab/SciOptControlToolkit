@@ -320,7 +320,7 @@ def main(args=None):
     parser.add_argument("--agent", help="Agent used for RL",
                         type=str, default='KerasTD3-v0')
     parser.add_argument("--env", help="Environment used for RL",
-                        type=str, default='PACES-MO-CEBAF-8D-v0')
+                        type=str, default='PACES-MO-CEBAF-2D-v0')
     parser.add_argument(
         "--logdir", help="Directory to save results", type=str, default='None')
 
