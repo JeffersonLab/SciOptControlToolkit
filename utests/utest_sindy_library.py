@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 import os
 
+from jlab_opt_control.core.sindy_lib_core import ConcatLibrary, ProductLibrary
 from jlab_opt_control.utils.sindy_lib.polynomial_library import PolynomialLibrary
 from jlab_opt_control.utils.sindy_lib.fourier_library import FourierLibrary
 
@@ -46,7 +47,6 @@ class MyTestCase(unittest.TestCase):
         # Test sin library
         lib = FourierLibrary(include_sin=True, include_cos=False, n_frequencies=2)
         y = lib.fit_transform(x).numpy()
-        print("Sin feature names: ", lib.get_feature_names())
         self.assertTrue(np.allclose(y[:, 0], np.sin(1 * x[:, 0])))
         self.assertTrue(np.allclose(y[:, 1], np.sin(2 * x[:, 0])))
         self.assertTrue(np.allclose(y[:, 2], np.sin(1 * x[:, 1])))
@@ -55,11 +55,42 @@ class MyTestCase(unittest.TestCase):
         # Test cos library
         lib = FourierLibrary(include_sin=False, include_cos=True, n_frequencies=2)
         y = lib.fit_transform(x).numpy()
-        print("Cos feature names: ", lib.get_feature_names())
         self.assertTrue(np.allclose(y[:, 0], np.cos(1 * x[:, 0])))
         self.assertTrue(np.allclose(y[:, 1], np.cos(2 * x[:, 0])))
         self.assertTrue(np.allclose(y[:, 2], np.cos(1 * x[:, 1])))
         self.assertTrue(np.allclose(y[:, 3], np.cos(2 * x[:, 1])))
+
+    def test_concat_library(self):
+        rng = np.random.default_rng(1)
+        x = rng.normal(loc=0.0, scale=1.0, size=[10, 2])
+
+        lib1 = PolynomialLibrary(degree=1, include_bias=False)
+        lib2 = FourierLibrary(n_frequencies=1, include_sin=True, include_cos=True)
+
+        lib = lib1 + lib2
+        y = lib.fit_transform(x)
+
+        print("Concat feature names: ", lib.get_feature_names())
+        self.assertTrue(np.allclose(y[:, 0], x[:, 0]))
+        self.assertTrue(np.allclose(y[:, 1], x[:, 1]))
+        self.assertTrue(np.allclose(y[:, 2], np.sin(x[:, 0])))
+        self.assertTrue(np.allclose(y[:, 3], np.sin(x[:, 1])))
+        self.assertTrue(np.allclose(y[:, 4], np.cos(x[:, 0])))
+        self.assertTrue(np.allclose(y[:, 5], np.cos(x[:, 1])))
+
+    def test_product_library(self):
+        rng = np.random.default_rng(1)
+        x = rng.normal(loc=0.0, scale=1.0, size=[10, 2])
+
+        lib1 = PolynomialLibrary(degree=1, include_bias=False)
+        lib2 = FourierLibrary(n_frequencies=1, include_sin=True, include_cos=False)
+        lib = lib1 * lib2
+        y = lib.fit_transform(x)
+        print("Product feature names: ", lib.get_feature_names())
+        self.assertTrue(np.allclose(y[:, 0], x[:, 0] * np.sin(x[:, 0])))
+        self.assertTrue(np.allclose(y[:, 1], x[:, 0] * np.sin(x[:, 1])))
+        self.assertTrue(np.allclose(y[:, 2], x[:, 1] * np.sin(x[:, 0])))
+        self.assertTrue(np.allclose(y[:, 3], x[:, 1] * np.sin(x[:, 1])))
 
 
 if __name__ == "__main__":
