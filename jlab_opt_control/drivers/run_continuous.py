@@ -236,13 +236,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                             data=episodic_reward, step=int(ep))
 
             # Run inference test
-            if ep % 1 == 0:
+            if ep % 10 == 0:
                 inference_episodic_reward = 0
                 inference_prev_state, _ = env.reset()
                 inference_done = False
                 while inference_done is False:
                     inference_action, inference_action_noise = agent.action(
-                        tf.convert_to_tensor(inference_prev_state), train=False)
+                        tf.convert_to_tensor(inference_prev_state), train=False, inference=True)
                     inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(
                         inference_action)
                     inference_episodic_reward += inference_reward
@@ -266,8 +266,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                         agent.save(str_pct_inc)
                         inference_episodic_hold = inf_avg_reward
 
-            tf.summary.scalar('Inference Reward',
-                            data=inference_episodic_reward, step=int(ep))
+                tf.summary.scalar('Inference Reward',
+                                data=inference_episodic_reward, step=int(ep))
 
             avg_reward = np.mean(ep_reward_list[-nepisode_avg:])
             time_end = time.process_time()
@@ -279,8 +279,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 run_openai_log.info(
                     "Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
             avg_reward_list.append(avg_reward)
-
-            # tf.summary.scalar('Average of Last 10 Training Reward', data=avg_reward_list, step=int(ep))
 
             with open(logdir + '/results.npy', 'wb') as f:
                 np.save(f, np.array(ep_reward_list))
