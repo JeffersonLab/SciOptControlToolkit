@@ -236,7 +236,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                             data=episodic_reward, step=int(ep))
 
             # Run inference test
-            if ep % 10 == 0:
+            if ep % 1 == 0:
+                agent.buffer.save()
                 inference_episodic_reward = 0
                 inference_prev_state, _ = env.reset()
                 inference_done = False
@@ -282,6 +283,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
             with open(logdir + '/results.npy', 'wb') as f:
                 np.save(f, np.array(ep_reward_list))
+        agent.buffer.save()
 
 def main(args=None):
     parser = argparse.ArgumentParser()

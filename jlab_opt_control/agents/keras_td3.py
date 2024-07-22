@@ -168,8 +168,8 @@ class KerasTD3(jlab_opt_control.Agent):
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
 
         # Run through model once to initialize variables
-        self.actor_model(tf.zeros([1, self.num_states]))
-        self.target_actor(tf.zeros([1, self.num_states]))
+        self.actor_model(tf.zeros([1, self.num_states]), training=False)
+        self.target_actor(tf.zeros([1, self.num_states]), training=False)
 
         self.actor_model.save_cfg()
 
@@ -325,7 +325,7 @@ class KerasTD3(jlab_opt_control.Agent):
         # Warmup completed, sample from actor or run inference
         else:
             state = tf.expand_dims(state, 0)
-            sampled_action = (self.actor_model(state)).numpy()
+            sampled_action = (self.actor_model(state, training=train)).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
                          stddev=self.actor_model.action_scale * self.exploration_noise_fraction, dtype=tf.float32)).numpy()

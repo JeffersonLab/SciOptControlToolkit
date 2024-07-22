@@ -45,10 +45,11 @@ class ActorFCNN(Model):
         self.hidden_layers = []
         for i in range(hidden_layers):
             # Layer construction with dynamic activation functions
-            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i], input_shape=(state_dim,) if i == 0 else ()))
+            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i], use_bias=False, kernel_initializer='he_normal', input_shape=(state_dim,) if i == 0 else ()))
+            self.hidden_layers.append(layers.BatchNormalization())
         # Output layer with its specified activation function
         self.output_layer = layers.Dense(action_dim, activation=activation_functions[-1])
- 
+
         self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
         self.action_bias = tf.constant((max_action + min_action) / 2, dtype=tf.float32)
         self.max_action = max_action
@@ -56,7 +57,10 @@ class ActorFCNN(Model):
     def call(self, state, training=False):
         x = state
         for layer in self.hidden_layers:
-            x = layer(x)
+            if isinstance(layer, layers.BatchNormalization):
+                x = layer(x, training=training)
+            else:
+                x = layer(x)
         x = self.output_layer(x)
         return x * self.action_scale + self.action_bias
 
