@@ -84,3 +84,17 @@ register(
     entry_point='jlab_opt_control.models:UQSINDyNetwork',
     kwargs={'cfg': 'uqsindy_network.cfg'}
 )
+
+from jlab_opt_control.models.mo_actor_fcnn import MOActorFCNN
+from jlab_opt_control.models.mo_critic_fcnn import MOCriticFCNN
+register(
+    id="MO-Actor-FCNN-v0",
+    entry_point='jlab_opt_control.models:MOActorFCNN',
+    kwargs={'cfg': 'actor_fcnn.cfg'}
+)
+
+register(
+    id="MO-Critic-FCNN-v0",
+    entry_point='jlab_opt_control.models:MOCriticFCNN',
+    kwargs={'cfg': 'critic_fcnn.cfg'}
+)

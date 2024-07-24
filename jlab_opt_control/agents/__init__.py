@@ -56,3 +56,10 @@ register(
     entry_point='jlab_opt_control.agents:KerasSAC',
     kwargs={'cfg': 'keras_sac.cfg'},
 )
+
+from jlab_opt_control.agents.mo_keras_td3_MB import MOKerasTD3MB
+register(
+    id='MO-KerasTD3-MB-v0',
+    entry_point='jlab_opt_control.agents:MOKerasTD3MB',
+    kwargs={'cfg': 'mo_keras_td3.cfg'}
+)
