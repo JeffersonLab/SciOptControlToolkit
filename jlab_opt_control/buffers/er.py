@@ -13,12 +13,19 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
 class ER(Replay):
-    def __init__(self, state_dim, action_dim, logdir, buffer_size=None, cfg='er.cfg'):
+    def __init__(self, 
+                 state_dim, 
+                 action_dim, 
+                 logdir, 
+                 reward_dim=1, 
+                 buffer_size=None, 
+                 cfg: str='er.cfg', 
+                 is_mo: bool=False):
         super().__init__(None, None, None, None, None, None)
 
         # Load configuration
         absolute_path = os.path.dirname(__file__)
-        relative_path = "../cfgs/"
+        relative_path = "./../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
         self.pfn_json_file = os.path.join(full_path, cfg)
         with open(self.pfn_json_file) as json_file:
@@ -36,13 +43,17 @@ class ER(Replay):
 
         self.num_states = state_dim
         self.num_actions = action_dim
+        self.reward_dim = reward_dim
+        self.is_mo = is_mo
 
         self.states = np.zeros((self.buffer_capacity, self.num_states))
         self.actions = np.zeros((self.buffer_capacity, self.num_actions))
-        self.rewards = np.zeros((self.buffer_capacity, 1))
+        self.rewards = np.zeros((self.buffer_capacity, self.reward_dim))
         self.next_states = np.zeros((self.buffer_capacity, self.num_states))
         self.dones = np.zeros((self.buffer_capacity, 1))
         self.priorities = np.ones(self.buffer_capacity)
+        if self.is_mo:
+            self.alphas = np.zeros((self.buffer_capacity, self.reward_dim))
 
         self.indices = None
         self.sample_counts = np.zeros((self.buffer_capacity, 1))
@@ -58,6 +69,8 @@ class ER(Replay):
         self.next_states[self.current_index] = memory[3]
         self.dones[self.current_index] = memory[4]
         self.priorities[self.current_index] = memory[5]
+        if self.is_mo:
+             self.alphas[self.current_index] = memory[6]
 
         # Reset count of sampling experience to zero if overwriting experiences
         if (self.pointer >= self.buffer_capacity):
@@ -74,14 +87,17 @@ class ER(Replay):
 
         self.sample_counts[self.indices] += 1
 
-        return (
+        out = [
             self.states[self.indices],
             self.actions[self.indices],
             self.rewards[self.indices],
             self.next_states[self.indices],
             self.dones[self.indices],
             self.priorities[self.indices]
-        )
+        ]
+        if self.is_mo:
+            out.append(self.alphas[self.indices])
+        return tuple(out)
 
     def save(self, filename='replay_buffer.npy'):
         data = {
@@ -92,6 +108,8 @@ class ER(Replay):
             "dones": self.dones,
             "priorities": self.priorities
         }
+        if self.is_mo:
+            data["alphas"] = self.alphas
         np.save(filename, data)
 
     def save_cfg(self):
@@ -115,6 +133,8 @@ class ER(Replay):
         self.next_states = data["next_states"]
         self.dones = data["dones"]
         self.priorities = data["priorities"]
+        if self.is_mo:
+            self.alphas = data["alphas"]
 
     def size(self):
         return min(self.pointer, self.buffer_capacity)
