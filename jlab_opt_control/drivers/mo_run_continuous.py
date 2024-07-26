@@ -143,95 +143,34 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     total_nsteps = 0
     inference_best_total_reward = 0.0
 
-    max_nscans = 20
-    current_nscans = 0
+    max_nscans = 3
     nscans = max_nscans
-    rdm_dirichlet = np.random.dirichlet((1, 2), size=max_nscans)
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
-        time_start = time.process_time()
-        # nscans = 2 + int(ep/5000.0)
-        # if nscans>current_nscans:
-        #     current_nscans=nscans
-        #     run_openai_log.info(f'Running nscans: {nscans}')
-        for s in range(nscans):
-            prev_state, _ = env.reset()
-            alphas = np.zeros(env.reward_space.shape[0], dtype=np.float32)
-            alphas[1] = 1.0 - float(s / (nscans - 1.0))
-            alphas[0] = 1.0 - alphas[1]
-            #run_openai_log.info(f'Running alphas: {alphas}')
-
-#            alphas[1] = rdm_dirichlet[s,1]#1.0 - float(s / nscans)
-#            alphas[0] = rdm_dirichlet[s,0]#1.0 - alphas[1]
-            alphas.astype(dtype=np.float32)
-            alphas = np.expand_dims(alphas, 0)
-
-            episode_timesteps = 0
-            episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
-            done = False
-            while done is False:
-                total_nsteps += 1
-                episode_timesteps += 1
-                action, action_noise = agent.action(tf.convert_to_tensor(prev_state), tf.convert_to_tensor(alphas))
-                # assert 'numpy.ndarray' in str(type(action))
-                run_openai_log.debug(f'action: {action}')
-                run_openai_log.debug(f'action_noise: {action_noise}')
-
-                # Take a step
-                state, reward, terminate, truncate, info = env.step(action)
-                run_openai_log.debug(f'reward: {reward}')
-                run_openai_log.debug(f'reward: {type(reward)}')
-                tf.summary.scalar('Reward-0', data=reward[0], step=int(ep*nscans+s))
-                tf.summary.scalar('Reward-1', data=reward[1], step=int(ep*nscans+s))
-
-                # Check shapes and data types
-                # assert 'numpy.ndarray' in str(type(state))
-                assert state.shape == (num_states,)
-                # assert 'float' in str(type(reward)), str(type(reward))
-                assert reward.shape == (env.reward_space.shape[0],)
-                done = (terminate or truncate)
-                agent.memory((prev_state, action, reward, state, done, alphas))
-                episodic_reward += reward
-                agent.train()
-                prev_state = state
+        agent.train()
+        
 
         # Run inference test
-        if ep>=500 and ep % 500 == 0:
+        if ep>=100 and ep % 100 == 0:
             run_openai_log.info(f'Running inference ...')
-            inference_nscans = 250
-            # if ep % 1000 == 0:
-            #     inference_nscans = 1000
+            
             scan_trips, scan_heats, scan_alphas, scan_rewards = [], [], [], []
             inference_total_reward = 0.0
-            gfg = np.random.dirichlet((1, 2), size=inference_nscans)
-            for s in tqdm(range(inference_nscans), desc='Inference Scan'):
-                #for r in range(env.reward_space.shape[0]):
-                inference_episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
-                inference_alphas = np.zeros(env.reward_space.shape[0], dtype=np.float32)
-                inference_alphas[1] = gfg[s,1]#1.0 - float(s/inference_nscans)
-                inference_alphas[0] = gfg[s,0]#1.0 -  inference_alphas[1]
-                inference_alphas.astype(dtype=np.float32)
-                inference_alphas  = np.expand_dims(inference_alphas, 0)
-                inference_prev_state, _ = env.reset()
-                inference_done = False
-                while inference_done is False:
-                    inference_action, inference_action_noise = agent.action(
-                        tf.convert_to_tensor(inference_prev_state),
-                        tf.convert_to_tensor(inference_alphas))
-                    inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
-                        env.step(inference_action)
-                    if inference_terminate==False:
-                        scan_trips.append(inference_info['trip'])
-                        scan_heats.append(inference_info['heat'])
-                        scan_alphas.append(inference_alphas[0])#[0][1])
-                        scan_rewards.append(inference_reward)#50*(float(np.sum(inference_reward))))
-                        #scan_rewards.append(50*np.exp(np.exp(float(np.sum(inference_reward))))-2.7)
-                        #run_openai_log.info(f'inference_reward: {inference_reward}')
-                        inference_total_reward += np.sum(inference_reward)
-                        #run_openai_log.info(f'inference_total_reward: {inference_total_reward}')
-                    inference_prev_state = inference_state
-                    inference_done = (inference_terminate or inference_truncate)
-
-            inference_total_reward = inference_total_reward/inference_nscans
+            
+            inference_actions, inference_action_noise, inference_alphas = agent.action(train=False)
+            rewards, heat, trip = env.step_batch(inference_actions)
+            scan_trips = trip.numpy()
+            scan_heats = heat.numpy()
+            scan_alphas = inference_alphas.numpy()
+            scan_rewards = rewards.numpy()            
+            inference_total_reward = np.sum(scan_rewards)
+            
+            energy = np.sum(env.denormalize_state(inference_actions.numpy()) * env.linac.lengths, axis=1)
+            out_of_bound = np.where((energy < env.min_energy) | (energy > env.max_energy))[0]
+            scan_heats = np.delete(scan_heats, out_of_bound, axis=0)
+            scan_trips = np.delete(scan_trips, out_of_bound, axis=0)
+            scan_alphas = np.delete(scan_alphas, out_of_bound, axis=0)
+             
+            inference_total_reward = inference_total_reward/100
             run_openai_log.debug(f'inference_total_reward: {inference_total_reward} '
                                 f'and inference_best_total_reward: {inference_best_total_reward}')
 
@@ -248,35 +187,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             print(f'Number of valid scans: {len(scan_trips)}')
             if len(scan_trips)>0:
                 fig, ax = plt.subplots(dpi=100)
-                # if ep % 1000 == 0:
-                #     # Sort and filter:
-                #     scan_heats = np.array(scan_heats)
-                #     scan_trips = np.array(scan_trips)
-                #     scan_rewards = np.array(scan_rewards)
-                #     scan_alphas = np.array(scan_alphas)
-                #     trips_idx_asc = scan_trips.argsort()
-                #     trips_idx_des = trips_idx_asc[::-1]
-                #     plt.scatter(scan_heats[trips_idx_des[0:100]],scan_trips[trips_idx_des[0:100]],
-                #                 s=scan_rewards[trips_idx_des[0:100]], c=scan_alphas[trips_idx_des[0:100]])
-                # else:
-                # Plot reward vs alpha
-                scan_alphas = np.array(scan_alphas)
-                # scan_rewards = np.array(scan_rewards)
-                # print(f'scan_alphas {scan_alphas.shape}')
-                # print(f'scan_rewards {scan_rewards.shape}')
-                # plt.scatter(scan_alphas[:,0],scan_rewards[:,0], s=100)
-                # plt.xlim(0.0,1.0)
-                # plt.xlabel('\alpha')
-                # plt.ylabel('Reward');
-                # plt.colorbar()
-                # plt.tight_layout()
-                # plt.savefig(logdir+f'/reward1_alpha_ep{ep}_{inference_total_reward:.4f}.pdf')
-                # plt.clf()
-                # plt.close("all")
-                #
                 plt.scatter(scan_heats,scan_trips, s=100, c=scan_alphas[:,0])#np.sum(scan_rewards,axis=1))#scan_alphas)
-                plt.xlim(20.6,22.6)
-                plt.ylim(0.015,0.05)
                 # Change major ticks to show every 20.
                 ax.xaxis.set_major_locator(MultipleLocator(0.2))
                 ax.yaxis.set_major_locator(MultipleLocator(0.005))
@@ -287,7 +198,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 plt.ylabel('Trip Rate [per hour]');
                 plt.colorbar()
                 plt.tight_layout()
-                plt.savefig(logdir+f'/pareto_ep{ep}_{inference_total_reward:.4f}.pdf')
+                plt.savefig(logdir+f'/pareto_ep{ep}_{inference_total_reward:.4f}.png')
                 # Convert figure to an image tensor and log
                 buf = io.BytesIO()
                 canvas = FigureCanvasAgg(fig)

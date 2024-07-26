@@ -50,16 +50,16 @@ td3_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class MOKerasTD3MB(jlab_opt_control.Agent):
+class MOKerasTD3MB():
 
     def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='mo_keras_td3.cfg'):
         """ Define all key variables required for all agent """
 
         # Get env info
-        self.target_actor = None
         self.actor_model = None
         td3_log.info('Running KerasMOTD3 __init__')
 
+        self.ntrain_calls = 0
         # Environment setup
         self.env = env
         try:
@@ -94,30 +94,14 @@ class MOKerasTD3MB(jlab_opt_control.Agent):
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
 
         self.actor_model_type = cfg_utils.cfg_get(
-            data, 'actor_model', "mo_actor_fcnn-v0")
+            data, 'actor_model', "MO-Actor-FCNN-v0")
 
-        self.logdir = logdir
+        self.logdir = logdir        
 
-        self.mse_loss = tf.keras.losses.MeanSquaredError()
-        self.cosine_loss = tf.keras.losses.CosineSimilarity(axis=1)
-
-        # Buffer
-        if buffer_type is None:
-            self.buffer_type = cfg_utils.cfg_get(data, 'buffer_type', None)
-        else:
-            self.buffer_type = buffer_type
-
-        self.buffer = jlab_opt_control.buffers.make(
-            self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, logdir=self.logdir, buffer_size=buffer_size, is_mo=True)
-        self.buffer.save_cfg()
-
-        # Used to update target networks
-        self.tau = float(cfg_utils.cfg_get(data, 'tau', 0.005))
-        self.gamma = float(cfg_utils.cfg_get(data, 'discount', 0.99))
 
         # Setup Optimizers
         self.actor_lr = float(cfg_utils.cfg_get(
-            data, 'actor_learning_rate', 1e-4))
+            data, 'actor_learning_rate', 1e-5))
 
         if processor == 'arm':
             td3_log.info('Using legacy Adam')
@@ -134,10 +118,6 @@ class MOKerasTD3MB(jlab_opt_control.Agent):
             self.load()
 
         # update counting
-        self.ntrain_calls = 0
-        self.actor_update_freq = int(
-            cfg_utils.cfg_get(data, 'actor_update_freq', 2))
-
         self.noise_clip = 0.5
 
         try:
@@ -155,126 +135,57 @@ class MOKerasTD3MB(jlab_opt_control.Agent):
 
         self.actor_model = jlab_opt_control.models.make(
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-        self.target_actor = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-
         self.actor_model.save_cfg()
 
-        seed2 = time.time_ns()
-        str_seed2 = str(seed2)
-        seed2 = int(str_seed2[9:-3])
-        td3_log.debug(f'seed2:{seed2}')
-        tf.random.set_seed(seed2)
-
-        self.target_actor.set_weights(self.actor_model.get_weights())
-
     #@tf.function
-    def train_actor(self, states, alphas):
+    def train_actor(self):
         
-        self.env.reset()
-        alphas_tensor = tf.constant(alphas, dtype=tf.float32)
-
+        scans = np.random.rand(100)
+        alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)*1.5], axis=1), dtype=tf.float32)
+        states = self.env.reset()[0].numpy()
+        states = tf.convert_to_tensor(np.array([states]*100))
         with tf.GradientTape() as tape:
-            
+
             actions = self.actor_model(states, alphas, training=True)
-            reward = self.env.step_batch(actions)
-            q_loss = reward * alphas_tensor
+            reward, heat, trip = self.env.step_batch(actions)
+            q_loss = reward * alphas
             q_loss = -tf.math.reduce_mean(q_loss)
             loss = q_loss
 
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
+        
         cosine_loss = 0.
         return loss, q_loss, cosine_loss
 
-    @tf.function
-    def soft_update(self, target_weights, weights):
-        for (target_weight, weight) in zip(target_weights, weights):
-            target_weight.assign(weight * self.tau +
-                                 target_weight * (1.0 - self.tau))
-
     def train(self):
-        """ Method used to train """
-        self.ntrain_calls += 1
-        
-        if self.buffer.size() >= np.max([self.batch_size, self.warmup_size]):
-            # Get sampling range
-            if "PER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, weights, alphas = self.buffer.sample(
-                    self.batch_size)
-            elif "ER" in self.buffer_type:
-                states, actions, rewards, next_states, dones, _, alphas = self.buffer.sample(
-                    self.batch_size)
-            else:
-                print("ERROR: Please check configuration of agent for buffer type.")
-
-            # Convert to tensors
-            state_batch = tf.convert_to_tensor(states, dtype=tf.float32)
-            # action_batch = tf.convert_to_tensor(actions, dtype=tf.float32)
-            # reward_batch = tf.convert_to_tensor(rewards, dtype=tf.float32)
-            # next_state_batch = tf.convert_to_tensor(next_states, dtype=tf.float32)
-            # done_batch = tf.convert_to_tensor(dones, dtype=tf.float32)
-            alpha_batch = tf.convert_to_tensor(alphas, dtype=tf.float32)
-
-            if self.ntrain_calls % self.actor_update_freq == 0:
-                actor_loss, q_loss, mono_loss = self.train_actor(state_batch, alpha_batch)
-                tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
-                tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
-                tf.summary.scalar('Mono Loss', data=mono_loss, step=int(self.ntrain_calls))
-                self.soft_update(self.target_actor.variables, self.actor_model.variables)
+        """ Method used to train """ 
+        self.ntrain_calls += 1   
+        actor_loss, q_loss, mono_loss = self.train_actor()
+        tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
+        tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
+        tf.summary.scalar('Mono Loss', data=mono_loss, step=int(self.ntrain_calls))
 
 
-    def action(self, state, alphas, train=True):
+    def action(self, train=True):
         """ Method used to provide the next action using the target model """
-        # Warmup experience sample
-        if self.buffer.size() < np.max([self.batch_size, self.warmup_size]):
-            sampled_action = self.env.action_space.sample()
-            noise = np.zeros(self.num_actions)
-        # Warmup completed, sample from actor
-        else:
-            state = tf.expand_dims(state, 0)
-            sampled_action = self.actor_model(state, alphas).numpy()
-            if train:
-                noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                         stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
-                sampled_action = np.clip(
-                    sampled_action + noise, self.lower_bound, self.upper_bound)
-            else:
-                noise = np.zeros(self.num_actions)
-
-            sampled_action = sampled_action.flatten()
-            noise = noise.flatten()
-            assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
-                f"Sampled action shape is incorrect... {sampled_action.shape}"
-
-        # Log the training action(s) taken
-        if train:
-            self.nactions = self.nactions + 1
-            if self.num_actions == 0:
-                tf.summary.scalar('Action', data=sampled_action,
-                                  step=int(self.nactions))
-            else:
-                for i in range(self.num_actions):
-                    tf.summary.scalar('Action #{}'.format(
-                        i), data=sampled_action[i], step=int(self.nactions))
+        scans = np.random.rand(100)
+        alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)*1.5], axis=1), dtype=tf.float32)
+        states = self.env.reset()[0].numpy()
+        states = tf.convert_to_tensor(np.array([states]*100))
+        sampled_action = self.actor_model(states, alphas, training=train)
+        noise = np.random.rand(sampled_action.shape[0])
+        
 
         # Insure action output by actor is in legal environment range
-        return sampled_action, noise
-
-    def memory(self, obs_tuple):
-        # inefficient but can fix later
-        init_part, last_element = obs_tuple[:-1], obs_tuple[-1]
-        memory_with_default_priority = init_part + (self.buffer.max_priority,) + (last_element,)
-        self.buffer.record(memory_with_default_priority)
+        return sampled_action, noise, alphas
 
     def load(self):
         """ Load the ML models """
         try:
             self.actor_model.load_weights(
                 join(self.model_load_path, "actor_model.h5"))
-            self.target_actor.load_weights(
-                join(self.model_load_path, "target_actor.h5"))
             td3_log.info('Models loaded successfully')
         except:
             print("Error while loading models, initializing new models...")
@@ -292,8 +203,6 @@ class MOKerasTD3MB(jlab_opt_control.Agent):
 
             self.actor_model.save_weights(
                 join(destination_file_path, "actor_model_" + post_fix + ".h5"))
-            self.target_actor.save_weights(
-                join(destination_file_path, "target_actor_" + post_fix + ".h5"))
             td3_log.info('Agent models saved successfully')
         except:
             td3_log.error("Error in saving the models...")
@@ -304,8 +213,6 @@ class MOKerasTD3MB(jlab_opt_control.Agent):
             destination_file_path = os.path.join(self.logdir, 'cfgs/')
             if not os.path.exists(destination_file_path):
                 os.makedirs(destination_file_path)
-            destination_file_path = os.path.join(
-                destination_file_path, os.path.basename(self.pfn_json_file))
             shutil.copy(self.pfn_json_file, destination_file_path)
             td3_log.info('Agent config saved successfully')
         except:
