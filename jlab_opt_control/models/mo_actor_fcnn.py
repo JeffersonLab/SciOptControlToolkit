@@ -4,6 +4,7 @@ import shutil
 
 import tensorflow as tf
 from tensorflow.keras import layers
+import json
 
 from jlab_opt_control.core.model_core import Model
 
@@ -22,23 +23,37 @@ class MOActorFCNN(Model):
         full_path = os.path.join(absolute_path, relative_path)
         self.pfn_json_file = os.path.join(full_path, cfg)
 
+        # Read configuration for architecture
+        with open(self.pfn_json_file, 'r') as f:
+            cfg_data = json.load(f)
+            
+        hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
+        nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
+        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers)  # Defaults
+        
         self.logdir = logdir
+        
+        # Error Checking
+        if hidden_layers != len(nodes_per_layer):
+            act_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
+        elif hidden_layers != len(activation_functions):
+            act_log.error("Number of activation functions does not match the number of hidden layers in the config.")
 
         # Actor Architecture
         # input_shape = (state_dim + reward_dim,) # No need to input state since it's always the same for CEBAF one step env
         input_shape = (reward_dim,)
-        self.input_layer = layers.Dense(128, activation="relu", input_shape=input_shape)
-        hidden_layers = 4
+        self.input_layer = layers.Dense(128, activation="tanh", input_shape=input_shape)
+        
+        # Dynamic Actor Architecture
         self.hidden_layers = []
         for i in range(hidden_layers):
-            self.hidden_layers.append(layers.Dense(128, activation="leaky_relu"))
-        self.output_layer = layers.Dense(action_dim, activation='tanh')
-
-        self.action_scale = tf.constant(
-            (max_action - min_action) / 2, dtype=tf.float32)
-        self.action_bias = tf.constant(
-            (max_action + min_action) / 2, dtype=tf.float32)
-
+            # Layer construction with dynamic activation functions
+            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i]))
+        # Output layer with its specified activation function
+        self.output_layer = layers.Dense(action_dim, activation="tanh")
+ 
+        self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
+        self.action_bias = tf.constant((max_action + min_action) / 2, dtype=tf.float32)
         self.max_action = max_action
 
     def call(self, state, alphas, training=False):
