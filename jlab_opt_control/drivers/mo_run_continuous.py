@@ -157,7 +157,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             inference_total_reward = 0.0
             
             inference_actions, inference_action_noise, inference_alphas = agent.action(train=False)
-            rewards, heat, trip = env.step_batch(inference_actions)
+            _, rewards, _, _, info = env.step(inference_actions)
+            heat, trip = info['heat'], info['trip']
             scan_trips = trip.numpy()
             scan_heats = heat.numpy()
             scan_alphas = inference_alphas.numpy()

@@ -147,7 +147,7 @@ class MOKerasTD3MB():
         with tf.GradientTape() as tape:
 
             actions = self.actor_model(states, alphas, training=True)
-            reward, heat, trip = self.env.step_batch(actions)
+            _, reward, _, _, _ = self.env.step(actions)
             q_loss = reward * alphas
             q_loss = -tf.math.reduce_mean(q_loss)
             loss = q_loss
