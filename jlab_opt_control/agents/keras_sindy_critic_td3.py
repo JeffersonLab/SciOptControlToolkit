@@ -35,6 +35,7 @@ import jlab_opt_control.utils.cfg_utils as cfg_utils
 import jlab_opt_control.buffers
 import jlab_opt_control.models
 import tensorflow as tf
+import tensorboard.plugins.hparams.api as hp
 
 import numpy as np
 import os
@@ -65,6 +66,14 @@ class KerasSINDyCriticTD3(KerasTD3):
         self.critic_sindy = None
         self.sindy_model_type = cfg_utils.cfg_get(data, "sindy_model", "sindy_network-v0")
         self.sindy_lr = float(cfg_utils.cfg_get(data, "sindy_learning_rate", 1e-4))
+        self.sindy_beta = float(cfg_utils.cfg_get(data, "sindy_beta", 1.0)) #Weight to SINDy model in actor gradient
+
+        self.sindy_library = cfg_utils.cfg_get(data, "sindy_library", "PolynomialLibrary")
+        self.sindy_library_kwargs = cfg_utils.cfg_get(data, "sindy_library_kwargs", {
+            "degree": 5,
+            "include_bias": True,
+            "include_interaction": True
+        })
 
         if processor == "arm":
             td3_log.info("Using legacy Adam")
@@ -75,6 +84,13 @@ class KerasSINDyCriticTD3(KerasTD3):
             self.sindy_optimizer = tf.keras.optimizers.Adam(
                 self.sindy_lr, epsilon=1e-08
             )
+
+        hparams = {
+            "sindy_library": self.sindy_library,
+            **self.sindy_library_kwargs,
+            "sindy_beta": self.sindy_beta,
+        }
+        hp.hparams(hparams)
 
         self.initialize_sindy_model()
     
@@ -92,9 +108,7 @@ class KerasSINDyCriticTD3(KerasTD3):
         td3_log.debug(f"init_states_action:{init_states_action.shape}")
 
         # SINDy Poly library
-        num_poly = 5
-        self.library = PolynomialLibrary(degree=num_poly, include_bias=True, include_interaction=True)
-        #self.library = FourierLibrary(n_frequencies=num_poly)
+        self.library = eval(self.sindy_library)(**self.sindy_library_kwargs)
         self.library.fit(init_states_action)
         lib_batch = self.library(init_states_action)
 
@@ -143,9 +157,13 @@ class KerasSINDyCriticTD3(KerasTD3):
             actions = self.actor_model(states, training=True)
             states_actions = tf.keras.layers.Concatenate(axis=1)([states, actions])
             lib_batch = self.library(states_actions)
-            #q_value = self.critic_model1(states, actions, training=False)
-            q_value = self.critic_sindy(lib_batch, training=False) # Train agent with SINDy critic
+
+            q_critic = self.critic_model1(states, actions, training=False) #Train agent with NN critic
+            q_sindy = self.critic_sindy(lib_batch, training=False) # Train agent with SINDy critic
+            q_value = self.sindy_beta * q_sindy + (1 - self.sindy_beta) * q_critic
+
             loss = -tf.math.reduce_mean(q_value)
+            
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))

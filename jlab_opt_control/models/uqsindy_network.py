@@ -170,46 +170,29 @@ class UQSINDyNetwork(Model):
         randn = tf.random.normal(
             shape=(sampling_size, *self.mu.shape), dtype=tf.float32
         )
-        # print(f'randn: {randn.shape}')
         betas = self.mu[None] + randn * tf.exp(0.5 * self.log_var[None])
-        # print(f'betas 1: {betas.shape}')
 
         # Flatten last layer for use in neural network
         b, Ni, No = betas.shape
-        # print(f'b/Ni/No: {b}/{Ni}/{No}')
         betas = tf.reshape(betas, [b, Ni * No])
-        # print(f'betas 2: {betas.shape}')
 
         for layer in self.hidden_layers:
             betas = layer(betas)
         betas = self.output_layer(betas)
-        # print(f'betas 3: {betas.shape}')
 
         # Reshape last layer
         betas = tf.reshape(betas, [b, Ni, No])
-        # print(f'betas 4: {betas.shape}')
         return betas
 
     @tf.function
     def call(self, inputs, nsamples=0, training=False):
         """forward pass of model"""
         if nsamples == 0:
-            # print(f'HERE')
             nsamples = self.batch_size
-        # print(f'nsamples: {nsamples}')
         x = inputs
         betas = self.sample_posterior(nsamples)
-        # print(f'betas: {betas.shape}')
         BX = tf.einsum("nd,bdo->bno", x, betas)
-        # print(f'BX per-tanh: {BX.shape}')
-        # if self.using_tanh:
-        #     BX = tf.keras.activations.tanh(BX[:, :, :])
-        #     BX = BX * self.action_scale + self.action_bias
-        # print(f'BX post tanh: {BX.shape}')
 
-        # upper_bound = 2
-        # lower_bound = -2
-        # BX = tf.keras.layers.Lambda(lambda x: ((x + 1.0) * (upper_bound - lower_bound)) / 2.0 + self.lower_bound)(BX)
         return BX
 
     def negative_log_likelihood(self, x, y0):

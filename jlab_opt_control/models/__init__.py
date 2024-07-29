@@ -61,7 +61,7 @@ register(
 register(
     id='sindy_network-v0',
     entry_point='jlab_opt_control.models:SINDyNetwork',
-    kwargs={'cfg': 'sindy_network.cfg'}
+    kwargs={}
 )
 
 register(

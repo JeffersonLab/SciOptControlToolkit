@@ -25,54 +25,37 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(name)s:%(message)s")
 class SINDyNetwork(Model):
     def __init__(
             self, 
-            num_features_in,
-            num_features_out,
-            logdir='./results', 
-            cfg="sindy_network.cfg"):
+            num_features_in, # From environment and library
+            num_features_out, # From environment
+            logdir='./results'):
         super().__init__()
 
-        # Load configuration
-        absolute_path = os.path.dirname(__file__)
-        relative_path = "../cfgs/"
-        full_path = os.path.join(absolute_path, relative_path)
-        self.pfn_json_file = os.path.join(full_path, cfg)
-
-        # Read configuration for architecture
-        with open(self.pfn_json_file, "r") as f:
-            cfg_data = json.load(f)
-        num_features_in = (
-            num_features_in  # cfg_data.get("num_features_in", 10) #Default
-        )
-        num_features_out = (
-            num_features_out  # cfg_data.get("num_features_out", 1) #Default
-        )
-
         self.logdir = logdir
-
         self.coefs = tf.Variable(
             initial_value=tf.zeros([num_features_in, num_features_out]),
             trainable=True,
         )
 
-    def plot_coefficients(self, feature_names, action_names):
+    def plot_coefficients(self, feature_names, action_names=None):
         """Plot coefficients as barplot"""
         assert len(feature_names) == self.coefs.shape[0]
-        assert len(action_names) == self.coefs.shape[1]
 
         # Use Pandas dataframe to collect data
         df = pd.DataFrame(data=self.coefs.numpy().T, columns=feature_names)
-        df["action"] = action_names
-        df = pd.melt(
-            df,
-            id_vars=["action"],
-            value_vars=feature_names,
-            var_name="Term",
-            value_name="Coefficient",
-        )
+        if action_names is not None:
+            assert len(action_names) == self.coefs.shape[1]
+            df["action"] = action_names
+            df = pd.melt(
+                df,
+                id_vars=["action"],
+                value_vars=feature_names,
+                var_name="Term",
+                value_name="Coefficient",
+            )
 
         # Generate coefficients barplot using Seaborn
         fig, ax = plt.subplots(dpi=150)
-        sns.barplot(data=df, x="Coefficient", y="Term", hue="action", ax=ax)
+        sns.barplot(data=df, x="Coefficient", y="Term", hue="action" if action_names is not None else None, ax=ax)
         ax.axvline(0, color="grey", zorder=-10)
         plt.tight_layout()
 
@@ -87,14 +70,6 @@ class SINDyNetwork(Model):
     def save_cfg(self):
         """Save the model cfg"""
         try:
-            destination_file_path = os.path.join(self.logdir, "cfgs/")
-            if not os.path.exists(destination_file_path):
-                os.makedirs(destination_file_path)
-            destination_file_path = os.path.join(
-                destination_file_path, os.path.basename(self.pfn_json_file)
-            )
-            if not os.path.exists(destination_file_path):
-                shutil.copy(self.pfn_json_file, destination_file_path)
-                sindy_log.info("SINDy model config saved successfully")
+            sindy_log.info("SINDy model requires no configuration, not saving")
         except:
             sindy_log.error("Error in saving the actor model cfg...")
