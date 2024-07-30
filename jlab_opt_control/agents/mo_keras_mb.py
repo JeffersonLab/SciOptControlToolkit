@@ -142,11 +142,15 @@ class MO_KerasMB():
         scans = np.random.rand(100)
         alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)*1.5], axis=1), dtype=tf.float32)
         states = self.env.reset()[0].numpy()
-        states = tf.convert_to_tensor(np.array([states]*100))
+        states = tf.convert_to_tensor(np.array([states]*100), dtype=tf.float32)
+        sigmas = tf.convert_to_tensor(np.ones(shape=(100,2))*0.1, dtype=tf.float32)
+        noise = tf.random.normal(shape=alphas.shape, mean=0, stddev=10)
+
         with tf.GradientTape() as tape:
 
             actions = self.actor_model(states, alphas, training=True)
             _, reward, _, _, _ = self.env.step(actions)
+            reward =  noise
             q_loss = reward * alphas
             q_loss = -tf.math.reduce_mean(q_loss)
             loss = q_loss
