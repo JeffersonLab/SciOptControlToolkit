@@ -52,7 +52,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 class MO_KerasTD3(jlab_opt_control.Agent):
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_td3.json'):
+    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='mo_keras_td3.json'):
         """ Define all key variables required for all agent """
 
         # Get env info
@@ -162,6 +162,8 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         file_writer.set_as_default()
         self.nactions = 0
 
+    # def alpha_alignment_model(self):
+
     def initialize_new_models(self):
         """ Initialize new models from scratch """
         td3_log.info('Running KerasTD3 initialize_new_models()')
@@ -205,46 +207,24 @@ class MO_KerasTD3(jlab_opt_control.Agent):
 
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
-        # Generate the proper noise
-        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
-        noise_clipped = tf.clip_by_value(
-            noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
-        next_actions = tf.clip_by_value(self.target_actor(
-            next_states, alphas, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
 
-        target_q1 = self.target_critic1(
-            next_states, next_actions, alphas, training=False)
-        target_q2 = self.target_critic2(
-            next_states, next_actions, alphas, training=False)
-        target_q = tf.math.minimum(target_q1, target_q2)
-
-        #alphas_reshaped = tf.reshape(alphas, tf.shape(rewards)) # Might not be needed
-        #print(f'rewards: {rewards.numpy()}')
-        #print(f'alphas: {alphas.numpy()}')
-        rewards = tf.multiply(rewards, alphas)
-        #print(f'rewards: {rewards.numpy()}')
-
-        # Bellman equation for the q value
-        q_targets = rewards + self.gamma * target_q * (1.0 - dones)
-        #q_targets = rewards + self.gamma * target_q * (1.0 - dones)
-        #q_targets = tf.multiply(q_targets, alphas_reshaped)
 
         # Critic 1 and 2
         with tf.GradientTape() as tape:
-            q_values1 = self.critic_model1(states, actions, alphas, training=True)
-            q_values2 = self.critic_model2(states, actions, alphas, training=True)
-            td_errors1 = q_values1 - q_targets
-            td_errors2 = q_values2 - q_targets
+            q_values1 = self.critic_model1(states, actions, training=True)
+            q_values2 = self.critic_model2(states, actions, training=True)
+            td_errors1 = q_values1 - rewards
+            td_errors2 = q_values2 - rewards
 
             if "PER" in self.buffer_type:
                 critic_loss1 = self.mse_loss(
-                    q_values1, q_targets, sample_weight=weights)
+                    q_values1, rewards, sample_weight=weights)
                 critic_loss2 = self.mse_loss(
-                    q_values2, q_targets, sample_weight=weights)
+                    q_values2, rewards, sample_weight=weights)
             else:
-                critic_loss1 = self.mse_loss(q_values1, q_targets)
-                critic_loss2 = self.mse_loss(q_values2, q_targets)
-            
+                critic_loss1 = self.mse_loss(q_values1, rewards)
+                critic_loss2 = self.mse_loss(q_values2, rewards)
+
             critic_losses = critic_loss1 + critic_loss2
 
         gradients = tape.gradient(
@@ -256,13 +236,67 @@ class MO_KerasTD3(jlab_opt_control.Agent):
 
         return critic_loss1, critic_loss2, td_errors_avg
 
+
+    # @tf.function
+    # def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
+    #     # Generate the proper noise
+    #     noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
+    #     noise_clipped = tf.clip_by_value(
+    #         noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
+    #     next_actions = tf.clip_by_value(self.target_actor(
+    #         next_states, alphas, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
+    #
+    #     target_q1 = self.target_critic1(
+    #         next_states, next_actions, training=False)
+    #     target_q2 = self.target_critic2(
+    #         next_states, next_actions, training=False)
+    #     target_q = tf.math.minimum(target_q1, target_q2)
+    #
+    #     #alphas_reshaped = tf.reshape(alphas, tf.shape(rewards)) # Might not be needed
+    #     #print(f'rewards: {rewards.numpy()}')
+    #     #print(f'alphas: {alphas.numpy()}')
+    #     #rewards = tf.multiply(rewards, alphas)
+    #     #print(f'rewards: {rewards.numpy()}')
+    #
+    #     # Bellman equation for the q value
+    #     q_targets = rewards + self.gamma * target_q * (1.0 - dones)
+    #     #q_targets = rewards + self.gamma * target_q * (1.0 - dones)
+    #     #q_targets = tf.multiply(q_targets, alphas_reshaped)
+    #
+    #     # Critic 1 and 2
+    #     with tf.GradientTape() as tape:
+    #         q_values1 = self.critic_model1(states, actions, training=True)
+    #         q_values2 = self.critic_model2(states, actions, training=True)
+    #         td_errors1 = q_values1 - q_targets
+    #         td_errors2 = q_values2 - q_targets
+    #
+    #         if "PER" in self.buffer_type:
+    #             critic_loss1 = self.mse_loss(
+    #                 q_values1, q_targets, sample_weight=weights)
+    #             critic_loss2 = self.mse_loss(
+    #                 q_values2, q_targets, sample_weight=weights)
+    #         else:
+    #             critic_loss1 = self.mse_loss(q_values1, q_targets)
+    #             critic_loss2 = self.mse_loss(q_values2, q_targets)
+    #
+    #         critic_losses = critic_loss1 + critic_loss2
+    #
+    #     gradients = tape.gradient(
+    #         critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
+    #     self.critic_optimizer.apply_gradients(zip(
+    #         gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
+    #
+    #     td_errors_avg = (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
+    #
+    #     return critic_loss1, critic_loss2, td_errors_avg
+
     #@tf.function
     def train_actor(self, states, alphas):
         #print('train_actor:', alphas.shape)
         # alphas = tf.expand_dims(alphas, 1)
         # print('train_actor:', alphas.shape)
-        nrepeats = 1
-        rdm_diri = np.random.dirichlet((1, 2), size=nrepeats*self.batch_size)
+        # nrepeats = 1
+        # rdm_diri = np.random.dirichlet((1, 2), size=nrepeats*self.batch_size)
         # Use Critic 1
         with tf.GradientTape() as tape:
             mono_loss = 0.0
@@ -273,42 +307,21 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             #     daction_dalpha = tf.clip_by_value(daction_dalpha, clip_value_min=0, clip_value_max=1)
             # mono_loss = -tf.math.reduce_mean(daction_dalpha)
             actions = self.actor_model(states, alphas, training=True)
-            q_values = self.critic_model1(states, actions, alphas, training=False)
-            q_loss = -tf.math.reduce_mean(q_values)
+            q_values1 = self.critic_model1(states, actions, training=False)
+            q_values2 = self.critic_model2(states, actions, training=False)
+            q_values = q_values1+q_values2
+            #noise = tf.random.normal(shape=alphas.shape, mean=0, stddev=1)
+            #q_values = q_values + noise
+            q_values_alpha = q_values*alphas
+            q_loss = -tf.math.reduce_mean(q_values_alpha)
+            cosine_loss = self.cosine_loss(q_values,alphas)
 
-            #
-            rep_states = tf.repeat(states, nrepeats, axis=0)
-            rep_actions = tf.repeat(actions,nrepeats, axis=0)
-            # print(f'rep_states: {rep_states.shape}')
-            # print(f'rep_actions: {rep_actions.shape}')
-            # print(f'rdm_diri: {rdm_diri.shape}')
-            diri_q_values = self.critic_model1(rep_states, rep_actions, rdm_diri, training=False)
-            diri_q_loss = -tf.math.reduce_mean(diri_q_values)
-
-            # distance
-            #np_diri_q_values = diri_q_values.numpy().astype(np.float32)
-            #np_diri_q_values_1d = (np_diri_q_values[:,0]).flatten()
-            #np_diri_q_values_1d = np.expand_dims(np_diri_q_values_1d,axis=0)
-            #rdm_diri_1d = (rdm_diri[:,0]).flatten()
-            #rdm_diri_1d = np.expand_dims(rdm_diri_1d,axis=0)
-            #print(f'np_diri_q_values_1d: {type(np_diri_q_values_1d)}')
-            #print(f'np_diri_q_values_1d: {np_diri_q_values_1d.shape}')
-            #print(f'rdm_diri_1d: {rdm_diri_1d.shape}')
-            #loss = -sum(normalize(y_true) * normalize(y_pred))
-            # Worked?
-            # cosine_loss0 = -dot(rdm_diri[:,0], np_diri_q_values[:,0]) / (norm(rdm_diri[:,0]) * norm(np_diri_q_values[:,0]))
-            # cosine_loss1 = -dot(rdm_diri[:,1], np_diri_q_values[:,1]) / (norm(rdm_diri[:,1]) * norm(np_diri_q_values[:,1]))
-            # cosine_loss = cosine_loss0 + cosine_loss1
-            cosine_loss = 0 #self.cosine_loss(tf.cast(rdm_diri,dtype=tf.float32), diri_q_values)
-
-            #cosine_loss = self.cosine_loss(rdm_diri_1d, np_diri_q_values_1d)
-
-            #q_loss = tf.exp(tf.exp(q_loss))-2.7
-            loss = q_loss + diri_q_loss + cosine_loss
+            loss = q_loss + cosine_loss
 
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
+
 
         return loss, q_loss, cosine_loss
 
@@ -323,7 +336,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.ntrain_calls += 1
 
         #print('train...')
-        if self.buffer.size() >= np.max([self.batch_size, self.warmup_size]):
+        if self.buffer.size() >= np.min([self.batch_size, self.warmup_size]):
             # Get sampling range
             if "PER" in self.buffer_type:
                 states, actions, rewards, next_states, dones, weights, alphas = self.buffer.sample(
@@ -368,12 +381,14 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 # Want them to be independent (LOW TO DO)
                 self.buffer.update_priorities(new_priorities)
 
-            if self.ntrain_calls % self.actor_update_freq == 0:
-                actor_loss, q_loss, mono_loss = self.train_actor(state_batch, alpha_batch)
+            if self.buffer.size() >= np.max([self.batch_size, self.warmup_size]):
+                actor_loss, q_loss, cosine_loss = self.train_actor(state_batch, alpha_batch)
                 tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
                 tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
-                tf.summary.scalar('Mono Loss', data=mono_loss, step=int(self.ntrain_calls))
-                self.soft_update(self.target_actor.variables, self.actor_model.variables)
+                tf.summary.scalar('Cosine Loss', data=cosine_loss, step=int(self.ntrain_calls))
+
+            if self.ntrain_calls % self.actor_update_freq == 0:
+                    self.soft_update(self.target_actor.variables, self.actor_model.variables)
 
             if self.ntrain_calls % self.critic_update_freq == 0:
                 self.soft_update(self.target_critic1.variables,
@@ -391,7 +406,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         # Warmup completed, sample from actor
         else:
             state = tf.expand_dims(state, 0)
-            #alphas = tf.expand_dims(alphas, 0)
+            alphas = tf.expand_dims(alphas, 0)
             #print(f'alpha:{alphas.shape}')
             sampled_action = self.actor_model(state, alphas).numpy()
             if train:
