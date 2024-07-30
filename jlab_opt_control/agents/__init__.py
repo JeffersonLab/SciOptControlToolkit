@@ -57,9 +57,18 @@ register(
     kwargs={'cfg': 'keras_sac.cfg'},
 )
 
-from jlab_opt_control.agents.mo_keras_mb import MOKerasMB
+# Multi Objective Agents
+from jlab_opt_control.agents.mo_keras_td3 import MO_KerasTD3
+from jlab_opt_control.agents.mo_keras_mb import MO_KerasMB
+
+register(
+    id='MO-KerasTD3-v0',
+    entry_point='jlab_opt_control.agents:MO_KerasTD3',
+    kwargs={'cfg': 'mo_keras_td3.cfg'},
+)
+
 register(
     id='MO-KerasMB-v0',
-    entry_point='jlab_opt_control.agents:MOKerasMB',
+    entry_point='jlab_opt_control.agents:MO_KerasMB',
     kwargs={'cfg': 'mo_keras_td3.cfg'}
 )
