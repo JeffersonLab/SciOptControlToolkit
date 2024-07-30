@@ -26,11 +26,11 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-from jlab_opt_control.agents.registration import register, make, list_registered_modules
-from jlab_opt_control.agents.keras_td3 import KerasTD3
 from jlab_opt_control.agents.keras_ddpg import KerasDDPG
 from jlab_opt_control.agents.keras_sac import KerasSAC
 from jlab_opt_control.agents.keras_sindy_td3 import KerasSINDyTD3
+from jlab_opt_control.agents.keras_td3 import KerasTD3
+from jlab_opt_control.agents.registration import register, make, list_registered_modules
 
 # Single Objective Agents
 register(
@@ -57,9 +57,9 @@ register(
     kwargs={'cfg': 'keras_sac.cfg'},
 )
 
-from jlab_opt_control.agents.mo_keras_td3_MB import MOKerasTD3MB
+from jlab_opt_control.agents.mo_keras_mb import MOKerasMB
 register(
-    id='MO-KerasTD3-MB-v0',
-    entry_point='jlab_opt_control.agents:MOKerasTD3MB',
+    id='MO-KerasMB-v0',
+    entry_point='jlab_opt_control.agents:MOKerasMB',
     kwargs={'cfg': 'mo_keras_td3.cfg'}
 )

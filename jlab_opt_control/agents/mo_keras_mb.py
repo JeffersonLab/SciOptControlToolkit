@@ -32,7 +32,6 @@ import os
 import platform
 import shutil
 import sys
-import time
 from os.path import join
 
 import numpy as np
@@ -50,7 +49,7 @@ td3_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class MOKerasTD3MB():
+class MOKerasMB():
 
     def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='mo_keras_td3.cfg'):
         """ Define all key variables required for all agent """
