@@ -1,11 +1,10 @@
-import jlab_opt_control as jlab_opt_control
-import jlab_opt_control.utils.cfg_utils as cfg_utils
-from jlab_opt_control.core.model_core import Model
-import tensorflow as tf
-from tensorflow.keras import layers
-import shutil
-import os
 import logging
+import os
+import shutil
+
+from tensorflow.keras import layers
+
+from jlab_opt_control.core.model_core import Model
 
 crit_log = logging.getLogger("Critic")
 crit_log.setLevel(logging.DEBUG)
@@ -25,16 +24,20 @@ class MO_CriticFCNN(Model):
         self.logdir = logdir
 
         # Q network Architecture
-        self.l1 = layers.Dense(256, activation="relu",
-                               input_shape=(state_dim + action_dim,))
-        self.l2 = layers.Dense(256, activation="relu")
-        self.l3 = layers.Dense(reward_dim)
+        #self.input_layer = layers.Dense(256, activation="relu", input_shape=(state_dim + action_dim,))
+        self.input_layer = layers.Dense(128, activation="relu", input_shape=(action_dim,))
+        hidden_layers = 3
+        self.hidden_layers = []
+        for i in range(hidden_layers):
+            self.hidden_layers.append(layers.Dense(128, activation="leaky_relu"))
+        self.output_layer = layers.Dense(reward_dim)
 
-    def call(self, state, action, alphas, training=False):
-        x = tf.concat([state, action, alphas], axis=1)
-        x = self.l1(x)
-        x = self.l2(x)
-        x = self.l3(x)
+    def call(self, state, action, training=False):
+        # Dynamic
+        x = self.input_layer(action)
+        for layer in self.hidden_layers:
+            x = layer(x)
+        x = self.output_layer(x)
         return x
 
     def save_cfg(self):

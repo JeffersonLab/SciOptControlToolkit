@@ -26,13 +26,13 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-from jlab_opt_control.models.registration import register, make, list_registered_modules
 from jlab_opt_control.models.actor_fcnn import ActorFCNN
-from jlab_opt_control.models.actor_gaussian_v0 import ActorGaussian
 from jlab_opt_control.models.actor_fcnn_v2 import ActorFCNN_v2
+from jlab_opt_control.models.actor_gaussian_v0 import ActorGaussian
 from jlab_opt_control.models.critic_fcnn import CriticFCNN
 from jlab_opt_control.models.critic_fcnn_v1 import CriticFCNN_v1
 from jlab_opt_control.models.critic_fcnn_v2 import CriticFCNN_v2
+from jlab_opt_control.models.registration import register, make, list_registered_modules
 from jlab_opt_control.models.sindy_network import SINDyNetwork
 from jlab_opt_control.models.uqsindy_network import UQSINDyNetwork
 
@@ -85,16 +85,16 @@ register(
     kwargs={'cfg': 'uqsindy_network.cfg'}
 )
 
-from jlab_opt_control.models.mo_actor_fcnn import MOActorFCNN
-from jlab_opt_control.models.mo_critic_fcnn import MOCriticFCNN
+from jlab_opt_control.models.mo_actor_fcnn import MO_ActorFCNN
+from jlab_opt_control.models.mo_critic_fcnn import MO_CriticFCNN
 register(
-    id="MO-Actor-FCNN-v0",
-    entry_point='jlab_opt_control.models:MOActorFCNN',
+    id="mo_actor_fcnn-v0",
+    entry_point='jlab_opt_control.models:MO_ActorFCNN',
     kwargs={'cfg': 'actor_fcnn.cfg'}
 )
 
 register(
-    id="MO-Critic-FCNN-v0",
-    entry_point='jlab_opt_control.models:MOCriticFCNN',
+    id="mo_critic_fcnn-v0",
+    entry_point='jlab_opt_control.models:MO_CriticFCNN',
     kwargs={'cfg': 'critic_fcnn.cfg'}
 )

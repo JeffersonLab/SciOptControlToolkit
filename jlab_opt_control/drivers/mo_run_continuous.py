@@ -26,23 +26,23 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import logging
 import argparse
+import io
+import logging
 import os
-
-import time
+import warnings
 from datetime import datetime
 
-import tensorflow as tf
-
+import matplotlib.pyplot as plt
 import numpy as np
+import tensorflow as tf
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from tqdm import tqdm
+
 import jlab_opt_control.agents
 from jlab_opt_control.utils.git_utils import get_git_revision_short_hash
-from tqdm import tqdm
-import warnings
 
 warnings.filterwarnings("ignore")
-
 
 run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
@@ -71,7 +71,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         buffer_size_log = str(buffer_size)
 
     if logdir == 'None':
-        logdir = "./mo_results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
+        logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
                  + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
     else:
         logdir = logdir + "/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_date_" \
@@ -139,190 +139,121 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     inference_episodic_hold = 0
 
     total_nsteps = 0
+    inference_best_total_reward = 0.0
 
-    for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
-        time_start = time.process_time()
-        prev_state, _ = env.reset()
-        # alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
-        # alphas = alphas.astype(dtype=np.float32)
-        alphas = np.zeros(env.reward_space.shape[0])
-        alphas = alphas.astype(dtype=np.float32)
-        # print('inference_alphas',inference_alphas.shape)
-        alphas[1] = 1.0
-        alphas = np.expand_dims(alphas, 0)
-        #alphas = tf.expand_dims(alphas, 0)
-        #run_openai_log.info(f'loop alphas {alphas.shape}')
-        episode_timesteps = 0
-        episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
-        done = False
-        while done is False:
-            total_nsteps += 1
-            episode_timesteps += 1
-            action, action_noise = agent.action(tf.convert_to_tensor(prev_state),
-                                                tf.convert_to_tensor(alphas))
-            assert 'numpy.ndarray' in str(type(action))
-            run_openai_log.debug(f'action: {action}')
-            run_openai_log.debug(f'action_noise: {action_noise}')
+    nscans = 100
+    np_alphas = np.zeros((nscans,env.reward_space.shape[0]), dtype=np.float32)
+    np_alphas[:, 1] = np.linspace(0.0,1.0, nscans) #array([1.00, 0.99, 0.95, 0.90, 0.85, 0.75, 0.50, 0])
+    np_alphas[:, 0] = 1.0 - np_alphas[:,1]
+    print(f'np_alphas: {np_alphas}')
+    print(f'np_alphas: {np_alphas.shape}')
 
-            # Take a step
-            state, reward, terminate, truncate, info = env.step(action)
-            lyapunov_var = info['energy']
-            run_openai_log.debug(f'reward: {reward}')
-            run_openai_log.debug(f'reward: {type(reward)}')
+    max_nepochs = 50000
+    for epoch in tqdm(range(max_nepochs), desc='Epochs'):
+        scans = np.random.rand(nscans)
+        alphas = np.stack([scans, (1-scans)*1.5], axis=1)
+        for scan in tqdm(range(nscans), desc='Alpha Scan'):
+            prev_state, _ = env.reset()
 
-            # Check shapes and data types
-            assert 'numpy.ndarray' in str(type(state))
-            assert state.shape == (num_states,)
-            assert 'float' in str(type(reward)), str(type(reward))
-            assert reward.shape == (env.reward_space.shape[0],)
+            episode_timesteps = 0
+            episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
+            done = False
+            while done is False:
+                total_nsteps += 1
+                episode_timesteps += 1
+                action, action_noise = agent.action(tf.convert_to_tensor(prev_state), tf.convert_to_tensor(alphas[scan]))
+                assert 'numpy.ndarray' in str(type(action))
+                run_openai_log.debug(f'action: {action}')
+                run_openai_log.debug(f'action_noise: {action_noise}')
 
-            done = (terminate or truncate)
-            done_buffer = (terminate or truncate) if (
-                episode_timesteps <= env._max_episode_steps) else False
+                # Take a step
+                state, reward, terminate, truncate, info = env.step(action)
+                run_openai_log.debug(f'reward: {reward}')
+                run_openai_log.debug(f'reward: {type(reward)}')
 
-            agent.memory((prev_state, action, reward, state, done_buffer, alphas, lyapunov_var))
-            episodic_reward += reward
-            agent.train()
-            prev_state = state
-
-        ep_reward_list.append(episodic_reward)
-        for r in range(env.reward_space.shape[0]):
-            tf.summary.scalar(f'Training Reward Objective #{r}',
-                          data=episodic_reward[r], step=int(ep))
+                # Check shapes and data types
+                assert 'numpy.ndarray' in str(type(state))
+                assert state.shape == (num_states,)
+                assert 'float' in str(type(reward)), str(type(reward))
+                assert reward.shape == (env.reward_space.shape[0],)
+                done = (terminate or truncate)
+                agent.memory((prev_state, action, reward, state, done, alphas[scan]))
+                episodic_reward += reward
+                prev_state = state
+                agent.train()
 
         # Run inference test
-        if ep % 1 == 0:
-            inference_episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
-            inference_alphas = np.zeros(env.reward_space.shape[0])
-            inference_alphas = inference_alphas.astype(dtype=np.float32)
-            inference_alphas[1] = 1.0
-            inference_alphas  = np.expand_dims(inference_alphas, 0)
-            #run_openai_log.debug(f'inference_alphas {inference_alphas.shape}' )
-            #run_openai_log.info(f'inference_alphas {inference_alphas}' )
-
-            inference_prev_state, _ = env.reset()
-
-            inference_done = False
-            while inference_done is False:
-                inference_action, inference_action_noise = agent.action(
-                    tf.convert_to_tensor(inference_prev_state),
-                    tf.convert_to_tensor(inference_alphas))
-                inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
-                    env.step(inference_action)
-
-                inference_episodic_reward += inference_reward
-                inference_prev_state = inference_state
-                inference_done = (inference_terminate or inference_truncate)
-                tf.summary.scalar(f'Inference Energy', data=inference_info['energy'], step=int(ep))
-                tf.summary.scalar(f'Inference Heat', data=inference_info['heat'], step=int(ep))
-                tf.summary.scalar(f'Inference Trip', data=inference_info['trip'], step=int(ep))
-                if done:
-                    break
-
-
-            for r in range(env.reward_space.shape[0]):
-                tf.summary.scalar(f'Inference Reward Objective #{r}',
-                                  data=inference_episodic_reward[r], step=int(ep))
-
-            if total_nsteps % 1000 == 0:
-                run_openai_log.info(
-                    "Inference episode * {} * heat/trip ==> {}/{} - ({})".format(ep,
-                                                                           inference_info['heat'],
-                                                                           inference_info['trip'],
-                                                                           inference_terminate))
-            # init for first epoch
-            # if (ep == 0):
-            #     inference_episodic_hold = inference_episodic_reward
-            #
-            # # % better you want inference reward to be before save
-            # percent_increase = 0.05
-            #
-            # if inference_episodic_reward != 0:
-            #     percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
-            #     if percentage_change >= percent_increase:
-            #         str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
-            #         agent.save(str_pct_inc)
-            #         inference_episodic_hold = inference_episodic_reward
-
-
-        # if ep % 1 == 0:
-        #     for r in range(env.reward_space.shape[0]):
-        #         inference_episodic_reward = np.zeros(env.reward_space.shape[0], dtype=np.float32)
-        #         #inference_alphas = np.random.dirichlet(np.ones(env.reward_space.shape[0]), size=1)
-        #         inference_alphas = np.zeros(env.reward_space.shape[0])
-        #         inference_alphas = inference_alphas.astype(dtype=np.float32)
-        #         #print('inference_alphas',inference_alphas.shape)
-        #
-        #         inference_alphas[r] = 1.0
-        #         inference_alphas  = np.expand_dims(inference_alphas, 0)
-        #
-        #         inference_prev_state, _ = env.reset()
-        #
-        #         inference_done = False
-        #         while inference_done is False:
-        #             inference_action, inference_action_noise = agent.action(
-        #                 tf.convert_to_tensor(inference_prev_state),
-        #                 tf.convert_to_tensor(inference_alphas))
-        #             inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
-        #                 env.step(inference_action)
-        #
-        #             inference_episodic_reward += inference_reward
-        #             inference_prev_state = inference_state
-        #             inference_done = (inference_terminate or inference_truncate)
-        #             if done:
-        #                 break
-        #         tf.summary.scalar(f'Inference Reward Objective #{r}',
-        #                           data=inference_episodic_reward[r], step=int(ep))
-        #
-        #     # init for first epoch
-        #     # if (ep == 0):
-        #     #     inference_episodic_hold = inference_episodic_reward
-        #     #
-        #     # # % better you want inference reward to be before save
-        #     # percent_increase = 0.05
-        #     #
-        #     # if inference_episodic_reward != 0:
-        #     #     percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
-        #     #     if percentage_change >= percent_increase:
-        #     #         str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
-        #     #         agent.save(str_pct_inc)
-        #     #         inference_episodic_hold = inference_episodic_reward
-
-
-        # Mean of last 10 episodes
-        nepisode_mod = 10
-        avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
-        time_end = time.process_time()
+        run_openai_log.info(f'total_nsteps {total_nsteps}')
         if total_nsteps % 1000 == 0:
-            run_openai_log.info(
-                "Episode Elapsed Time {}".format((time_end - time_start)))
-            run_openai_log.info(
-                "Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
-            run_openai_log.info(
-                "Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
-        avg_reward_list.append(avg_reward)
+            run_openai_log.info(f'Running inference ...')
+            inference_nscans = 250
+            inference_scans = np.random.rand(inference_nscans)
+            inference_alphas = np.stack([inference_scans, (1 - inference_scans) * 1.5], axis=1)
 
-        # tf.summary.scalar('Average of Last 10 Training Reward', data=avg_reward_list, step=int(ep))
+            scan_trips, scan_heats, scan_alphas, scan_rewards, scan_qvalues_alphas, scan_energy = [], [], [], [], [], []
+            inference_total_reward = 0.0
 
-        with open(logdir + '/results.npy', 'wb') as f:
-            np.save(f, np.array(ep_reward_list))
+            for s in tqdm(range(inference_nscans), desc='Inference Scan'):
+                inference_prev_state, _ = env.reset()
+                inference_done = False
+                while inference_done is False:
+                    inference_action, inference_action_noise = agent.action(
+                        tf.convert_to_tensor(inference_prev_state),
+                        tf.convert_to_tensor(inference_alphas[s]))
+                    inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
+                        env.step(inference_action)
+                    if inference_terminate==False:
+                        scan_trips.append(inference_info['trip'])
+                        scan_heats.append(inference_info['heat'])
+                        scan_alphas.append(inference_alphas[s, 0])
+                    inference_prev_state = inference_state
+                    inference_done = (inference_terminate or inference_truncate)
+
+            print(f'Number of valid scans: {len(scan_trips)}')
+            if len(scan_trips)>0:
+                fig, ax = plt.subplots(dpi=90)
+                # run_openai_log.info(f'scan_heats: {scan_heats}')
+                # run_openai_log.info(f'scan_trips: {scan_trips}')
+                # run_openai_log.info(f'scan_alphas: {scan_alphas}')
+                plt.scatter(scan_heats,scan_trips, s=100, c=scan_alphas)
+                # plt.xlim(20.8, 22.4)
+                plt.ylim(0.015, 0.05)
+                # Change major ticks to show every 20.
+                # ax.xaxis.set_major_locator(MultipleLocator(0.2))
+                # ax.yaxis.set_major_locator(MultipleLocator(0.005))
+                # plt.text(.95, .99, f'Total MO Reward: {inference_total_reward:.4f}',
+                #          ha='right', va='top', transform=ax.transAxes)
+                plt.grid()
+                plt.xlabel('Heat Load [W]')
+                plt.ylabel('Trip Rate [per hour]');
+                plt.colorbar()
+                plt.tight_layout()
+                plt.savefig(logdir+f'/pareto_ep{epoch}_{inference_total_reward:.4f}.jpeg')
+                # Convert figure to an image tensor and log
+                buf = io.BytesIO()
+                canvas = FigureCanvasAgg(fig)
+                canvas.print_png(buf)
+                tensor = tf.image.decode_png(buf.getvalue(), channels=4)
+                tf.summary.image(
+                    "Pareto", data=tensor[None], step=int(epoch)
+                )
+                plt.clf()
+                plt.close("all")
+                # save numpy file
+                np.save(logdir+ f'/inference_results_steps{total_nsteps}.npy',
+                        np.concatenate([scan_heats, scan_trips, scan_alphas]))
+
 
 def main(args=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--index", help="Index for tracking", type=int, default=0)
-    parser.add_argument(
-        "--nepisodes", help="Number of episodes", type=int, default=10000)
-    parser.add_argument("--nsteps", help="Number of steps",
-                        type=int, default=-1)
+    parser.add_argument( "--index", help="Index for tracking", type=int, default=0)
+    parser.add_argument( "--nepisodes", help="Number of episodes", type=int, default=50000)
+    parser.add_argument("--nsteps", help="Number of steps",type=int, default=-1)
     parser.add_argument("--bsize", help="Buffer size", type=int, default=None)
     parser.add_argument("--btype", help="Buffer Type", type=str, default=None)
-    parser.add_argument("--agent", help="Agent used for RL",
-                        type=str, default='KerasTD3-v0')
-    parser.add_argument("--env", help="Environment used for RL",
-                        type=str, default='PACES-MO-CEBAF-2D-v0')
-    parser.add_argument(
-        "--logdir", help="Directory to save results", type=str, default='None')
+    parser.add_argument("--agent", help="Agent used for RL",type=str, default='MO-KerasTD3-v0')
+    parser.add_argument("--env", help="Environment used for RL",type=str, default='PACES-MO-CEBAF-8D-v0')
+    parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
 
     # Get input arguments
     if args is not None:

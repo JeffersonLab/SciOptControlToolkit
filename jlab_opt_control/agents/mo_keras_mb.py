@@ -150,7 +150,6 @@ class MO_KerasMB():
 
             actions = self.actor_model(states, alphas, training=True)
             _, reward, _, _, _ = self.env.step(actions)
-            reward =  noise
             q_loss = reward * alphas
             q_loss = -tf.math.reduce_mean(q_loss)
             loss = q_loss

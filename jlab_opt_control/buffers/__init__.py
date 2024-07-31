@@ -26,11 +26,11 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-from jlab_opt_control.buffers.registration import register, make, list_registered_modules
-from jlab_opt_control.buffers.per import PER
 from jlab_opt_control.buffers.er import ER
 from jlab_opt_control.buffers.mo_er import MO_ER
 from jlab_opt_control.buffers.mo_lcer import MOLCER
+from jlab_opt_control.buffers.per import PER
+from jlab_opt_control.buffers.registration import register, make, list_registered_modules
 
 register(
     id='ER-v0',
@@ -50,8 +50,8 @@ register(
     kwargs={'cfg': 'mo_er.cfg'},
 )
 
-register(
-    id='MO-LC-ER-v0',
-    entry_point='jlab_opt_control.buffers:MOLCER',
-    kwargs={'cfg': 'mo_er.cfg'},
-)
+# register(
+#     id='MO-LC-ER-v0',
+#     entry_point='jlab_opt_control.buffers:MOLCER',
+#     kwargs={'cfg': 'mo_er.cfg'},
+# )

@@ -210,8 +210,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 plt.clf()
                 plt.close("all")
                 # save numpy file
+                print(f'scan_heats: {scan_heats.shape}')
+                print(f'scan_trips: {scan_trips.shape}')
+                print(f'scan_alphas: {scan_alphas.shape}')
                 np.save(logdir + f'/inference_results_steps{total_nsteps}.npy',
-                        np.concatenate([scan_heats, scan_trips, scan_alphas]))
+                        np.concatenate([scan_heats, scan_trips, scan_alphas[:,0]]))
 
 
 def main(args=None):
