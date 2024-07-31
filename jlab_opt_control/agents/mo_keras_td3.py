@@ -165,13 +165,13 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         # action noise parameters
         self.init_action_noise = 0.1
         self.action_noise = self.init_action_noise
-        self.action_decay = 0.9
+        self.action_decay = 0.95
         self.naction_for_noise_decay = 1000
 
         # model reset parameters
         self.max_action_reset = 4
         self.naction_reset = 0
-        self.naction_for_reset = 2500
+        self.naction_for_reset = 5000
 
 
     # def alpha_alignment_model(self):
@@ -354,7 +354,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             q_values_alpha = q_values*alphas
             q_loss = -tf.math.reduce_mean(q_values_alpha)
             cosine_loss = self.cosine_loss(q_values, alphas)
-            loss = q_loss + cosine_loss*tf.random.uniform(shape=cosine_loss.shape, minval=0., maxval=1.)
+            loss = q_loss #+ cosine_loss*tf.random.uniform(shape=cosine_loss.shape, minval=0., maxval=1.)
 
 
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
