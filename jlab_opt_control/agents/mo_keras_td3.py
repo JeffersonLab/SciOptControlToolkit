@@ -162,12 +162,23 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         file_writer.set_as_default()
         self.nactions = 0
 
+        # action noise parameters
+        self.init_action_noise = 0.1
+        self.action_noise = self.init_action_noise
+        self.action_decay = 0.9
+        self.naction_for_noise_decay = 1000
+
+        # model reset parameters
+        self.max_action_reset = 4
+        self.naction_reset = 0
+        self.naction_for_reset = 2500
+
+
     # def alpha_alignment_model(self):
 
     def initialize_new_models(self):
         """ Initialize new models from scratch """
         td3_log.info('Running KerasTD3 initialize_new_models()')
-    
 
         self.actor_model = jlab_opt_control.models.make(
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
@@ -207,10 +218,19 @@ class MO_KerasTD3(jlab_opt_control.Agent):
 
     def reset_actor(self):
 
+        time.sleep(1 / 10)
+        seed = time.time_ns()
+        str_seed = str(seed)
+        seed = int(str_seed[9:-3])
+        td3_log.debug(f'New actor seed:{seed}')
+        tf.random.set_seed(seed)
+
+        self.action_noise = self.init_action_noise
+
         # Delete
-        del self.actor_model
-        del self.target_actor
-        del self.actor_optimizer
+        self.actor_model = None
+        self.target_actor = None
+        self.actor_optimizer = None
 
         self.actor_model = jlab_opt_control.models.make(
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
@@ -223,6 +243,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         else:
             self.actor_optimizer = tf.keras.optimizers.Adam(
                 self.actor_lr, epsilon=1e-08)
+        td3_log.info(f'->Resetting actor model and optimizer #{self.naction_reset}')
 
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
@@ -254,7 +275,6 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         td_errors_avg = (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
 
         return critic_loss1, critic_loss2, td_errors_avg
-
 
     # @tf.function
     # def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
@@ -354,6 +374,10 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         """ Method used to train """
         self.ntrain_calls += 1
 
+        if self.ntrain_calls%self.naction_for_reset==0 and self.naction_reset<=self.max_action_reset:
+            self.reset_actor()
+            self.naction_reset += 1
+
         #print('train...')
         if self.buffer.size() >= np.min([self.batch_size, self.warmup_size]):
             # Get sampling range
@@ -424,13 +448,18 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             noise = np.zeros(self.num_actions)
         # Warmup completed, sample from actor
         else:
+            # Update the noise
+            if self.nactions%self.naction_for_noise_decay == 0:
+                self.action_noise = self.action_noise * self.action_decay
+                td3_log.info(f'-> Updating action noise is {self.action_noise}')
+
             state = tf.expand_dims(state, 0)
             alphas = tf.expand_dims(alphas, 0)
             #print(f'alpha:{alphas.shape}')
             sampled_action = self.actor_model(state, alphas).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                         stddev=self.actor_model.action_scale * 0.02, dtype=tf.float32)).numpy()
+                         stddev=self.actor_model.action_scale * self.action_noise, dtype=tf.float32)).numpy()
                 sampled_action = np.clip(
                     sampled_action + noise, self.lower_bound, self.upper_bound)
             else:
