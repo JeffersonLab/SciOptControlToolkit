@@ -240,7 +240,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 plt.clf()
                 plt.close("all")
                 # save numpy file
-                np.save(logdir+ f'inference_results_steps{total_nsteps}.npy',
+                np.save(logdir+ f'/inference_results_steps{total_nsteps}.npy',
                         np.concatenate([scan_heats, scan_trips, scan_alphas]))
 
 
