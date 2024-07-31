@@ -205,6 +205,25 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.target_critic1.set_weights(self.critic_model1.get_weights())
         self.target_critic2.set_weights(self.critic_model2.get_weights())
 
+    def reset_actor(self):
+
+        # Delete
+        del self.actor_model
+        del self.target_actor
+        del self.actor_optimizer
+
+        self.actor_model = jlab_opt_control.models.make(
+            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+        self.target_actor = jlab_opt_control.models.make(
+            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+        if processor == 'arm':
+            td3_log.info('Using legacy Adam')
+            self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
+                self.actor_lr, epsilon=1e-08)
+        else:
+            self.actor_optimizer = tf.keras.optimizers.Adam(
+                self.actor_lr, epsilon=1e-08)
+
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
 
@@ -314,9 +333,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             #q_values = q_values + noise
             q_values_alpha = q_values*alphas
             q_loss = -tf.math.reduce_mean(q_values_alpha)
-            cosine_loss = self.cosine_loss(q_values,alphas)
+            cosine_loss = self.cosine_loss(q_values, alphas)
+            loss = q_loss + cosine_loss*tf.random.uniform(shape=cosine_loss.shape, minval=0., maxval=1.)
 
-            loss = q_loss + cosine_loss
 
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
@@ -411,7 +430,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             sampled_action = self.actor_model(state, alphas).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                         stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
+                         stddev=self.actor_model.action_scale * 0.02, dtype=tf.float32)).numpy()
                 sampled_action = np.clip(
                     sampled_action + noise, self.lower_bound, self.upper_bound)
             else:
