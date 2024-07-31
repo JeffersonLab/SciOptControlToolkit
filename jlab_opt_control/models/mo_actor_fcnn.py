@@ -1,19 +1,18 @@
-import logging
-import os
-import shutil
-
+import jlab_opt_control as jlab_opt_control
+import jlab_opt_control.utils.cfg_utils as cfg_utils
+from jlab_opt_control.core.model_core import Model
 import tensorflow as tf
 from tensorflow.keras import layers
-import json
-
-from jlab_opt_control.core.model_core import Model
+import shutil
+import os
+import logging
 
 act_log = logging.getLogger("Actor")
 act_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class MOActorFCNN(Model):
+class MO_ActorFCNN(Model):
     def __init__(self, state_dim, action_dim, reward_dim, min_action, max_action, logdir, cfg='mo_actor_fcnn.cfg'):
         super().__init__()
 
@@ -23,46 +22,36 @@ class MOActorFCNN(Model):
         full_path = os.path.join(absolute_path, relative_path)
         self.pfn_json_file = os.path.join(full_path, cfg)
 
-        # Read configuration for architecture
-        with open(self.pfn_json_file, 'r') as f:
-            cfg_data = json.load(f)
-            
-        hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
-        nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
-        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers)  # Defaults
-        
         self.logdir = logdir
-        
-        # Error Checking
-        if hidden_layers != len(nodes_per_layer):
-            act_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
-        elif hidden_layers != len(activation_functions):
-            act_log.error("Number of activation functions does not match the number of hidden layers in the config.")
 
         # Actor Architecture
-        # input_shape = (state_dim + reward_dim,) # No need to input state since it's always the same for CEBAF one step env
-        input_shape = (reward_dim,)
-        self.input_layer = layers.Dense(128, activation="tanh", input_shape=input_shape)
+        input_shape = (state_dim,)# + reward_dim,)
         
-        # Dynamic Actor Architecture
-        self.hidden_layers = []
-        for i in range(hidden_layers):
-            # Layer construction with dynamic activation functions
-            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i]))
-        # Output layer with its specified activation function
-        self.output_layer = layers.Dense(action_dim, activation="tanh")
- 
-        self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
-        self.action_bias = tf.constant((max_action + min_action) / 2, dtype=tf.float32)
+        self.l1 = layers.Dense(256, activation="relu", input_shape=input_shape)
+        self.l2 = layers.Dense(256, activation="relu")
+        self.l2b = layers.Dense(56, activation="relu")
+        self.l3 = layers.Dense(action_dim, activation='tanh')
+
+        self.action_scale = tf.constant(
+            (max_action - min_action) / 2, dtype=tf.float32)
+        self.action_bias = tf.constant(
+            (max_action + min_action) / 2, dtype=tf.float32)
+
         self.max_action = max_action
 
     def call(self, state, alphas, training=False):
-        # Ideally need to concat state with alpha but for CEBAF, init state is always same
-        concatenated_input = alphas
-        a = self.input_layer(concatenated_input)
-        for layer in self.hidden_layers:
-            a = layer(a)
-        a = self.output_layer(a)
+       #concatenated_input = tf.concat([state, alphas], axis=-1)
+        #a = self.l1(concatenated_input)
+        a = self.l1(state)
+        a = self.l2(a)
+        #a = self.l3(a)
+        #print(f'a: {a.shape}')
+        #print(f'alphas: {alphas.shape}')
+        #print(f'alphas: {alphas}')
+        cond_a = tf.concat([a, alphas], axis=1)
+        #print(f'cond_a: {cond_a.shape}')
+        a = self.l2b(cond_a)
+        a = self.l3(a)
         return a * self.action_scale + self.action_bias
 
     def save_cfg(self):
