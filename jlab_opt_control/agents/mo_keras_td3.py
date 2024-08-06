@@ -374,9 +374,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         """ Method used to train """
         self.ntrain_calls += 1
 
-        if self.ntrain_calls%self.naction_for_reset==0 and self.naction_reset<=self.max_action_reset:
-            self.reset_actor()
-            self.naction_reset += 1
+        # if self.ntrain_calls%self.naction_for_reset==0 and self.naction_reset<=self.max_action_reset:
+        #     self.reset_actor()
+        #     self.naction_reset += 1
 
         #print('train...')
         if self.buffer.size() >= np.min([self.batch_size, self.warmup_size]):
