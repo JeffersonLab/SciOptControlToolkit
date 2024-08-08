@@ -77,5 +77,5 @@ register(
 register(
     id='MO-KerasMB-v0',
     entry_point='jlab_opt_control.agents:MO_KerasMB',
-    kwargs={'cfg': 'mo_keras_td3.cfg'}
+    kwargs={'cfg': 'mo_keras_mb.cfg'}
 )

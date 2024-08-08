@@ -146,10 +146,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     nscans = max_nscans
     for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
         agent.train()
-        
+        #print(f'agent.batch_size: {agent.batch_size}')
+        total_nsteps += 1
 
         # Run inference test
-        if ep>=100 and ep % 100 == 0:
+        if ep>=1 and total_nsteps % 500 == 0:
             run_openai_log.info(f'Running inference ...')
             
             scan_trips, scan_heats, scan_alphas, scan_rewards = [], [], [], []
@@ -210,9 +211,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 plt.clf()
                 plt.close("all")
                 # save numpy file
-                print(f'scan_heats: {scan_heats.shape}')
-                print(f'scan_trips: {scan_trips.shape}')
-                print(f'scan_alphas: {scan_alphas.shape}')
+                # print(f'scan_heats: {scan_heats.shape}')
+                # print(f'scan_trips: {scan_trips.shape}')
+                # print(f'scan_alphas: {scan_alphas.shape}')
                 np.save(logdir + f'/inference_results_steps{total_nsteps}.npy',
                         np.concatenate([scan_heats, scan_trips, scan_alphas[:,0]]))
 
@@ -220,7 +221,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument( "--index", help="Index for tracking", type=int, default=0)
-    parser.add_argument( "--nepisodes", help="Number of episodes", type=int, default=50000)
+    parser.add_argument( "--nepisodes", help="Number of episodes", type=int, default=500000)
     parser.add_argument("--nsteps", help="Number of steps",type=int, default=-1)
     parser.add_argument("--bsize", help="Buffer size", type=int, default=None)
     parser.add_argument("--btype", help="Buffer Type", type=str, default=None)

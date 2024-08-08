@@ -165,6 +165,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         # action noise parameters
         self.init_action_noise = 0.1
         self.action_noise = self.init_action_noise
+        self.action_noise_min = 1e-4
         self.action_decay = 0.95
         self.naction_for_noise_decay = 1000
 
