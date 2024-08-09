@@ -151,6 +151,7 @@ class KerasDDPG(jlab_opt_control.Agent):
         file_writer = tf.summary.create_file_writer(self.logdir + '/metrics')
         file_writer.set_as_default()
         self.nactions = 0
+        self.inf_nactions = 0
 
     def initialize_new_models(self):
         """ Initialize new models from scratch """
@@ -298,17 +299,18 @@ class KerasDDPG(jlab_opt_control.Agent):
             assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
                 f"Sampled action shape is incorrect... {sampled_action.shape}"
 
-        # Log the training action(s) taken
+        # Log the training/inference action(s) taken
         if train:
-            self.nactions = self.nactions + 1
-            if self.num_actions == 0:
-                tf.summary.scalar('Action', data=sampled_action,
-                                  step=int(self.nactions))
-            else:
-                for i in range(self.num_actions):
+            self.nactions += 1
+            for i in range(self.num_actions):
                     tf.summary.scalar('Action #{}'.format(
                         i), data=sampled_action[i], step=int(self.nactions))
-
+        if inference:
+            self.inf_nactions += 1
+            for i in range(self.num_actions):
+                tf.summary.scalar('Inference Action #{}'.format(
+                    i), data=sampled_action[i], step=int(self.inf_nactions))
+                    
         # Insure action output by actor is in legal environment range
         return sampled_action, noise
 
