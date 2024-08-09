@@ -55,7 +55,7 @@ np.random.seed(seed)
 # run_openai_log.info(f'seeds {tf.random.}')
 
 
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size):
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, ga_results_loc):
     githash = get_git_revision_short_hash()
     run_openai_log.debug(githash)
     run_openai_log.debug(logdir)
@@ -130,27 +130,32 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     agent.save_cfg()
     agent.save("init")
 
-    # To store reward history of each episode
-    ep_reward_list = []
-    # To store average reward history of last few episodes
-    avg_reward_list = []
-
-    # Variable to hold previous max
-    # Init at very small number
-    inference_episodic_hold = 0
+    
+    if ga_results_loc is not None:
+        if '8D' in env_id:
+            ga_results = np.load(os.path.join(ga_results_loc, "1L10_TEST8_nsga_II_results.npy"))
+        elif 'N-VEC-TF' in env_id:
+            ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results.npy"))
+        else:
+            ga_results = None
+    else:
+        ga_results = None
 
     total_nsteps = 0
     inference_best_total_reward = 0.0
 
     max_nscans = 3
     nscans = max_nscans
-    for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
+    for ep in tqdm(range(1, max_nepisodes+1), desc='Index {} - Episodes'.format(index)):
+        if ep % 1000 == 0:
+            current_lr = agent.actor_optimizer.learning_rate.numpy()
+            agent.actor_optimizer.learning_rate.assign(current_lr * 0.85)
         agent.train()
         #print(f'agent.batch_size: {agent.batch_size}')
         total_nsteps += 1
 
         # Run inference test
-        if ep>=1 and total_nsteps % 500 == 0:
+        if ep>=1 and total_nsteps % 1000 == 0:
             run_openai_log.info(f'Running inference ...')
             
             scan_trips, scan_heats, scan_alphas, scan_rewards = [], [], [], []
@@ -186,9 +191,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
             tf.summary.scalar('Total MO Inference Reward', data=inference_total_reward, step=int(ep))
             print(f'Number of valid scans: {len(scan_trips)}')
+
             if len(scan_trips)>0:
                 fig, ax = plt.subplots(dpi=100)
-                plt.scatter(scan_heats,scan_trips, s=100, c=scan_alphas[:,0])#np.sum(scan_rewards,axis=1))#scan_alphas)
+                plt.scatter(scan_heats,scan_trips, s=50, c=scan_alphas[:,0])#np.sum(scan_rewards,axis=1))#scan_alphas)
+                if ga_results is not None:
+                    ga_index = np.argsort(ga_results[:,0])
+                    ga_heat = ga_results[:,0]
+                    ga_trip = ga_results[:,1]
+                    plt.plot(ga_heat[ga_index], ga_trip[ga_index], c='black', linestyle='dashed', label="NSGA II")
+                    # plt.scatter(ga_results[:, 0], ga_results[:, 1], c='black', linestyle='dashed', label="NSGA II")
                 # Change major ticks to show every 20.
                 ax.xaxis.set_major_locator(MultipleLocator(0.2))
                 ax.yaxis.set_major_locator(MultipleLocator(0.005))
@@ -228,6 +240,8 @@ def main(args=None):
     parser.add_argument("--agent", help="Agent used for RL",type=str, default='MO-KerasTD3-v0')
     parser.add_argument("--env", help="Environment used for RL",type=str, default='PACES-MO-CEBAF-8D-v0')
     parser.add_argument("--logdir", help="Directory to save results", type=str, default='None')
+    parser.add_argument("--ga_results", help="directory where GA results are stored", type=str, default=None)
+
 
     # Get input arguments
     if args is not None:
@@ -243,9 +257,10 @@ def main(args=None):
     args_logdir = args.logdir
     args_buf_size = args.bsize
     args_buf_type = args.btype
+    args_ga_results = args.ga_results
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
-            args_env_id, args_logdir, args_buf_type, args_buf_size)
+            args_env_id, args_logdir, args_buf_type, args_buf_size, args_ga_results)
 
 if __name__ == "__main__":
     main()
