@@ -25,7 +25,12 @@ class MyTestCase(unittest.TestCase):
 
     def test_sindy_network(self):
         # Setup model
-        model = jlab_opt_control.models.make("sindy_network-v0", logdir="results/test")
+        model = jlab_opt_control.models.make(
+            "sindy_network-v0", 
+            num_features_in=self.X.shape[1],
+            num_features_out=self.y0.shape[1],
+            logdir="results/test"
+        )
 
         # Setup optimizers
         optimizer = tf.keras.optimizers.Adam(learning_rate=1e-2, epsilon=1e-8)
