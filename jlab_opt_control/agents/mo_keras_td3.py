@@ -217,107 +217,54 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.target_critic1.set_weights(self.critic_model1.get_weights())
         self.target_critic2.set_weights(self.critic_model2.get_weights())
 
-    def reset_actor(self):
-
-        time.sleep(1 / 10)
-        seed = time.time_ns()
-        str_seed = str(seed)
-        seed = int(str_seed[9:-3])
-        td3_log.debug(f'New actor seed:{seed}')
-        tf.random.set_seed(seed)
-
-        self.action_noise = self.init_action_noise
-
-        # Delete
-        self.actor_model = None
-        self.target_actor = None
-        self.actor_optimizer = None
-
-        self.actor_model = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-        self.target_actor = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-        if processor == 'arm':
-            td3_log.info('Using legacy Adam')
-            self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
-                self.actor_lr, epsilon=1e-08)
-        else:
-            self.actor_optimizer = tf.keras.optimizers.Adam(
-                self.actor_lr, epsilon=1e-08)
-        td3_log.info(f'->Resetting actor model and optimizer #{self.naction_reset}')
-
-    @tf.function
-    def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
-
-
-        # Critic 1 and 2
-        with tf.GradientTape() as tape:
-            q_values1 = self.critic_model1(states, actions, training=True)
-            q_values2 = self.critic_model2(states, actions, training=True)
-            td_errors1 = q_values1 - rewards
-            td_errors2 = q_values2 - rewards
-
-            if "PER" in self.buffer_type:
-                critic_loss1 = self.mse_loss(
-                    q_values1, rewards, sample_weight=weights)
-                critic_loss2 = self.mse_loss(
-                    q_values2, rewards, sample_weight=weights)
-            else:
-                critic_loss1 = self.mse_loss(q_values1, rewards)
-                critic_loss2 = self.mse_loss(q_values2, rewards)
-
-            critic_losses = critic_loss1 + critic_loss2
-
-        gradients = tape.gradient(
-            critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
-        self.critic_optimizer.apply_gradients(zip(
-            gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
-
-        td_errors_avg = (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
-
-        return critic_loss1, critic_loss2, td_errors_avg
+    # def reset_actor(self):
+    #
+    #     time.sleep(1 / 10)
+    #     seed = time.time_ns()
+    #     str_seed = str(seed)
+    #     seed = int(str_seed[9:-3])
+    #     td3_log.debug(f'New actor seed:{seed}')
+    #     tf.random.set_seed(seed)
+    #
+    #     self.action_noise = self.init_action_noise
+    #
+    #     # Delete
+    #     self.actor_model = None
+    #     self.target_actor = None
+    #     self.actor_optimizer = None
+    #
+    #     self.actor_model = jlab_opt_control.models.make(
+    #         self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+    #     self.target_actor = jlab_opt_control.models.make(
+    #         self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+    #     if processor == 'arm':
+    #         td3_log.info('Using legacy Adam')
+    #         self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
+    #             self.actor_lr, epsilon=1e-08)
+    #     else:
+    #         self.actor_optimizer = tf.keras.optimizers.Adam(
+    #             self.actor_lr, epsilon=1e-08)
+    #     td3_log.info(f'->Resetting actor model and optimizer #{self.naction_reset}')
 
     # @tf.function
     # def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
-    #     # Generate the proper noise
-    #     noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
-    #     noise_clipped = tf.clip_by_value(
-    #         noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
-    #     next_actions = tf.clip_by_value(self.target_actor(
-    #         next_states, alphas, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
     #
-    #     target_q1 = self.target_critic1(
-    #         next_states, next_actions, training=False)
-    #     target_q2 = self.target_critic2(
-    #         next_states, next_actions, training=False)
-    #     target_q = tf.math.minimum(target_q1, target_q2)
-    #
-    #     #alphas_reshaped = tf.reshape(alphas, tf.shape(rewards)) # Might not be needed
-    #     #print(f'rewards: {rewards.numpy()}')
-    #     #print(f'alphas: {alphas.numpy()}')
-    #     #rewards = tf.multiply(rewards, alphas)
-    #     #print(f'rewards: {rewards.numpy()}')
-    #
-    #     # Bellman equation for the q value
-    #     q_targets = rewards + self.gamma * target_q * (1.0 - dones)
-    #     #q_targets = rewards + self.gamma * target_q * (1.0 - dones)
-    #     #q_targets = tf.multiply(q_targets, alphas_reshaped)
     #
     #     # Critic 1 and 2
     #     with tf.GradientTape() as tape:
     #         q_values1 = self.critic_model1(states, actions, training=True)
     #         q_values2 = self.critic_model2(states, actions, training=True)
-    #         td_errors1 = q_values1 - q_targets
-    #         td_errors2 = q_values2 - q_targets
+    #         td_errors1 = q_values1 - rewards
+    #         td_errors2 = q_values2 - rewards
     #
     #         if "PER" in self.buffer_type:
     #             critic_loss1 = self.mse_loss(
-    #                 q_values1, q_targets, sample_weight=weights)
+    #                 q_values1, rewards, sample_weight=weights)
     #             critic_loss2 = self.mse_loss(
-    #                 q_values2, q_targets, sample_weight=weights)
+    #                 q_values2, rewards, sample_weight=weights)
     #         else:
-    #             critic_loss1 = self.mse_loss(q_values1, q_targets)
-    #             critic_loss2 = self.mse_loss(q_values2, q_targets)
+    #             critic_loss1 = self.mse_loss(q_values1, rewards)
+    #             critic_loss2 = self.mse_loss(q_values2, rewards)
     #
     #         critic_losses = critic_loss1 + critic_loss2
     #
@@ -330,38 +277,68 @@ class MO_KerasTD3(jlab_opt_control.Agent):
     #
     #     return critic_loss1, critic_loss2, td_errors_avg
 
-    #@tf.function
+    @tf.function
+    def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
+        # Generate the proper noise
+        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
+        noise_clipped = tf.clip_by_value(
+            noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
+        next_actions = tf.clip_by_value(self.target_actor(
+            next_states, alphas, training=False) + noise_clipped, self.lower_bound, self.upper_bound)
+
+        target_q1 = self.target_critic1(
+            next_states, next_actions, training=False)
+        target_q2 = self.target_critic2(
+            next_states, next_actions, training=False)
+        target_q = tf.math.minimum(target_q1, target_q2)
+
+        # Bellman equation for the q value
+        q_targets = rewards + self.gamma * target_q * (1.0 - dones)
+
+        # Critic 1 and 2
+        with tf.GradientTape() as tape:
+            q_values1 = self.critic_model1(states, actions, training=True)
+            q_values2 = self.critic_model2(states, actions, training=True)
+            td_errors1 = q_values1 - q_targets
+            td_errors2 = q_values2 - q_targets
+
+            if "PER" in self.buffer_type:
+                critic_loss1 = self.mse_loss(
+                    q_values1, q_targets, sample_weight=weights)
+                critic_loss2 = self.mse_loss(
+                    q_values2, q_targets, sample_weight=weights)
+            else:
+                critic_loss1 = self.mse_loss(q_values1, q_targets)
+                critic_loss2 = self.mse_loss(q_values2, q_targets)
+
+            critic_losses = critic_loss1 + critic_loss2
+
+        gradients = tape.gradient(
+            critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
+        self.critic_optimizer.apply_gradients(zip(
+            gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
+
+        td_errors_avg = (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
+
+        return critic_loss1, critic_loss2, td_errors_avg
+
+    @tf.function
     def train_actor(self, states, alphas):
-        #print('train_actor:', alphas.shape)
-        # alphas = tf.expand_dims(alphas, 1)
-        # print('train_actor:', alphas.shape)
-        # nrepeats = 1
-        # rdm_diri = np.random.dirichlet((1, 2), size=nrepeats*self.batch_size)
+
         # Use Critic 1
         with tf.GradientTape() as tape:
-            mono_loss = 0.0
-            # with tf.GradientTape() as mono_tape:
-            #     mono_tape.watch(alphas)
-            #     actions = self.actor_model(states, alphas, training=True)
-            #     daction_dalpha = mono_tape.gradient(actions, alphas)
-            #     daction_dalpha = tf.clip_by_value(daction_dalpha, clip_value_min=0, clip_value_max=1)
-            # mono_loss = -tf.math.reduce_mean(daction_dalpha)
             actions = self.actor_model(states, alphas, training=True)
             q_values1 = self.critic_model1(states, actions, training=False)
             q_values2 = self.critic_model2(states, actions, training=False)
             q_values = q_values1+q_values2
-            #noise = tf.random.normal(shape=alphas.shape, mean=0, stddev=1)
-            #q_values = q_values + noise
             q_values_alpha = q_values*alphas
             q_loss = -tf.math.reduce_mean(q_values_alpha)
             cosine_loss = self.cosine_loss(q_values, alphas)
-            loss = q_loss #+ cosine_loss*tf.random.uniform(shape=cosine_loss.shape, minval=0., maxval=1.)
-
+            loss = q_loss
 
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
-
 
         return loss, q_loss, cosine_loss
 
@@ -375,22 +352,15 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         """ Method used to train """
         self.ntrain_calls += 1
 
-        # if self.ntrain_calls%self.naction_for_reset==0 and self.naction_reset<=self.max_action_reset:
-        #     self.reset_actor()
-        #     self.naction_reset += 1
-
-        #print('train...')
         if self.buffer.size() >= np.min([self.batch_size, self.warmup_size]):
             # Get sampling range
             if "PER" in self.buffer_type:
                 states, actions, rewards, next_states, dones, weights, alphas = self.buffer.sample(
                     self.batch_size)
                 weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
-                #print(f'PER train alphas: {alphas.shape}')
             elif "ER" in self.buffer_type: # CHANGE THIS TO USE THE ALPHAS
                 states, actions, rewards, next_states, dones, _, alphas = self.buffer.sample(
                     self.batch_size)
-                #print(f'ER train alphas: {alphas.shape}')
             else:
                 print("ERROR: Please check configuration of agent for buffer type.")
 
@@ -402,8 +372,6 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 next_states, dtype=tf.float32)
             done_batch = tf.convert_to_tensor(dones, dtype=tf.float32)
             alpha_batch = tf.convert_to_tensor(alphas, dtype=tf.float32)
-            #print(f'pre-alpha_batch: {alphas.shape}')
-            #print(f'alpha_batch: {alpha_batch.shape}')
 
             # Train critic
             if "PER" in self.buffer_type:
