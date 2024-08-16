@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 
+import tensorflow as tf
 from tensorflow.keras import layers
 
 from jlab_opt_control.core.model_core import Model
@@ -25,7 +26,7 @@ class MO_CriticFCNN(Model):
 
         # Q network Architecture
         #self.input_layer = layers.Dense(256, activation="relu", input_shape=(state_dim + action_dim,))
-        self.input_layer = layers.Dense(128, activation="relu", input_shape=(action_dim,))
+        self.input_layer = layers.Dense(128, activation="leaky_relu", input_shape=(action_dim,))
         hidden_layers = 3
         self.hidden_layers = []
         for i in range(hidden_layers):
@@ -34,7 +35,8 @@ class MO_CriticFCNN(Model):
 
     def call(self, state, action, training=False):
         # Dynamic
-        x = self.input_layer(action)
+        concatenated_input = tf.concat([state, action], axis=1)
+        x = self.input_layer(concatenated_input)
         for layer in self.hidden_layers:
             x = layer(x)
         x = self.output_layer(x)

@@ -98,3 +98,17 @@ register(
     entry_point='jlab_opt_control.models:MO_CriticFCNN',
     kwargs={'cfg': 'critic_fcnn.cfg'}
 )
+
+from jlab_opt_control.models.mo_stateless_actor_fcnn import MO_StatelessActorFCNN
+from jlab_opt_control.models.mo_stateless_critic_fcnn import MO_StatelessCriticFCNN
+register(
+    id="mo_stateless_actor_fcnn-v0",
+    entry_point='jlab_opt_control.models:MO_StatelessActorFCNN',
+    kwargs={'cfg': 'actor_fcnn.cfg'}
+)
+
+register(
+    id="mo_stateless_critic_fcnn-v0",
+    entry_point='jlab_opt_control.models:MO_StatelessCriticFCNN',
+    kwargs={'cfg': 'critic_fcnn.cfg'}
+)

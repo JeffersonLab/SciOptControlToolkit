@@ -58,7 +58,7 @@ class MO_ActorFCNN(Model):
 
     def call(self, state, alphas, training=False):
         # Ideally need to concat state with alpha but for CEBAF, init state is always same
-        concatenated_input = alphas
+        concatenated_input = tf.concat([state, alphas], axis=1)
         a = self.input_layer(concatenated_input)
         for layer in self.hidden_layers:
             a = layer(a)

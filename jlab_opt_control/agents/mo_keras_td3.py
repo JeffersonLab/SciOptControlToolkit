@@ -422,8 +422,8 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 self.action_noise = self.action_noise * self.action_decay
                 td3_log.info(f'-> Updating action noise is {self.action_noise}')
 
-            state = tf.expand_dims(state, 0)
-            alphas = tf.expand_dims(alphas, 0)
+            state = tf.cast(tf.expand_dims(state, 0), tf.float32)
+            alphas = tf.cast(tf.expand_dims(alphas, 0), tf.float32)
             #print(f'alpha:{alphas.shape}')
             sampled_action = self.actor_model(state, alphas).numpy()
             if train:
