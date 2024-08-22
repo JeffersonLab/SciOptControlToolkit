@@ -31,6 +31,7 @@ from jlab_opt_control.models.actor_fcnn import ActorFCNN
 from jlab_opt_control.models.actor_gaussian_v0 import ActorGaussian
 from jlab_opt_control.models.actor_fcnn_v2 import ActorFCNN_v2
 from jlab_opt_control.models.critic_fcnn import CriticFCNN
+from jlab_opt_control.models.critic_uncertainty_fcnn import CriticUncertaintyFCNN
 from jlab_opt_control.models.critic_fcnn_v1 import CriticFCNN_v1
 from jlab_opt_control.models.critic_fcnn_v2 import CriticFCNN_v2
 from jlab_opt_control.models.sindy_network import SINDyNetwork
@@ -51,6 +52,12 @@ register(
 register(
     id='critic_fcnn-v0',
     entry_point='jlab_opt_control.models:CriticFCNN',
+    kwargs={'cfg': 'critic_fcnn.cfg'},
+)
+
+register(
+    id='critic_uncertainty_fcnn-v0',
+    entry_point='jlab_opt_control.models:CriticUncertaintyFCNN',
     kwargs={'cfg': 'critic_fcnn.cfg'},
 )
 
@@ -76,7 +83,7 @@ register(
 register(
     id='sindy_network-v0',
     entry_point='jlab_opt_control.models:SINDyNetwork',
-    kwargs={'cfg': 'sindy_network.cfg'}
+    kwargs={}
 )
 
 register(

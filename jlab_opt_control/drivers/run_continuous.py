@@ -91,6 +91,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
     try:
         os.makedirs(logdir)
+        os.makedirs(logdir + "/buffers/", exist_ok=True)
     except OSError as error:
         run_openai_log.error('Error making file:', error)
 
@@ -255,21 +256,27 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 if (ep == 0):
                     inference_episodic_hold = inference_episodic_reward
                 
+                # % better you want inference reward to be before save
+                percent_increase = 0.05
 
-                inf_ep_reward_list.append(inference_episodic_reward)
-                inf_avg_reward = np.mean(inf_ep_reward_list[-nepisode_avg:])
-
-                if inf_avg_reward != 0:
-                    percentage_change = (inf_avg_reward - inference_episodic_hold) / abs(inference_episodic_hold)
-                    if percentage_change >= model_save_threshold:
-                        str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
+                if inference_episodic_reward != 0:
+                    percentage_change = (inference_episodic_reward - inference_episodic_hold) / abs(inference_episodic_hold)
+                    if percentage_change >= percent_increase:
+                        str_pct_inc = f'epoch_{ep:05d}_{int(100*percentage_change):03d}'
                         agent.save(str_pct_inc)
-                        inference_episodic_hold = inf_avg_reward
+                        inference_episodic_hold = inference_episodic_reward
+                
+            # 10 times during the run save the models and the buffers
+            if ep % int(max_nepisodes/10) == 0:
+                agent.save(f'epoch_{ep:05d}')
+                agent.buffer.save(logdir + f'/buffers/buffer_{ep:05d}.npy')
 
             tf.summary.scalar('Inference Reward',
                             data=inference_episodic_reward, step=int(ep))
 
-            avg_reward = np.mean(ep_reward_list[-nepisode_avg:])
+            # Mean of last 10 episodes
+            nepisode_mod = 10
+            avg_reward = np.mean(ep_reward_list[-nepisode_mod:])
             time_end = time.process_time()
             if total_nsteps % 1000 == 0:
                 run_openai_log.info(
@@ -280,10 +287,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                     "Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
             avg_reward_list.append(avg_reward)
 
-            # tf.summary.scalar('Average of Last 10 Training Reward', data=avg_reward_list, step=int(ep))
-
             with open(logdir + '/results.npy', 'wb') as f:
                 np.save(f, np.array(ep_reward_list))
+
+        agent.save(f'epoch_{ep:05d}')
+        agent.buffer.save(logdir + f'/buffers/buffer_{ep:05d}.npy')
+
 
 def main(args=None):
     parser = argparse.ArgumentParser()
