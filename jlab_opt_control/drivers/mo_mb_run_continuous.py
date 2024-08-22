@@ -157,20 +157,24 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         # Run inference test
         if ep>=1 and total_nsteps % 1000 == 0:
             run_openai_log.info(f'Running inference ...')
-            
+            states = env.reset()[0].numpy()
+            states = tf.convert_to_tensor(np.array([states]*1000))
             scan_trips, scan_heats, scan_alphas, scan_rewards = [], [], [], []
             inference_total_reward = 0.0
+
+            for step in range(max_nsteps):
+                inference_actions, inference_action_noise, inference_alphas = agent.action(states, train=False)
+                next_state, rewards, done, _, info = env.step(inference_actions)
+                heat, trip = info['heat'], info['trip']
+                scan_trips = trip.numpy()
+                scan_heats = heat.numpy()
+                scan_alphas = inference_alphas.numpy()
+                scan_rewards = rewards.numpy()            
+                inference_total_reward = np.sum(scan_rewards)
+                states = next_state
+                
             
-            inference_actions, inference_action_noise, inference_alphas = agent.action(train=False)
-            _, rewards, _, _, info = env.step(inference_actions)
-            heat, trip = info['heat'], info['trip']
-            scan_trips = trip.numpy()
-            scan_heats = heat.numpy()
-            scan_alphas = inference_alphas.numpy()
-            scan_rewards = rewards.numpy()            
-            inference_total_reward = np.sum(scan_rewards)
-            
-            energy = np.sum(env.denormalize_state(inference_actions.numpy()) * env.linac.lengths, axis=1)
+            energy = np.sum(env.denormalize_state(states.numpy()) * env.linac.lengths, axis=1)
             out_of_bound = np.where((energy < env.min_energy) | (energy > env.max_energy))[0]
             scan_heats = np.delete(scan_heats, out_of_bound, axis=0)
             scan_trips = np.delete(scan_trips, out_of_bound, axis=0)
@@ -194,23 +198,21 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
             if len(scan_trips)>0:
                 fig, ax = plt.subplots(dpi=100)
-                plt.scatter(scan_heats,scan_trips, s=50, c=scan_alphas[:,0])#np.sum(scan_rewards,axis=1))#scan_alphas)
+                plt.scatter(scan_heats,scan_trips, s=50, c=scan_alphas[:,0], label="DDRL") #np.sum(scan_rewards,axis=1))#scan_alphas)
                 if ga_results is not None:
                     ga_index = np.argsort(ga_results[:,0])
                     ga_heat = ga_results[:,0]
                     ga_trip = ga_results[:,1]
                     plt.plot(ga_heat[ga_index], ga_trip[ga_index], c='black', linestyle='dashed', label="NSGA II")
-                    # plt.scatter(ga_results[:, 0], ga_results[:, 1], c='black', linestyle='dashed', label="NSGA II")
-                # Change major ticks to show every 20.
-                ax.xaxis.set_major_locator(MultipleLocator(0.2))
-                ax.yaxis.set_major_locator(MultipleLocator(0.005))
-                plt.text(.95, .99, f'Total MO Reward: {inference_total_reward:.4f}',
-                         ha='right', va='top', transform=ax.transAxes)
+                    
+                # plt.text(.95, .99, f'Total MO Reward: {inference_total_reward:.4f}',
+                        #  ha='right', va='top', transform=ax.transAxes)
                 plt.grid()
                 plt.xlabel('Heat Load [W]')
                 plt.ylabel('Trip Rate [per hour]');
                 plt.colorbar()
                 plt.tight_layout()
+                plt.legend()
                 plt.savefig(logdir+f'/pareto_ep{ep}_{inference_total_reward:.4f}.png')
                 # Convert figure to an image tensor and log
                 buf = io.BytesIO()
