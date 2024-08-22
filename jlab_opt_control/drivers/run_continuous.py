@@ -91,6 +91,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
     try:
         os.makedirs(logdir)
+        os.makedirs(logdir + "/buffers/", exist_ok=True)
     except OSError as error:
         run_openai_log.error('Error making file:', error)
 
@@ -267,8 +268,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                         agent.save(str_pct_inc)
                         inference_episodic_hold = inference_episodic_reward
                 
-                if ep % 1000 == 0:
-                    agent.save(logdir + f'/epoch_{ep:05d}')
+            # 10 times during the run save the models and the buffers
+            if ep % int(max_nepisodes/10) == 0:
+                agent.save(f'epoch_{ep:05d}')
+                agent.buffer.save(logdir + f'/buffers/buffer_{ep:05d}.npy')
 
             tf.summary.scalar('Inference Reward',
                             data=inference_episodic_reward, step=int(ep))
@@ -286,12 +289,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                     "Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
             avg_reward_list.append(avg_reward)
 
-            # tf.summary.scalar('Average of Last 10 Training Reward', data=avg_reward_list, step=int(ep))
-
             with open(logdir + '/results.npy', 'wb') as f:
                 np.save(f, np.array(ep_reward_list))
-                
-        agent.save(logdir + f'/epoch_{ep:05d}')
+
+        agent.save(f'epoch_{ep:05d}')
+        agent.buffer.save(logdir + f'/buffers/buffer_{ep:05d}.npy')
 
 def main(args=None):
     parser = argparse.ArgumentParser()
