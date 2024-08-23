@@ -63,59 +63,81 @@ except ImportError:
 seed = time.time_ns() % np.power(2, 32)  # Numpy seed must be between 0 and 2^32 - 1
 tf.random.set_seed(seed)
 np.random.seed(seed)
-# run_openai_log.info(f'seeds {tf.random.}')
 
-
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold):
+def generate_logdir(index, env_id, agent_id, use_env_subdir=False):
     githash = get_git_revision_short_hash()
-    run_openai_log.debug(githash)
-    run_openai_log.debug(logdir)
+    run_openai_log.debug(f"Git Hash: {githash}")
 
-    # Checks for buffer logging information, will default to config if not set in command line
-    if buffer_type is None:
-        buffer_type_log = "cfg"
+    # Format timestamp
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    # Construct the folder name
+    folder_name = f"env_{env_id}_agent_{agent_id}_hash_{githash}_time_{timestamp}"
+
+    # Add index to the beginning of the folder name
+    folder_name = f"index{index:03d}_{folder_name}"
+
+    # Construct the full path
+    if use_env_subdir:
+        logdir = os.path.join("./results", env_id, folder_name)
     else:
-        buffer_type_log = str(buffer_type)
+        logdir = os.path.join("./results", folder_name)
 
-    if buffer_size is None:
-        buffer_size_log = "cfg"
+    run_openai_log.debug(f"Generated logdir: {logdir}")
+
+    return logdir
+
+def create_and_configure_env(env_id, difficulty=None, max_nsteps=0):
+    run_openai_log.info(f'Creating environment: {env_id}')
+
+    env_creators = {
+        'gym': (gym.envs.registry, gym.make),
+        'custom': (custom_gym.list_registered_modules(), custom_gym.make),
+        'paces': (paces_gym.list_registered_modules() if 'paces_gym' in globals() else set(), paces_gym.make if 'paces_gym' in globals() else None)
+    }
+
+    for env_type, (registry, make_func) in env_creators.items():
+        if env_id in registry:
+            env = make_func(env_id)
+            run_openai_log.info(f'Created {env_type} environment: {env_id}')
+            break
     else:
-        buffer_size_log = str(buffer_size)
+        raise ValueError(f'Environment {env_id} not found in any registered modules')
 
+    if 'LCLS' in env_id:
+        env = configure_lcls_env(env, difficulty, max_nsteps)
+
+    return env
+
+def configure_lcls_env(env, difficulty, max_nsteps):
+    env.set_curriculum_difficulty(difficulty)
+    max_nsteps = max(10, max_nsteps)  # Ensure max_nsteps is at least 10 for LCLS
+    env = TimeLimit(env, max_nsteps)
+    env = RescaleObservation(env, -1, 1)
+    env = RescaleAction(env, -1, 1)
+    env = FlattenObservation(env)
+    # Uncomment if needed: env = FrameStack(env, 1)
+    return env
+
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold, use_env_subdir=False):
+    githash = get_git_revision_short_hash()
+
+    # Generate Log Directory
     if logdir == 'None':
-        logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
-                 + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
+        logdir = generate_logdir(index, env_id, agent_id, use_env_subdir)
     else:
-        logdir = logdir + "/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_date_" \
-            + datetime.now().strftime("%Y%m%d-%H%M%S")
+        # If a custom logdir is provided, append the generated folder name to it
+        folder_name = os.path.basename(generate_logdir(index, env_id, agent_id, use_env_subdir))
+        logdir = os.path.join(logdir, folder_name)
 
-    try:
-        os.makedirs(logdir)
-        os.makedirs(logdir + "/buffers/", exist_ok=True)
-    except OSError as error:
-        run_openai_log.error('Error making file:', error)
-
-    # Environment
+    # Environment Handling
     run_openai_log.info('Running env: {}'.format(env_id))
-
-    if env_id in gym.envs.registry:
-        env = gym.make(env_id)
-    elif env_id in custom_gym.list_registered_modules():
-        env = custom_gym.make(env_id)
-    elif 'paces_gym' in globals() and env_id in paces_gym.list_registered_modules():
-        env = paces_gym.make(env_id)
-        if 'LCLS' in env_id:
-            env.set_curriculum_difficulty(difficulty)
-            # Check if max_nsteps is not defined, set it to default (10) for lcls env
-            if max_nsteps <= 0:
-                max_nsteps = 10 
-            env = TimeLimit(env, max_nsteps)
-            env = RescaleObservation(env, -1, 1)
-            env = RescaleAction(env, -1, 1)
-            env = FlattenObservation(env)
-            # env = FrameStack(env, 1)
-    else:
-        run_openai_log.error('Error finding environment')
+    
+    try:
+        env = create_and_configure_env(env_id, difficulty, max_nsteps)
+    except ValueError as e:
+        run_openai_log.error(str(e))
+        return
 
     if max_nsteps != -1:
         env._max_episode_steps = max_nsteps
@@ -133,6 +155,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     run_openai_log.info("Max Value of Action ->  {}".format(upper_bound))
     run_openai_log.info("Min Value of Action ->  {}".format(lower_bound))
 
+    try:
+        os.makedirs(logdir)
+        os.makedirs(logdir + "/buffers/", exist_ok=True)
+    except OSError as error:
+        run_openai_log.error('Error making file:', error)
+
     run_openai_log.info(f'Log Path: {logdir}')
     tfb_path = os.path.join(logdir, 'metrics')
     run_openai_log.info(f'TFB Path: {tfb_path}')
@@ -140,13 +168,15 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     tfb_path = os.path.join(logdir, 'metrics')
     file_writer.set_as_default()
 
-    # Agent
+    # Agent Handling
     agent = jlab_opt_control.agents.make(
         agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
 
+    # Save agents initial configuration and models
     agent.save_cfg()
     agent.save("init")
 
+    # Logging information
     total_nsteps = 0
     ep_reward_list = []
     avg_reward_list = []
@@ -268,13 +298,15 @@ def main(args=None):
     parser.add_argument(
         "--logdir", help="Directory to save results", type=str, default='None')
     parser.add_argument(
-        "--inference", help="Inference only run flag", type=str, default=None)
+        "--inference", action="store_true", help="Inference only run flag")
     parser.add_argument(
         "--difficulty", help="Curriculum difficulty level for LCLS env", type=float, default=0.08)
     parser.add_argument(
         "--nepisode_avg", help="Number of episodes to average the reward over", type=int, default=20)
     parser.add_argument(
         "--model_save_threshold", help="Percentage increase threshold (in fraction) to save the model", type=float, default=0.05)
+    parser.add_argument(
+        "--use_env_subdir", action="store_true", help="Use environment as subdirectory in results folder")
 
     # Get input arguments
     if args is not None:
@@ -294,9 +326,10 @@ def main(args=None):
     args_difficulty = args.difficulty
     args_nepisode_avg = args.nepisode_avg
     args_model_save_threshold = args.model_save_threshold
+    args_use_env_subdir = args.use_env_subdir
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
-            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold)
+            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold, args_use_env_subdir)
 
 if __name__ == "__main__":
     main()
