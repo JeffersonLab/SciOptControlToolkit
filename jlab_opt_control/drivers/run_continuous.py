@@ -65,6 +65,17 @@ tf.random.set_seed(seed)
 np.random.seed(seed)
 
 def generate_logdir(index, env_id, agent_id, use_env_subdir=False):
+    # Generate a log directory path based on the given parameters.
+    #
+    # Args:
+    #     index (int): Index for tracking multiple runs.
+    #     env_id (str): Identifier for the environment.
+    #     agent_id (str): Identifier for the agent.
+    #     use_env_subdir (bool, optional): Whether to use environment as a subdirectory. Defaults to False.
+    #
+    # Returns:
+    #     str: The generated log directory path.
+
     githash = get_git_revision_short_hash()
     run_openai_log.debug(f"Git Hash: {githash}")
 
@@ -88,6 +99,19 @@ def generate_logdir(index, env_id, agent_id, use_env_subdir=False):
     return logdir
 
 def create_and_configure_env(env_id, difficulty=None, max_nsteps=0):
+    # Create and configure an environment based on the given environment ID.
+    #
+    # Args:
+    #     env_id (str): Identifier for the environment to create.
+    #     difficulty (float, optional): Difficulty level for curriculum learning. Defaults to None.
+    #     max_nsteps (int, optional): Maximum number of steps per episode. Defaults to 0.
+    #
+    # Returns:
+    #     gym.Env: The created and configured environment.
+    #
+    # Raises:
+    #     ValueError: If the environment is not found in any registered modules.
+
     run_openai_log.info(f'Creating environment: {env_id}')
 
     env_creators = {
@@ -110,6 +134,16 @@ def create_and_configure_env(env_id, difficulty=None, max_nsteps=0):
     return env
 
 def configure_lcls_env(env, difficulty, max_nsteps):
+    # Configure an LCLS (Linear Coherent Light Source) environment with specific settings.
+    #
+    # Args:
+    #     env (gym.Env): The LCLS environment to configure.
+    #     difficulty (float): Difficulty level for curriculum learning.
+    #     max_nsteps (int): Maximum number of steps per episode.
+    #
+    # Returns:
+    #     gym.Env: The configured LCLS environment with applied wrappers.
+
     env.set_curriculum_difficulty(difficulty)
     max_nsteps = max(10, max_nsteps)  # Ensure max_nsteps is at least 10 for LCLS
     env = TimeLimit(env, max_nsteps)
@@ -120,7 +154,25 @@ def configure_lcls_env(env, difficulty, max_nsteps):
     return env
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold, use_env_subdir=False):
-    githash = get_git_revision_short_hash()
+    # Run the optimization process for reinforcement learning.
+    #
+    # Args:
+    #     index (int): Index for tracking multiple runs or ran.
+    #     max_nepisodes (int): Maximum number of episodes to run.
+    #     max_nsteps (int): Maximum number of steps per episode.
+    #     agent_id (str): Identifier for the agent to use.
+    #     env_id (str): Identifier for the environment to use.
+    #     logdir (str): Directory to save logs and results.
+    #     buffer_type (str): Type of replay buffer to use.
+    #     buffer_size (int): Size of the replay buffer.
+    #     inference_flag (bool): Whether to run in inference mode only.
+    #     difficulty (float): Difficulty level for curriculum learning.
+    #     nepisode_avg (int): Number of episodes to average over for logging and saving.
+    #     model_save_threshold (float): Threshold for improvement to trigger model saving.
+    #     use_env_subdir (bool, optional): Whether to use environment as a subdirectory. Defaults to False.
+    #
+    # Returns:
+    #     None
 
     # Generate Log Directory
     if logdir == 'None':
@@ -239,6 +291,17 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         agent.buffer.save(f'{logdir}/buffers/buffer_{max_nepisodes:05d}.npy')
 
 def run_episode(env, agent, train=True, max_steps=-1):
+    # Run a single episode in the given environment with the specified agent.
+    #
+    # Args:
+    #     env (gym.Env): The environment to run the episode in.
+    #     agent (Any): The agent to use for actions.
+    #     train (bool, optional): Whether to train the agent during this episode. Defaults to True.
+    #     max_steps (int, optional): Maximum number of steps for this episode. Defaults to -1 (no limit).
+    #
+    # Returns:
+    #     Tuple[float, int]: A tuple containing the total episodic reward and the number of steps taken.
+    
     state, _ = env.reset()
     episodic_reward = 0
     done = False
@@ -280,8 +343,15 @@ def run_episode(env, agent, train=True, max_steps=-1):
 
     return episodic_reward, steps
 
-
 def main(args=None):
+    # Main entry point of the script. Handles argument parsing and calls run_opt.
+    #
+    # Args:
+    #     args (List[str], optional): Command line arguments. Defaults to None.
+    #
+    # Returns:
+    #     None
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--index", help="Index for tracking", type=int, default=0)
