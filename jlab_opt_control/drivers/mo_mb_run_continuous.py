@@ -124,8 +124,19 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     file_writer.set_as_default()
 
     # Agent
-    agent = jlab_opt_control.agents.make(
-        agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
+    if 'control' in agent_id:
+        agent = jlab_opt_control.agents.make(agent_id, 
+                                             env=env, 
+                                             logdir=logdir, 
+                                             buffer_type=buffer_type, 
+                                             buffer_size=buffer_size,
+                                             max_nsteps=max_nsteps)
+    else:
+        agent = jlab_opt_control.agents.make(agent_id, 
+                                             env=env, 
+                                             logdir=logdir, 
+                                             buffer_type=buffer_type, 
+                                             buffer_size=buffer_size)
 
     agent.save_cfg()
     agent.save("init")
@@ -159,11 +170,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             run_openai_log.info(f'Running inference ...')
             states = env.reset()[0].numpy()
             states = tf.convert_to_tensor(np.array([states]*1000))
+            scans = np.random.rand(states.shape[0])
+            alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)*1.5], axis=1), dtype=tf.float32)
             scan_trips, scan_heats, scan_alphas, scan_rewards = [], [], [], []
             inference_total_reward = 0.0
 
             for step in range(max_nsteps):
-                inference_actions, inference_action_noise, inference_alphas = agent.action(states, train=False)
+                inference_actions, inference_action_noise, inference_alphas = agent.action(states, alphas, train=False)
                 next_state, rewards, done, _, info = env.step(inference_actions)
                 heat, trip = info['heat'], info['trip']
                 scan_trips = trip.numpy()
