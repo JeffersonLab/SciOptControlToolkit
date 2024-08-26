@@ -128,32 +128,9 @@ def create_and_configure_env(env_id, difficulty=None, max_nsteps=0):
     else:
         raise ValueError(f'Environment {env_id} not found in any registered modules')
 
-    if 'LCLS' in env_id:
-        env = configure_lcls_env(env, difficulty, max_nsteps)
-
     return env
 
-def configure_lcls_env(env, difficulty, max_nsteps):
-    # Configure an LCLS (Linear Coherent Light Source) environment with specific settings.
-    #
-    # Args:
-    #     env (gym.Env): The LCLS environment to configure.
-    #     difficulty (float): Difficulty level for curriculum learning.
-    #     max_nsteps (int): Maximum number of steps per episode.
-    #
-    # Returns:
-    #     gym.Env: The configured LCLS environment with applied wrappers.
-
-    env.set_curriculum_difficulty(difficulty)
-    max_nsteps = max(10, max_nsteps)  # Ensure max_nsteps is at least 10 for LCLS
-    env = TimeLimit(env, max_nsteps)
-    env = RescaleObservation(env, -1, 1)
-    env = RescaleAction(env, -1, 1)
-    env = FlattenObservation(env)
-    # Uncomment if needed: env = FrameStack(env, 1)
-    return env
-
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold, use_env_subdir=False):
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold, use_env_subdir=False, inference_interval=10):
     # Run the optimization process for reinforcement learning.
     #
     # Args:
@@ -246,7 +223,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             tf.summary.scalar('Training Reward', data=episodic_reward, step=ep)
 
         # Inference episode (run every episode if inference_flag, otherwise every 10 episodes)
-        if inference_flag or ep % 10 == 0:
+        if inference_flag or ep % inference_interval == 0:
             inference_episodic_reward, _ = run_episode(env, agent, train=False, max_steps=max_nsteps)
             inference_reward_list.append(inference_episodic_reward)
             
@@ -268,7 +245,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         if ep % int(max_nepisodes/10) == 0:
             agent.save(f'epoch_{ep:05d}')
             if not inference_flag:
-                agent.buffer.save(f'{logdir}/buffers/buffer_{ep:05d}.npy')
+                agent.buffer.save(f'{logdir}/buffers/buffer.npy')
 
         # Logging
         avg_reward = np.mean(ep_reward_list[-nepisode_avg:])
@@ -288,7 +265,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     # Final save
     agent.save(f'epoch_{max_nepisodes:05d}')
     if not inference_flag:
-        agent.buffer.save(f'{logdir}/buffers/buffer_{max_nepisodes:05d}.npy')
+        agent.buffer.save(f'{logdir}/buffers/buffer.npy')
 
 def run_episode(env, agent, train=True, max_steps=-1):
     # Run a single episode in the given environment with the specified agent.
@@ -377,6 +354,8 @@ def main(args=None):
         "--model_save_threshold", help="Percentage increase threshold (in fraction) to save the model", type=float, default=0.05)
     parser.add_argument(
         "--use_env_subdir", action="store_true", help="Use environment as subdirectory in results folder")
+    parser.add_argument(
+        "--inference_interval", help="Use environment as subdirectory in results folder", type=int, default=10)
 
     # Get input arguments
     if args is not None:
@@ -397,9 +376,10 @@ def main(args=None):
     args_nepisode_avg = args.nepisode_avg
     args_model_save_threshold = args.model_save_threshold
     args_use_env_subdir = args.use_env_subdir
+    args_inference_interval = args.inference_interval
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
-            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold, args_use_env_subdir)
+            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold, args_use_env_subdir, args_inference_interval)
 
 if __name__ == "__main__":
     main()
