@@ -32,6 +32,7 @@ import logging
 import os
 import warnings
 from datetime import datetime
+from pymoo.indicators.hv import HV
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -145,8 +146,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     if ga_results_loc is not None:
         if '8D' in env_id:
             ga_results = np.load(os.path.join(ga_results_loc, "1L10_TEST8_nsga_II_results.npy"))
-        elif 'N-VEC-TF' in env_id:
+            ref = [22.4, 0.045]
+            ind = HV(ref_point=ref)
+            ga_hv = np.round(ind(ga_results), 4)
+        elif '-N-' in env_id:
             ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results.npy"))
+            ref = [2530.0, 5.5]
+            ind = HV(ref_point=ref)
+            ga_hv = np.round(ind(ga_results), 4)
         else:
             ga_results = None
     else:
@@ -155,12 +162,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     total_nsteps = 0
     inference_best_total_reward = 0.0
 
-    max_nscans = 3
-    nscans = max_nscans
     for ep in tqdm(range(1, max_nepisodes+1), desc='Index {} - Episodes'.format(index)):
         if ep % 1000 == 0:
             current_lr = agent.actor_optimizer.learning_rate.numpy()
-            agent.actor_optimizer.learning_rate.assign(current_lr * 0.85)
+            if current_lr > 1e-8:
+                agent.actor_optimizer.learning_rate.assign(current_lr * 0.85)
         agent.train()
         #print(f'agent.batch_size: {agent.batch_size}')
         total_nsteps += 1
@@ -171,7 +177,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             states = env.reset()[0].numpy()
             states = tf.convert_to_tensor(np.array([states]*1000))
             scans = np.random.rand(states.shape[0])
-            alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)*1.5], axis=1), dtype=tf.float32)
+            alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)], axis=1), dtype=tf.float32)
             scan_trips, scan_heats, scan_alphas, scan_rewards = [], [], [], []
             inference_total_reward = 0.0
 
@@ -209,14 +215,18 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             tf.summary.scalar('Total MO Inference Reward', data=inference_total_reward, step=int(ep))
             print(f'Number of valid scans: {len(scan_trips)}')
 
+            rl_points = np.stack([scan_heats, scan_trips], axis=1)
+            print(rl_points.shape)
+            rl_hv = np.round(ind(rl_points), 4)
+            
             if len(scan_trips)>0:
                 fig, ax = plt.subplots(dpi=100)
-                plt.scatter(scan_heats,scan_trips, s=50, c=scan_alphas[:,0], label="DDRL") #np.sum(scan_rewards,axis=1))#scan_alphas)
+                plt.scatter(scan_heats,scan_trips, s=50, c=scan_alphas[:,0], label="DDRL - "+str(rl_hv)) #np.sum(scan_rewards,axis=1))#scan_alphas)
                 if ga_results is not None:
                     ga_index = np.argsort(ga_results[:,0])
                     ga_heat = ga_results[:,0]
                     ga_trip = ga_results[:,1]
-                    plt.plot(ga_heat[ga_index], ga_trip[ga_index], c='black', linestyle='dashed', label="NSGA II")
+                    plt.plot(ga_heat[ga_index], ga_trip[ga_index], c='black', linestyle='dashed', label="NSGA II - "+str(ga_hv))
                     
                 # plt.text(.95, .99, f'Total MO Reward: {inference_total_reward:.4f}',
                         #  ha='right', va='top', transform=ax.transAxes)
