@@ -101,8 +101,8 @@ class MO_KerasMB():
         # Setup Optimizers
         self.actor_lr = float(cfg_utils.cfg_get(
             data, 'actor_learning_rate', 1e-5))
-        if env.linac_name.lower() == "north" or env.linac_name.lower() == "south":
-            self.actor_lr = self.actor_lr * 10
+        # if env.linac_name.lower() == "north" or env.linac_name.lower() == "south":
+        #     self.actor_lr = self.actor_lr * 10
 
         if processor == 'arm':
             td3_log.info('Using legacy Adam')
@@ -142,7 +142,7 @@ class MO_KerasMB():
     def train_actor(self):
         
         scans = np.random.rand(100)
-        alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)*1.5], axis=1), dtype=tf.float32)
+        alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)], axis=1), dtype=tf.float32)
         states = self.env.reset()[0].numpy()
         states = tf.convert_to_tensor(np.array([states]*100), dtype=tf.float32)
         sigmas = tf.convert_to_tensor(np.ones(shape=(100,2))*0.1, dtype=tf.float32)
@@ -172,10 +172,8 @@ class MO_KerasMB():
         tf.summary.scalar('Mono Loss', data=mono_loss, step=int(self.ntrain_calls))
 
 
-    def action(self, states, train=True):
+    def action(self, states, alphas, train=True):
         """ Method used to provide the next action using the target model """
-        scans = np.random.rand(states.shape[0])
-        alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)*1.5], axis=1), dtype=tf.float32)
         sampled_action = self.actor_model(states, alphas, training=train)
         noise = np.random.rand(sampled_action.shape[0])
         
