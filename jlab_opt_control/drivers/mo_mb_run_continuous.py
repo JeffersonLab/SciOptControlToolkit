@@ -43,6 +43,7 @@ from tqdm import tqdm
 
 import jlab_opt_control.agents
 from jlab_opt_control.utils.git_utils import get_git_revision_short_hash
+from jlab_opt_control.utils.mo_utils import get_fraction_mono_tuning
 
 warnings.filterwarnings("ignore")
 
@@ -176,10 +177,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     inference_best_total_reward = 0.0
 
     for ep in tqdm(range(1, max_nepisodes+1), desc='Index {} - Episodes'.format(index)):
-        if ep % 1000 == 0:
-            current_lr = agent.actor_optimizer.learning_rate.numpy()
-            if current_lr > 1e-8:
-                agent.actor_optimizer.learning_rate.assign(current_lr * 0.7)
         agent.train()
         #print(f'agent.batch_size: {agent.batch_size}')
         total_nsteps += 1
@@ -234,6 +231,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             trimmed_alphas = scan_alphas[good_indices]
             print(rl_points.shape)
             rl_hv = np.round(metric.do(rl_points)*100/max_vol, 3)
+
+            print("Fraction of monotonic alphas: ", get_fraction_mono_tuning(rl_points[:, 0], rl_points[:, 1], trimmed_alphas[:, 0]))
             
             if len(scan_trips)>0:
                 fig, ax = plt.subplots(dpi=100)

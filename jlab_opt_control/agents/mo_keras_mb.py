@@ -91,6 +91,9 @@ class MO_KerasMB():
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
+        self.lr_decay_interval = cfg_utils.cfg_get(data, 'lr_decay_interval', 1000)
+        self.min_lr = cfg_utils.cfg_get(data, 'min_lr', 1e-8)
+        self.decay_rate = cfg_utils.cfg_get(data, 'decay_rate', 0.7)
 
         self.actor_model_type = cfg_utils.cfg_get(
             data, 'actor_model', "MO-Actor-FCNN-v0")
@@ -164,7 +167,14 @@ class MO_KerasMB():
     def train(self):
         """ Method used to train """ 
         self.ntrain_calls += 1   
+        if self.ntrain_calls % self.lr_decay_interval == 0:
+            current_lr = self.actor_optimizer.learning_rate.numpy()
+            if current_lr > self.min_lr:
+                self.actor_optimizer.learning_rate.assign(current_lr * self.decay_rate)
+
+
         actor_loss, q_loss, mono_loss = self.train_actor()
+        
         tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
         tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
         tf.summary.scalar('Mono Loss', data=mono_loss, step=int(self.ntrain_calls))
