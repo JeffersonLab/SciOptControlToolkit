@@ -31,6 +31,8 @@
 import numpy as np
 
 def get_fraction_mono_tuning(heat, trip, alphas, debug=False):
+    if len(alphas) <= 0:
+        return 0.0
     sorted_indices = np.argsort(alphas)
     sorted_alphas = alphas[sorted_indices]
     sorted_heat = heat[sorted_indices]
