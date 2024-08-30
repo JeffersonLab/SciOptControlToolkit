@@ -141,12 +141,10 @@ class MO_KerasMB():
     #@tf.function
     def train_actor(self):
         
-        scans = np.random.rand(100)
-        alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)], axis=1), dtype=tf.float32)
+        scans = np.random.rand(128)
+        alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)*1.5], axis=1), dtype=tf.float32)
         states = self.env.reset()[0].numpy()
-        states = tf.convert_to_tensor(np.array([states]*100), dtype=tf.float32)
-        sigmas = tf.convert_to_tensor(np.ones(shape=(100,2))*0.1, dtype=tf.float32)
-        noise = tf.random.normal(shape=alphas.shape, mean=0, stddev=10)
+        states = tf.convert_to_tensor(np.array([states]*128), dtype=tf.float32)
 
         with tf.GradientTape() as tape:
 

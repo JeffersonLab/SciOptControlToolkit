@@ -32,7 +32,7 @@ import logging
 import os
 import warnings
 from datetime import datetime
-from pymoo.indicators.hv import HV
+from pymoo.indicators.hv import Hypervolume 
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -146,14 +146,27 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     if ga_results_loc is not None:
         if '8D' in env_id:
             ga_results = np.load(os.path.join(ga_results_loc, "1L10_TEST8_nsga_II_results.npy"))
-            ref = [22.4, 0.045]
-            ind = HV(ref_point=ref)
-            ga_hv = np.round(ind(ga_results), 4)
+            ref = [22.0, 0.04]
+            ideal = [20.0, 0.01]
+            metric = Hypervolume(ref_point= ref,
+                         norm_ref_point=False,
+                         zero_to_one=False,
+                         ideal=ideal,
+                         nadir=ref)
+            max_vol = (ref[0] - ideal[0]) * (ref[1] - ideal[1])
+            ga_hv = np.round(metric.do(ga_results)*100/max_vol, 3)
         elif '-N-' in env_id:
-            ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results.npy"))
-            ref = [2530.0, 5.5]
-            ind = HV(ref_point=ref)
-            ga_hv = np.round(ind(ga_results), 4)
+            # ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results.npy"))
+            ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results_045000.npy"))
+            ref = [2530.0, 6.0]
+            ideal = [2380.0, 1.0]
+            metric = Hypervolume(ref_point= ref,
+                         norm_ref_point=False,
+                         zero_to_one=False,
+                         ideal=ideal,
+                         nadir=ref)
+            max_vol = (ref[0] - ideal[0]) * (ref[1] - ideal[1])
+            ga_hv = np.round(metric.do(ga_results)*100/max_vol, 3)
         else:
             ga_results = None
     else:
@@ -166,7 +179,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         if ep % 1000 == 0:
             current_lr = agent.actor_optimizer.learning_rate.numpy()
             if current_lr > 1e-8:
-                agent.actor_optimizer.learning_rate.assign(current_lr * 0.85)
+                agent.actor_optimizer.learning_rate.assign(current_lr * 0.7)
         agent.train()
         #print(f'agent.batch_size: {agent.batch_size}')
         total_nsteps += 1
@@ -175,9 +188,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         if ep>=1 and total_nsteps % 1000 == 0:
             run_openai_log.info(f'Running inference ...')
             states = env.reset()[0].numpy()
-            states = tf.convert_to_tensor(np.array([states]*1000))
+            states = tf.convert_to_tensor(np.array([states]*1500))
             scans = np.random.rand(states.shape[0])
-            alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)], axis=1), dtype=tf.float32)
+            alphas = tf.convert_to_tensor(np.stack([scans, (1-scans)*1.5], axis=1), dtype=tf.float32)
             scan_trips, scan_heats, scan_alphas, scan_rewards = [], [], [], []
             inference_total_reward = 0.0
 
@@ -216,17 +229,20 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             print(f'Number of valid scans: {len(scan_trips)}')
 
             rl_points = np.stack([scan_heats, scan_trips], axis=1)
+            good_indices = np.where((rl_points[:, 0] <= ref[0]) & (rl_points[:, 1] <= ref[1]))[0]
+            rl_points = rl_points[good_indices]
+            trimmed_alphas = scan_alphas[good_indices]
             print(rl_points.shape)
-            rl_hv = np.round(ind(rl_points), 4)
+            rl_hv = np.round(metric.do(rl_points)*100/max_vol, 3)
             
             if len(scan_trips)>0:
                 fig, ax = plt.subplots(dpi=100)
-                plt.scatter(scan_heats,scan_trips, s=50, c=scan_alphas[:,0], label="DDRL - "+str(rl_hv)) #np.sum(scan_rewards,axis=1))#scan_alphas)
+                plt.scatter(rl_points[:, 0],rl_points[:, 1], s=50, c=trimmed_alphas[:,0], label="DDRL (HV: "+str(rl_hv)+")") #np.sum(scan_rewards,axis=1))#scan_alphas)
                 if ga_results is not None:
                     ga_index = np.argsort(ga_results[:,0])
                     ga_heat = ga_results[:,0]
                     ga_trip = ga_results[:,1]
-                    plt.plot(ga_heat[ga_index], ga_trip[ga_index], c='black', linestyle='dashed', label="NSGA II - "+str(ga_hv))
+                    plt.plot(ga_heat[ga_index], ga_trip[ga_index], c='black', linestyle='dashed', label="NSGA II (HV: "+str(ga_hv)+")")
                     
                 # plt.text(.95, .99, f'Total MO Reward: {inference_total_reward:.4f}',
                         #  ha='right', va='top', transform=ax.transAxes)
