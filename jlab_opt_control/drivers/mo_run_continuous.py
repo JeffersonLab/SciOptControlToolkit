@@ -199,7 +199,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 while inference_done is False:
                     inference_action, inference_action_noise = agent.action(
                         tf.convert_to_tensor(inference_prev_state),
-                        tf.convert_to_tensor(inference_alphas[s]))
+                        tf.convert_to_tensor(inference_alphas[s]), train=False)
                     inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
                         env.step(inference_action)
                     if inference_terminate==False:
@@ -228,7 +228,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 plt.ylabel('Trip Rate [per hour]');
                 plt.colorbar()
                 plt.tight_layout()
-                plt.savefig(logdir+f'/pareto_ep{epoch}_{inference_total_reward:.4f}.jpeg')
+                plt.savefig(logdir+f'/pareto_steps{total_nsteps}_{inference_total_reward:.4f}.jpeg')
                 # Convert figure to an image tensor and log
                 buf = io.BytesIO()
                 canvas = FigureCanvasAgg(fig)

@@ -23,3 +23,7 @@ dependencies:
     - numpy
     - jupyter
     - seaborn
+    - botorch
+    - kaleido
+    - ax-platform
+    - ax

@@ -163,9 +163,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.nactions = 0
 
         # action noise parameters
-        self.init_action_noise = 0.1
+        self.init_action_noise = 1e-1
         self.action_noise = self.init_action_noise
-        self.action_noise_min = 1e-4
+        self.action_noise_min = 1e-2
         self.action_decay = 0.95
         self.naction_for_noise_decay = 1000
 
@@ -407,6 +407,11 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                                  self.critic_model1.variables)
                 self.soft_update(self.target_critic2.variables,
                                  self.critic_model2.variables)
+
+            # if self.ntrain_calls % 1000 == 0:
+            #     current_lr = self.actor_optimizer.learning_rate.numpy()
+            #     if current_lr > 1e-8:
+            #         self.actor_optimizer.learning_rate.assign(current_lr * 0.7)
         #print('outside of train...')
 
     def action(self, state, alphas, train=True):
@@ -417,20 +422,21 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             noise = np.zeros(self.num_actions)
         # Warmup completed, sample from actor
         else:
-            # Update the noise
-            if self.nactions%self.naction_for_noise_decay == 0:
-                self.action_noise = self.action_noise * self.action_decay
-                td3_log.info(f'-> Updating action noise is {self.action_noise}')
 
             state = tf.cast(tf.expand_dims(state, 0), tf.float32)
             alphas = tf.cast(tf.expand_dims(alphas, 0), tf.float32)
-            #print(f'alpha:{alphas.shape}')
             sampled_action = self.actor_model(state, alphas).numpy()
             if train:
+                # Update the noise
+                if self.nactions % self.naction_for_noise_decay == 0:
+                    self.action_noise = self.action_noise * self.action_decay
+                    # if self.action_noise < self.action_noise_min:
+                    #     self.action_noise = self.init_action_noise
+                    td3_log.info(f'-> Updating action noise is {self.action_noise}')
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
                          stddev=self.actor_model.action_scale * self.action_noise, dtype=tf.float32)).numpy()
-                sampled_action = np.clip(
-                    sampled_action + noise, self.lower_bound, self.upper_bound)
+                #noise = np.abs(np.sin(tf.random.uniform(shape=(self.num_actions,)).numpy() * 2))*self.actor_model.action_scale
+                sampled_action = np.clip(sampled_action + noise, self.lower_bound, self.upper_bound)
             else:
                 noise = np.zeros(self.num_actions)
 
