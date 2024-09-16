@@ -158,7 +158,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             ga_hv = np.round(metric.do(ga_results)*100/max_vol, 3)
         elif '-N-' in env_id:
             # ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results.npy"))
-            ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results_045000.npy"))
+            ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results.npy"))
             ref = [2530.0, 6.0]
             ideal = [2380.0, 1.0]
             metric = Hypervolume(ref_point= ref,
