@@ -50,8 +50,8 @@ register(
     kwargs={'cfg': 'mo_er.cfg'},
 )
 
-# register(
-#     id='MO-LC-ER-v0',
-#     entry_point='jlab_opt_control.buffers:MOLCER',
-#     kwargs={'cfg': 'mo_er.cfg'},
-# )
+register(
+    id='MO-LC-ER-v0',
+    entry_point='jlab_opt_control.buffers:MOLCER',
+    kwargs={'cfg': 'mo_er.cfg'},
+)
