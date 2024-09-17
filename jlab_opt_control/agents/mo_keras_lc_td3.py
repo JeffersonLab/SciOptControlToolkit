@@ -348,6 +348,7 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
             q_values2 = self.critic_model2(states, actions, training=False)
             q_values = q_values1+q_values2
             q_values_alpha = q_values*alphas
+            q_values_alpha = self.barrier(q_values_alpha, 1e4)
             q_loss = -tf.math.reduce_mean(q_values_alpha)
             #cosine_loss = self.cosine_loss(q_values, alphas)
             loss = q_loss
@@ -357,23 +358,48 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
             # heat = pred_constraints[:,0]
             # trip = pred_constraints[:,1]
 
+
             pred_a = self.env.denormalize_action(actions)
-            #print(f'actions: {actions.shape}')
-            #print(f'pred_a: {pred_a.shape}')
             pred_energy = tf.reduce_sum(pred_a * self.env.linac.lengths, axis=1)
-            pred_energy = tf.expand_dims(pred_energy,axis=1)
+            pred_energy = tf.expand_dims(pred_energy, axis=1)
+
+
+            # Lower energy bound
             pred_de_min = self.env.min_energy - pred_energy
             pred_de_min = tf.convert_to_tensor( pred_de_min, dtype=tf.float32)
+            penalty_min = self.barrier( pred_de_min, 1e4)
+            #print(f'Min -> pred_energy/de/loss: {pred_energy[0]}/{pred_de_min[0]}/{penalty_min[0]}')
+
+            # Upper energy bound
+            pred_de_max =  pred_energy - self.env.max_energy
+            pred_de_max = tf.convert_to_tensor( pred_de_max, dtype=tf.float32)
+            penalty_max = self.barrier( pred_de_max, 1e4)
+            #print(f'Max -> pred_energy/de/loss: {pred_energy[0]}/{pred_de_max[0]}/{penalty_max[0]}')
+
+            # Upper bound trip
+            tr = tf.exp(-10.268+self.env.linac.trip_slopes*(pred_a - self.env.linac.trip_offsets))
+            tr = tf.where(self.env.linac.trip_slopes==0, 0.0, tr)
+            pred_trip = 3600*tf.reduce_sum(tr, axis=1)
+            pred_dtrip = pred_trip - 6
+            pred_dtrip = tf.convert_to_tensor( pred_dtrip, dtype=tf.float32)
+            penalty_trip = self.barrier( pred_dtrip, 1e3)
+            #print(f'Trip -> pred_energy/de/loss: {pred_trip[0]}/{pred_dtrip[0]}/{penalty_trip[0]}')
+
+            # Upper bound heat
+            pred_heat = tf.reduce_sum(((pred_a ** 2) * self.env.linac.lengths * 1e12) / (self.env.linac.shunts * self.env.linac.Q0s), axis=1)
+            pred_dheat = pred_heat - 2500.0
+            pred_dheat = tf.convert_to_tensor( pred_dheat, dtype=tf.float32)
+            penalty_heat = self.barrier( pred_dheat, 1e3)
+            #print(f'Heat -> pred_energy/de/loss: {pred_heat[0]}/{pred_dheat[0]}/{penalty_heat[0]}')
             #de_min =
             # penalty_min = tf.where(pred_energies > self.env.min_energy, 0.0,
             #                        5.0 * np.square((pred_energies - self.env.min_energy) / self.env.min_energy) + 1)
             # penalty_max = tf.where(pred_energies < self.env.max_energy, 0.0,
             #                        5.0 * np.square((pred_energies - self.env.max_energy) / self.env.max_energy) + 1)
-            penalty_min = self.barrier( pred_de_min, 1e4)
-            print(f'pred_energy/de/loss: {pred_energy[0]}/{pred_de_min[0]}/{penalty_min[0]}')
 
-            penalty_max = 0
-            penalty_loss = tf.math.reduce_mean(penalty_min+penalty_max)
+
+            #penalty_min = 0
+            penalty_loss = tf.math.reduce_mean(penalty_min + penalty_max + penalty_trip + penalty_heat)
             # print(trip.numpy())
             #åprint(f'heat: {heat.numpy()}')
             # sys.exit()
@@ -399,7 +425,8 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
 
-        return loss, tf.math.reduce_mean(penalty_min), tf.math.reduce_mean(penalty_max)
+        return loss, tf.math.reduce_mean(penalty_min), tf.math.reduce_mean(penalty_max), \
+               tf.math.reduce_mean(penalty_trip)
 
     @tf.function
     def soft_update(self, target_weights, weights):
@@ -469,9 +496,10 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
                 self.buffer.update_priorities(new_priorities)
 
             if self.buffer.size() >= np.max([self.batch_size, self.warmup_size]):
-                actor_loss, penalty_heat, penalty_trip = self.train_actor(state_batch, alpha_batch)
+                actor_loss, penalty_min, penalty_max, penalty_trip = self.train_actor(state_batch, alpha_batch)
                 tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
-                tf.summary.scalar('Actor Penalty Heat', data=penalty_heat, step=int(self.ntrain_calls))
+                tf.summary.scalar('Actor Penalty Energy Min', data=penalty_min, step=int(self.ntrain_calls))
+                tf.summary.scalar('Actor Penalty Energy Max', data=penalty_max, step=int(self.ntrain_calls))
                 tf.summary.scalar('Actor Penalty Trip', data=penalty_trip, step=int(self.ntrain_calls))
 
             if self.ntrain_calls % self.actor_update_freq == 0:
