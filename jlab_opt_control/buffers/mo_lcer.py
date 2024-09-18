@@ -45,8 +45,9 @@ class MOLCER(Replay):
         self.next_states = np.zeros((self.buffer_capacity, self.num_states))
         self.dones = np.zeros((self.buffer_capacity, 1))
         self.alphas = np.zeros((self.buffer_capacity, self.reward_dim))
+        self.priorities = np.ones(self.buffer_capacity)
         # Assuming a scalar
-        self.lyapunov_variables = np.zeros((self.buffer_capacity, 1))
+        self.lyapunov_variables = np.zeros((self.buffer_capacity, self.reward_dim))
 
         self.indices = None
         self.sample_counts = np.zeros((self.buffer_capacity, 1))
@@ -62,7 +63,9 @@ class MOLCER(Replay):
         self.next_states[self.current_index] = memory[3]
         self.dones[self.current_index] = memory[4]
         self.alphas[self.current_index] = memory[5]
-        self.lyapunov_variables[self.current_index] = memory[6]
+        self.priorities[self.current_index] = memory[6]
+        self.lyapunov_variables[self.current_index] = memory[7]
+        #print(f'lyapunov_batch: {self.lyapunov_variables[self.current_index]}')
 
         # Reset count of sampling experience to zero if overwriting experiences
         if (self.pointer >= self.buffer_capacity):
