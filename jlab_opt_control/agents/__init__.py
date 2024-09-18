@@ -62,6 +62,7 @@ from jlab_opt_control.agents.mo_keras_td3 import MO_KerasTD3
 from jlab_opt_control.agents.mo_keras_pareto_td3 import MO_KerasParetoTD3
 # from jlab_opt_control.agents.mo_keras_opt import MO_KerasOpt
 from jlab_opt_control.agents.mo_keras_mb import MO_KerasMB
+from jlab_opt_control.agents.mo_keras_pareto_mb import MO_KerasMB_v1
 from jlab_opt_control.agents.mo_keras_mb_control import MO_KerasMBControl
 from jlab_opt_control.agents.mo_keras_lc_td3 import MO_KerasLCTD3
 
@@ -86,6 +87,12 @@ register(
 register(
     id='MO-KerasMB-v0',
     entry_point='jlab_opt_control.agents:MO_KerasMB',
+    kwargs={'cfg': 'mo_keras_mb.cfg'}
+)
+
+register(
+    id='MO-KerasMB-v1',
+    entry_point='jlab_opt_control.agents:MO_KerasMB_v1',
     kwargs={'cfg': 'mo_keras_mb.cfg'}
 )
 
