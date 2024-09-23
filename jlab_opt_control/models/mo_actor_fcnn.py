@@ -30,7 +30,8 @@ class MO_ActorFCNN(Model):
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
         activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers)  # Defaults
-        
+
+        initializer = tf.keras.initializers.TruncatedNormal(mean=0., stddev=0.66)
         self.logdir = logdir
         
         # Error Checking
@@ -48,7 +49,8 @@ class MO_ActorFCNN(Model):
         self.hidden_layers = []
         for i in range(hidden_layers):
             # Layer construction with dynamic activation functions
-            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i]))
+            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i]))#,
+                                                   #kernel_initializer=initializer))
         # Output layer with its specified activation function
         self.output_layer = layers.Dense(action_dim, activation="tanh")
  

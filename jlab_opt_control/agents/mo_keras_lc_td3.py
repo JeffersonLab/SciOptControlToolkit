@@ -47,7 +47,7 @@ import jlab_opt_control.utils.cfg_utils as cfg_utils
 processor = platform.processor()
 
 td3_log = logging.getLogger("MO TD3-Agent")
-td3_log.setLevel(logging.ERROR)
+td3_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
@@ -340,58 +340,135 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
 
     #@tf.function
     def train_actor(self, states, alphas):
-
+        ref = [22.0, 0.04]
+        ref = [2530.0, 6.0]
         # Use Critic 1
         with tf.GradientTape() as tape:
-
-            # Default MO Conditional TD3
             actions = self.actor_model(states, alphas, training=True)
             q_values1 = self.critic_model1(states, actions, training=False)
             q_values2 = self.critic_model2(states, actions, training=False)
             q_values = q_values1+q_values2
             q_values_alpha = q_values*alphas
             q_loss = -tf.math.reduce_mean(q_values_alpha)
+            cosine_loss = self.cosine_loss(q_values, alphas)
 
             # Get energy
-            pred_a = self.env.denormalize_action(actions)
+            min_gsets = tf.convert_to_tensor(self.env.linac.min_gsets, dtype=tf.float32)
+            max_gsets = tf.convert_to_tensor(self.env.linac.max_gset_to_use, dtype=tf.float32)
+            diff = max_gsets - min_gsets
+            pred_a = ((actions + 1.0) / 2.0) * diff + min_gsets
+            #print(f'pred_a: {pred_a.numpy()[0:3]}')
             pred_energy = tf.reduce_sum(pred_a * self.env.linac.lengths, axis=1)
             pred_energy = tf.expand_dims(pred_energy, axis=1)
-
-            # Lower energy bound
-            pred_de_min = self.env.min_energy - pred_energy
+            # #print(f'pred_energy: {pred_energy.numpy()[0:3]}')
+            #
+            # # Lower energy bound
+            pred_de_min = pred_energy-self.env.min_energy
+            # penalty_min = tf.where(pred_de_min > 0, 0.0, 1e3*tf.math.abs(pred_de_min))
             pred_de_min = tf.convert_to_tensor(pred_de_min, dtype=tf.float32)
-            penalty_min = self.barrier( pred_de_min, 1e4)
-
-            # Upper energy bound
-            pred_de_max =  pred_energy - self.env.max_energy
+            penalty_min = -self.barrier( pred_de_min, 1e2)
+            #
+            # # Upper energy bound
+            pred_de_max = self.env.max_energy-pred_energy
+            # penalty_max = tf.where(pred_de_max > 0, 0.0, 1e3*tf.math.abs(pred_de_max) )
             pred_de_max = tf.convert_to_tensor(pred_de_max, dtype=tf.float32)
-            penalty_max = self.barrier( pred_de_max, 1e4)
+            penalty_max = self.barrier( pred_de_max, 1e2)
 
-            # Upper bound trip
+            # # Upper bound trip
             tr = tf.exp(-10.268+self.env.linac.trip_slopes*(pred_a - self.env.linac.trip_offsets))
             tr = tf.where(self.env.linac.trip_slopes == 0, 0.0, tr)
             pred_trip = 3600*tf.reduce_sum(tr, axis=1)
-            pred_dtrip = pred_trip - 6
+            pred_dtrip = pred_trip - ref[1]
             pred_dtrip = tf.convert_to_tensor( pred_dtrip, dtype=tf.float32)
-            penalty_trip = self.barrier(pred_dtrip, 1e3)
+            penalty_trip = self.barrier(pred_dtrip, 1e2)
 
             # Upper bound heat
             pred_heat = tf.reduce_sum(((pred_a ** 2) * self.env.linac.lengths * 1e12) / (self.env.linac.shunts * self.env.linac.Q0s), axis=1)
-            pred_dheat = pred_heat - 2500.0
+            pred_dheat = pred_heat - ref[0]
             pred_dheat = tf.convert_to_tensor(pred_dheat, dtype=tf.float32)
-            penalty_heat = self.barrier(pred_dheat, 1e3)
+            penalty_heat = self.barrier(pred_dheat, 1e2)
 
             # Add all penalties
             penalty_loss = tf.math.reduce_mean(penalty_min + penalty_max + penalty_trip + penalty_heat)
+            #penalty_loss = tf.math.reduce_mean(penalty_trip + penalty_heat)
 
-            loss = q_loss + penalty_loss
+            loss = q_loss + tf.where(self.ntrain_calls > 1000, 0, penalty_loss)
+
 
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
 
-        return loss, tf.math.reduce_mean(penalty_min), tf.math.reduce_mean(penalty_max), \
-               tf.math.reduce_mean(penalty_trip)
+        return loss, q_loss, 0, 0 #tf.math.reduce_mean(penalty_min), tf.math.reduce_mean(penalty_max)
+
+    #@tf.function
+    # def train_actor_w_penalties(self, states, alphas):
+    #     ref = [22.0, 0.04]
+    #     # ref = [2530.0, 6.0]
+    #
+    #     # nrepeats = 100
+    #     # alphas = tf.linspace(0.0, 1.0, nrepeats, name="alpha_scans")
+    #     # print(f'alphas:{alphas.shape}')
+    #     # alphas = tf.repeat(alphas, states.shape[0])
+    #     # print(f'alphas:{alphas.shape}')
+    #     # alphas = tf.expand_dims(alphas, axis=1)
+    #     # #
+    #     # print(f'states:{states.shape}')
+    #     # states = tf.repeat(states, nrepeats, axis=0)
+    #     # print(f'states:{states.shape}')
+    #
+    #
+    #     # Use Critic 1
+    #     with tf.GradientTape() as tape:
+    #
+    #         # Default MO Conditional TD3
+    #         actions = self.actor_model(states, alphas, training=True)
+    #         q_values1 = self.critic_model1(states, actions, training=False)
+    #         q_values2 = self.critic_model2(states, actions, training=False)
+    #         q_values = q_values1+q_values2
+    #         q_values_alpha = q_values*alphas
+    #         q_loss = -tf.math.reduce_mean(q_values_alpha)
+    #
+    #         # Get energy
+    #         pred_a = self.env.denormalize_action(actions)
+    #         pred_energy = tf.reduce_sum(pred_a * self.env.linac.lengths, axis=1)
+    #         pred_energy = tf.expand_dims(pred_energy, axis=1)
+    #
+    #         # Lower energy bound
+    #         pred_de_min = self.env.min_energy - pred_energy
+    #         pred_de_min = tf.convert_to_tensor(pred_de_min, dtype=tf.float32)
+    #         penalty_min = self.barrier( pred_de_min, 10)
+    #
+    #         # Upper energy bound
+    #         pred_de_max =  pred_energy - self.env.max_energy
+    #         pred_de_max = tf.convert_to_tensor(pred_de_max, dtype=tf.float32)
+    #         penalty_max = self.barrier( pred_de_max, 10)
+    #
+    #         # Upper bound trip
+    #         tr = tf.exp(-10.268+self.env.linac.trip_slopes*(pred_a - self.env.linac.trip_offsets))
+    #         tr = tf.where(self.env.linac.trip_slopes == 0, 0.0, tr)
+    #         pred_trip = 3600*tf.reduce_sum(tr, axis=1)
+    #         pred_dtrip = pred_trip - ref[1]
+    #         pred_dtrip = tf.convert_to_tensor( pred_dtrip, dtype=tf.float32)
+    #         penalty_trip = self.barrier(pred_dtrip, 10)
+    #
+    #         # Upper bound heat
+    #         pred_heat = tf.reduce_sum(((pred_a ** 2) * self.env.linac.lengths * 1e12) / (self.env.linac.shunts * self.env.linac.Q0s), axis=1)
+    #         pred_dheat = pred_heat - ref[0]
+    #         pred_dheat = tf.convert_to_tensor(pred_dheat, dtype=tf.float32)
+    #         penalty_heat = self.barrier(pred_dheat, 10)
+    #
+    #         # Add all penalties
+    #         penalty_loss = tf.math.reduce_mean(penalty_min + penalty_max + penalty_trip + penalty_heat)
+    #
+    #         loss = q_loss # + penalty_loss
+    #
+    #     gradient = tape.gradient(loss, self.actor_model.trainable_variables)
+    #     self.actor_optimizer.apply_gradients(
+    #         zip(gradient, self.actor_model.trainable_variables))
+    #
+    #     return loss, tf.math.reduce_mean(penalty_min), tf.math.reduce_mean(penalty_max), \
+    #            tf.math.reduce_mean(penalty_trip)
 
     @tf.function
     def soft_update(self, target_weights, weights):
@@ -461,11 +538,15 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
                 self.buffer.update_priorities(new_priorities)
 
             if self.buffer.size() >= np.max([self.batch_size, self.warmup_size]):
-                actor_loss, penalty_min, penalty_max, penalty_trip = self.train_actor(state_batch, alpha_batch)
+                actor_loss, actor_qloss, penalty_min, penalty_max = self.train_actor(state_batch, alpha_batch)
                 tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
+                tf.summary.scalar('Actor Q-Loss', data=actor_qloss, step=int(self.ntrain_calls))
                 tf.summary.scalar('Actor Penalty Energy Min', data=penalty_min, step=int(self.ntrain_calls))
                 tf.summary.scalar('Actor Penalty Energy Max', data=penalty_max, step=int(self.ntrain_calls))
-                tf.summary.scalar('Actor Penalty Trip', data=penalty_trip, step=int(self.ntrain_calls))
+                # tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
+                # tf.summary.scalar('Actor Penalty Energy Min', data=penalty_min, step=int(self.ntrain_calls))
+                # tf.summary.scalar('Actor Penalty Energy Max', data=penalty_max, step=int(self.ntrain_calls))
+                # tf.summary.scalar('Actor Penalty Trip', data=penalty_trip, step=int(self.ntrain_calls))
 
             if self.ntrain_calls % self.actor_update_freq == 0:
                     self.soft_update(self.target_actor.variables, self.actor_model.variables)

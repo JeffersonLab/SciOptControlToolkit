@@ -134,7 +134,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     if ga_results_loc is not None:
         if '8D' in env_id:
             ga_results = np.load(os.path.join(ga_results_loc, "1L10_TEST8_nsga_II_results.npy"))
-            ref = [22.0, 0.04]
+            ref = [10000.0,10000]#[22.0, 0.04]
             # ideal = [20.0, 0.01]
             # metric = Hypervolume(ref_point= ref,
             #              norm_ref_point=False,
@@ -262,9 +262,10 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                     inference_prev_state = inference_state
                     inference_done = (inference_terminate or inference_truncate)
 
+            print(f'Within energy bounds: {len(scan_trips)}')
             rl_points = np.stack([scan_heats, scan_trips], axis=1)
             good_indices = np.where((rl_points[:, 0] <= ref[0]) & (rl_points[:, 1] <= ref[1]))[0]
-            print(f'Number of valid scans: {len(good_indices)}')
+            print(f'Within all bounds: {len(good_indices)}')
             #print(f'Number of valid scans: {(good_indices)}')
             scan_alphas = np.array(scan_alphas)
             if len(good_indices)>0:

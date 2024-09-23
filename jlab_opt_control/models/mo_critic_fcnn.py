@@ -25,12 +25,13 @@ class MO_CriticFCNN(Model):
         self.logdir = logdir
 
         # Q network Architecture
-        #self.input_layer = layers.Dense(256, activation="relu", input_shape=(state_dim + action_dim,))
-        self.input_layer = layers.Dense(128, activation="leaky_relu", input_shape=(action_dim,))
+        self.input_layer = layers.Dense(256, activation="relu", input_shape=(state_dim + action_dim,))
+        #self.input_layer = layers.Dense(16*action_dim, activation="leaky_relu", input_shape=(action_dim+state_dim,))
         hidden_layers = 3
         self.hidden_layers = []
         for i in range(hidden_layers):
-            self.hidden_layers.append(layers.Dense(128, activation="leaky_relu"))
+            self.hidden_layers.append(layers.Dense(256, activation="leaky_relu"))
+            #self.hidden_layers.append(layers.Dense(16*action_dim, activation="leaky_relu"))
         self.output_layer = layers.Dense(reward_dim)
 
     def call(self, state, action, training=False):
