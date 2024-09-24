@@ -204,7 +204,7 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
         self.nactions = 0
 
         # action noise parameters
-        self.init_action_noise = 0.01
+        self.init_action_noise = 0.025
         self.action_noise = self.init_action_noise
         self.action_noise_min = 1e-8
         self.action_decay = 0.95
@@ -288,7 +288,7 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
         # Generate the proper noise
-        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 2*self.action_noise)
+        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * self.action_noise)
         noise_clipped = tf.clip_by_value(
             noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
         next_actions = tf.clip_by_value(self.target_actor(
