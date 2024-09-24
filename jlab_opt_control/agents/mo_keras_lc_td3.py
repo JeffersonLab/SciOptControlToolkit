@@ -204,9 +204,9 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
         self.nactions = 0
 
         # action noise parameters
-        self.init_action_noise = 0.01# 1e-2
+        self.init_action_noise = 0.01
         self.action_noise = self.init_action_noise
-        self.action_noise_min = 1e-6
+        self.action_noise_min = 1e-8
         self.action_decay = 0.95
         self.naction_for_noise_decay = 1000
 
@@ -364,35 +364,41 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
             #
             # # Lower energy bound
             pred_de_min = pred_energy-self.env.min_energy
-            # penalty_min = tf.where(pred_de_min > 0, 0.0, 1e3*tf.math.abs(pred_de_min))
-            pred_de_min = tf.convert_to_tensor(pred_de_min, dtype=tf.float32)
-            penalty_min = -self.barrier( pred_de_min, 1e2)
+            penalty_min = tf.where(pred_de_min > 0, 0.0, 5*tf.math.abs(pred_de_min))
+            #pred_de_min = tf.convert_to_tensor(pred_de_min, dtype=tf.float32)
+            #penalty_min = -self.barrier( pred_de_min, 5)
             #
             # # Upper energy bound
             pred_de_max = self.env.max_energy-pred_energy
-            # penalty_max = tf.where(pred_de_max > 0, 0.0, 1e3*tf.math.abs(pred_de_max) )
-            pred_de_max = tf.convert_to_tensor(pred_de_max, dtype=tf.float32)
-            penalty_max = self.barrier( pred_de_max, 1e2)
+            penalty_max = tf.where(pred_de_max > 0, 0.0, 5*tf.math.abs(pred_de_max) )
+            #pred_de_max = tf.convert_to_tensor(pred_de_max, dtype=tf.float32)
+            #penalty_max = self.barrier( pred_de_max, 5)
+
+            penalty_energy = penalty_min + penalty_max
 
             # # Upper bound trip
-            tr = tf.exp(-10.268+self.env.linac.trip_slopes*(pred_a - self.env.linac.trip_offsets))
-            tr = tf.where(self.env.linac.trip_slopes == 0, 0.0, tr)
-            pred_trip = 3600*tf.reduce_sum(tr, axis=1)
-            pred_dtrip = pred_trip - ref[1]
-            pred_dtrip = tf.convert_to_tensor( pred_dtrip, dtype=tf.float32)
-            penalty_trip = self.barrier(pred_dtrip, 1e2)
+            # tr = tf.exp(-10.268+self.env.linac.trip_slopes*(pred_a - self.env.linac.trip_offsets))
+            # tr = tf.where(self.env.linac.trip_slopes == 0, 0.0, tr)
+            # pred_trip = 3600*tf.reduce_sum(tr, axis=1)
+            # pred_dtrip = pred_trip - ref[1]
+            # pred_dtrip = tf.convert_to_tensor( pred_dtrip, dtype=tf.float32)
+            # penalty_trip = tf.where(pred_dtrip > 0, 5*tf.math.abs(pred_dtrip), 0)
+            # #penalty_trip = self.barrier(pred_dtrip, 2)
+            # #penalty_heat = tf.where(self.ntrain_calls > 1000, 0, penalty_heat)
+            #
+            # # Upper bound heat
+            # pred_heat = tf.reduce_sum(((pred_a ** 2) * self.env.linac.lengths * 1e12) / (self.env.linac.shunts * self.env.linac.Q0s), axis=1)
+            # pred_dheat = pred_heat - ref[0]
+            # pred_dheat = tf.convert_to_tensor(pred_dheat, dtype=tf.float32)
+            # penalty_heat = tf.where(pred_dheat > 0, 5*tf.math.abs(pred_dheat), 0)
+            #penalty_heat = self.barrier(pred_dheat, 2)
+            #penalty_heat = tf.where(self.ntrain_calls > 1000, 0, penalty_heat)
 
-            # Upper bound heat
-            pred_heat = tf.reduce_sum(((pred_a ** 2) * self.env.linac.lengths * 1e12) / (self.env.linac.shunts * self.env.linac.Q0s), axis=1)
-            pred_dheat = pred_heat - ref[0]
-            pred_dheat = tf.convert_to_tensor(pred_dheat, dtype=tf.float32)
-            penalty_heat = self.barrier(pred_dheat, 1e2)
-
-            # Add all penalties
-            penalty_loss = tf.math.reduce_mean(penalty_min + penalty_max + penalty_trip + penalty_heat)
-            #penalty_loss = tf.math.reduce_mean(penalty_trip + penalty_heat)
-
-            loss = q_loss + tf.where(self.ntrain_calls > 1000, 0, penalty_loss)
+            # # Add all penalties
+            # penalty_loss = tf.math.reduce_mean(penalty_trip + penalty_heat)
+            #penalty_loss = tf.where(self.ntrain_calls > 1000, 0, penalty_loss)
+            penalty_loss = tf.math.reduce_mean(penalty_energy)# + penalty_heat + penalty_trip)
+            loss = q_loss + penalty_loss
 
 
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
