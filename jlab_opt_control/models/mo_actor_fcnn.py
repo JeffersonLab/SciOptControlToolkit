@@ -29,9 +29,9 @@ class MO_ActorFCNN(Model):
             
         hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
-        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers)  # Defaults
+        activation_functions = cfg_data.get('activation_functions', ["leaky_relu"] * hidden_layers)  # Defaults
 
-        initializer = tf.keras.initializers.TruncatedNormal(mean=0., stddev=0.66)
+        #initializer = tf.keras.initializers.TruncatedNormal(mean=0., stddev=0.66)
         self.logdir = logdir
         
         # Error Checking
@@ -41,9 +41,9 @@ class MO_ActorFCNN(Model):
             act_log.error("Number of activation functions does not match the number of hidden layers in the config.")
 
         # Actor Architecture
-        # input_shape = (state_dim + reward_dim,) # No need to input state since it's always the same for CEBAF one step env
-        input_shape = (reward_dim,)
-        self.input_layer = layers.Dense(128, activation="tanh", input_shape=input_shape)
+        #input_shape = (state_dim + reward_dim,) # No need to input state since it's always the same for CEBAF one step env
+        #input_shape = (reward_dim,)
+        self.input_layer = layers.Dense(128)#, input_shape=input_shape)
         
         # Dynamic Actor Architecture
         self.hidden_layers = []
@@ -61,7 +61,11 @@ class MO_ActorFCNN(Model):
     def call(self, state, alphas, training=False):
         # Ideally need to concat state with alpha but for CEBAF, init state is always same
         concatenated_input = tf.concat([state, alphas], axis=1)
+        # print(concatenated_input.shape)
+        # print(state.shape)
+        # print(alphas.shape)
         a = self.input_layer(concatenated_input)
+        #print(a.shape)
         for layer in self.hidden_layers:
             a = layer(a)
         a = self.output_layer(a)

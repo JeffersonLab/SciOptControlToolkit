@@ -25,7 +25,7 @@ class MO_CriticFCNN(Model):
         self.logdir = logdir
 
         # Q network Architecture
-        self.input_layer = layers.Dense(256, activation="relu", input_shape=(state_dim + action_dim,))
+        self.input_layer = layers.Dense(256, activation="leaky_relu", input_shape=(state_dim + action_dim,))
         #self.input_layer = layers.Dense(16*action_dim, activation="leaky_relu", input_shape=(action_dim+state_dim,))
         hidden_layers = 3
         self.hidden_layers = []

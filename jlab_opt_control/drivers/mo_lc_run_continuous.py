@@ -134,7 +134,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     if ga_results_loc is not None:
         if '8D' in env_id:
             ga_results = np.load(os.path.join(ga_results_loc, "1L10_TEST8_nsga_II_results.npy"))
-            ref = [10000.0,10000]#[22.0, 0.04]
+            ref = [24.0, 0.08]
             # ideal = [20.0, 0.01]
             # metric = Hypervolume(ref_point= ref,
             #              norm_ref_point=False,
@@ -148,8 +148,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         elif '-N-' in env_id:
             ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results.npy"))
             #ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results_045000.npy"))
-            #ref = [2530.0, 6.0]
-            ref = [4000.0, 50.0]
+            ref = [2530.0, 6.0]
+            #ref = [4000.0, 50.0]
             metric = Hypervolume(ref_point=ref)
             # ideal = [2380.0, 1.0]
             # metric = Hypervolume(ref_point= ref,
