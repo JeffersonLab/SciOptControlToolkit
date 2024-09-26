@@ -34,6 +34,7 @@ import warnings
 from datetime import datetime
 from pymoo.indicators.hv import Hypervolume 
 import time
+import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -172,17 +173,19 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     total_nsteps = 0
     inference_best_total_reward = 0.0
 
-    final_results = {"heat": [], "trip": [], "alphas": [], "t_elapsed": []}
-
+    final_results = {"iteration": [], "heat": [], "trip": [], "alpha": [], "t_elapsed": []}
+    total_time = 0.
     for ep in tqdm(range(1, max_nepisodes+1), desc='Index {} - Episodes'.format(index)):
         start_time = time.time()
-        agent.train(ref, [env.min_energy, env.max_energy])
+        # agent.train(ref, [env.min_energy, env.max_energy])
+        agent.train()
         #print(f'agent.batch_size: {agent.batch_size}')
         time_per_step = time.time() - start_time
+        total_time += time_per_step
         total_nsteps += 1
 
         # Run inference test
-        if ep>=1 and total_nsteps % 1000 == 0:
+        if ep>=1 and total_nsteps % 100 == 0:
             run_openai_log.info(f'Running inference ...')
             states = env.reset()[0].numpy()
             states = tf.convert_to_tensor(np.array([states]*1500))
@@ -229,13 +232,18 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             good_indices = np.where((rl_points[:, 0] <= ref[0]) & (rl_points[:, 1] <= ref[1]))[0]
             rl_points = rl_points[good_indices]
             trimmed_alphas = scan_alphas[good_indices]
-            print(rl_points.shape)
-            # rl_hv = np.round(metric.do(rl_points)*100/max_vol, 3)
-            rl_hv = np.round(hypervolume(rl_points, ref)*100/max_vol, 3)
 
-            print("Fraction of monotonic alphas: ", get_fraction_mono_tuning(rl_points[:, 0], rl_points[:, 1], trimmed_alphas[:, 0]))
+            if len(rl_points) > 0:
+                uniform_indices = np.random.randint(0, rl_points.shape[0], size=512)
+                rl_points = rl_points[uniform_indices]
+                trimmed_alphas = trimmed_alphas[uniform_indices]
+                print(rl_points.shape)
+
+                rl_hv = np.round(hypervolume(rl_points, ref)*100/max_vol, 3)
+
+                print("Fraction of monotonic alphas: ", get_fraction_mono_tuning(rl_points[:, 0], rl_points[:, 1], trimmed_alphas[:, 0]))
             
-            if len(scan_trips)>0:
+            
                 fig, ax = plt.subplots(dpi=100)
                 plt.scatter(rl_points[:, 0],rl_points[:, 1], s=50, c=trimmed_alphas[:,0], label="DDRL (HV: "+str(rl_hv)+")") #np.sum(scan_rewards,axis=1))#scan_alphas)
                 if ga_results is not None:
@@ -267,8 +275,17 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 # print(f'scan_heats: {scan_heats.shape}')
                 # print(f'scan_trips: {scan_trips.shape}')
                 # print(f'scan_alphas: {scan_alphas.shape}')
-                np.save(logdir + f'/inference_results_steps{total_nsteps}.npy',
-                        np.concatenate([scan_heats, scan_trips, scan_alphas[:,0]]))
+                if rl_points.shape[0] <= 0:
+                    rl_points = [[np.nan, np.nan]]
+                    trimmed_alphas = [np.nan]
+
+                final_results["heat"].append(rl_points[:, 0])
+                final_results["trip"].append(rl_points[:, 1])
+                final_results["alpha"].append(trimmed_alphas)
+                final_results["t_elapsed"].append(total_time)
+                total_time = 0.
+                with open(logdir + f'/inference_results_steps{total_nsteps}.pkl', "wb") as f:
+                    pickle.dump(final_results, f)
 
 
 def main(args=None):
