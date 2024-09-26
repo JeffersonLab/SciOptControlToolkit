@@ -175,15 +175,16 @@ class MO_KerasMB():
 
         actor_loss, q_loss, mono_loss = self.train_actor()
         
-        tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
-        tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
-        tf.summary.scalar('Mono Loss', data=mono_loss, step=int(self.ntrain_calls))
+        # tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
+        # tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
+        # tf.summary.scalar('Mono Loss', data=mono_loss, step=int(self.ntrain_calls))
 
 
     def action(self, states, alphas, train=True):
         """ Method used to provide the next action using the target model """
         sampled_action = self.actor_model(states, alphas, training=train)
-        noise = np.random.rand(sampled_action.shape[0])
+        # noise = np.random.rand(sampled_action.shape[0])
+        noise = None
         
 
         # Insure action output by actor is in legal environment range
