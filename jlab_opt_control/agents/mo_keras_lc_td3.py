@@ -316,6 +316,8 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
             q_values_alpha = q_values*alphas
             q_loss = -tf.math.reduce_mean(q_values_alpha)
 
+            #emin_relu_layer = keras.layers.activations.ReLU(max_value=None,negative_slope=0.0,threshold=0)
+            #result = emin_relu_layer(input)
             # Get energy
             # min_gsets = tf.convert_to_tensor(self.env.linac.min_gsets, dtype=tf.float32)
             # max_gsets = tf.convert_to_tensor(self.env.linac.max_gset_to_use, dtype=tf.float32)

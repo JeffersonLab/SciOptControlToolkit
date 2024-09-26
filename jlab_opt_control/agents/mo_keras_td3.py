@@ -62,34 +62,6 @@ def circle_rdm_samples(ndim=2, nsamples=100, std_min=1, r_norm=1):
     vectors.append(vector)
   return np.array(vectors)
 
-class GenEnergy(tf.keras.Model):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        #        self.input_layer = tf.keras.Input(shape = (None, energies.shape[1]))
-        nactions = 197
-        self.hidden1 = tf.keras.layers.Dense(2 * nactions, activation='leaky_relu')
-        self.hidden2 = tf.keras.layers.Dense(4 * nactions, activation='leaky_relu')
-        self.hidden3 = tf.keras.layers.Dense(8 * nactions, activation='leaky_relu')
-        self.hidden4 = tf.keras.layers.Dense(4 * nactions, activation='leaky_relu')
-        self.hidden5 = tf.keras.layers.Dense(2 * nactions, activation='leaky_relu')
-        self.output_layer = tf.keras.layers.Dense(nactions, activation='tanh')
-
-        # self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
-        # self.action_bias = tf.constant((max_action + min_action) / 2, dtype=tf.float32)
-
-    def call(self, inputs):
-        # x = self.input_layer(energy)
-        x, noise = inputs
-        x = tf.keras.layers.concatenate([x, noise])
-        x = self.hidden1(x)
-        x = self.hidden2(x)
-        x = self.hidden3(x)
-        x = self.hidden4(x)
-        x = self.hidden5(x)
-        x = self.output_layer(x)
-        return x
-
 class MO_KerasTD3(jlab_opt_control.Agent):
 
     def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='mo_keras_td3.json'):
@@ -207,26 +179,19 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.nactions = 0
 
         # action noise parameters
-        delta_e = 2*(self.env.max_energy-self.env.min_energy)/(self.env.max_energy+self.env.min_energy)
-        self.init_action_noise = delta_e# 1e-2
+        # delta_e = 2*(self.env.max_energy-self.env.min_energy)/(self.env.max_energy+self.env.min_energy)
+        # self.init_action_noise = delta_e# 1e-2
+        # self.init_action_noise = relative_error/4
+        self.init_action_noise = float(cfg_utils.cfg_get(data, 'init_actor_noise', 0.01))
         self.action_noise = self.init_action_noise
-        self.action_noise_min = 1e-6
-        self.action_decay = 0.95
-        self.naction_for_noise_decay = 1000
+        self.action_noise_min = float(cfg_utils.cfg_get(data, 'action_noise_min', 1e-5))
+        self.action_noise_decay = float(cfg_utils.cfg_get(data, 'action_noise_decay', 0.95))
+        self.naction_for_noise_decay = int(cfg_utils.cfg_get(data, 'naction_for_noise_decay', 1000))
 
         # model reset parameters
-        self.max_action_reset = 4
+        self.max_action_reset = int(cfg_utils.cfg_get(data, 'max_action_reset', 4))
+        self.naction_for_reset = int(cfg_utils.cfg_get(data, 'naction_for_reset', 5000))
         self.naction_reset = 0
-        self.naction_for_reset = 5000
-
-        ##
-        # self.genai_cebaf_sampling_model = GenEnergy()
-        # self.genai_cebaf_samples = self.genai_cebaf_sampling_v2(self.warmup_size)
-        #print(self.genai_cebaf_samples[0:10])
-        #sys.exit()
-
-
-    # def alpha_alignment_model(self):
 
     def initialize_new_models(self):
         """ Initialize new models from scratch """
@@ -268,70 +233,10 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.target_critic1.set_weights(self.critic_model1.get_weights())
         self.target_critic2.set_weights(self.critic_model2.get_weights())
 
-    # def reset_actor(self):
-    #
-    #     time.sleep(1 / 10)
-    #     seed = time.time_ns()
-    #     str_seed = str(seed)
-    #     seed = int(str_seed[9:-3])
-    #     td3_log.debug(f'New actor seed:{seed}')
-    #     tf.random.set_seed(seed)
-    #
-    #     self.action_noise = self.init_action_noise
-    #
-    #     # Delete
-    #     self.actor_model = None
-    #     self.target_actor = None
-    #     self.actor_optimizer = None
-    #
-    #     self.actor_model = jlab_opt_control.models.make(
-    #         self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-    #     self.target_actor = jlab_opt_control.models.make(
-    #         self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-    #     if processor == 'arm':
-    #         td3_log.info('Using legacy Adam')
-    #         self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
-    #             self.actor_lr, epsilon=1e-08)
-    #     else:
-    #         self.actor_optimizer = tf.keras.optimizers.Adam(
-    #             self.actor_lr, epsilon=1e-08)
-    #     td3_log.info(f'->Resetting actor model and optimizer #{self.naction_reset}')
-
-    # @tf.function
-    # def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
-    #
-    #
-    #     # Critic 1 and 2
-    #     with tf.GradientTape() as tape:
-    #         q_values1 = self.critic_model1(states, actions, training=True)
-    #         q_values2 = self.critic_model2(states, actions, training=True)
-    #         td_errors1 = q_values1 - rewards
-    #         td_errors2 = q_values2 - rewards
-    #
-    #         if "PER" in self.buffer_type:
-    #             critic_loss1 = self.mse_loss(
-    #                 q_values1, rewards, sample_weight=weights)
-    #             critic_loss2 = self.mse_loss(
-    #                 q_values2, rewards, sample_weight=weights)
-    #         else:
-    #             critic_loss1 = self.mse_loss(q_values1, rewards)
-    #             critic_loss2 = self.mse_loss(q_values2, rewards)
-    #
-    #         critic_losses = critic_loss1 + critic_loss2
-    #
-    #     gradients = tape.gradient(
-    #         critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
-    #     self.critic_optimizer.apply_gradients(zip(
-    #         gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
-    #
-    #     td_errors_avg = (tf.abs(td_errors1) + tf.abs(td_errors2)) / 2
-    #
-    #     return critic_loss1, critic_loss2, td_errors_avg
-
     @tf.function
     def train_critic(self, states, actions, rewards, next_states, dones, weights, alphas):
         # Generate the proper noise
-        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 0.2)
+        noise = (tf.random.normal(tf.shape(actions), dtype=tf.float32) * 2.0*self.action_noise)
         noise_clipped = tf.clip_by_value(
             noise, -self.noise_clip, self.noise_clip) * self.target_actor.action_scale
         next_actions = tf.clip_by_value(self.target_actor(
@@ -384,14 +289,13 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             q_values = q_values1+q_values2
             q_values_alpha = q_values*alphas
             q_loss = -tf.math.reduce_mean(q_values_alpha)
-            cosine_loss = self.cosine_loss(q_values, alphas)
             loss = q_loss
 
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
 
-        return loss, q_loss, cosine_loss
+        return loss
 
     @tf.function
     def soft_update(self, target_weights, weights):
@@ -457,10 +361,8 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 self.buffer.update_priorities(new_priorities)
 
             if self.buffer.size() >= np.max([self.batch_size, self.warmup_size]):
-                actor_loss, q_loss, cosine_loss = self.train_actor(state_batch, alpha_batch)
-                tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
-                tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
-                tf.summary.scalar('Cosine Loss', data=cosine_loss, step=int(self.ntrain_calls))
+                actor_loss = self.train_actor(state_batch, alpha_batch)
+                tf.summary.scalar('Actor Q-value', data=-actor_loss, step=int(self.ntrain_calls))
 
             if self.ntrain_calls % self.actor_update_freq == 0:
                     self.soft_update(self.target_actor.variables, self.actor_model.variables)
@@ -471,140 +373,27 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 self.soft_update(self.target_critic2.variables,
                                  self.critic_model2.variables)
 
-            # if self.ntrain_calls % 1000 == 0:
-            #     current_lr = self.actor_optimizer.learning_rate.numpy()
-            #     if current_lr > 1e-8:
-            #         self.actor_optimizer.learning_rate.assign(current_lr * 0.7)
-        #print('outside of train...')
-
-    def cebaf_sampling(self):
-        isValid = False
-        nTrials = 0
-        norm_a = np.zeros(self.num_actions)
-        while(isValid==False and nTrials<10000):
-            nTrials +=1
-            norm_a = np.random.uniform(-1.0, 1.0, self.num_actions)
-            a = self.env.denormalize_state(norm_a)
-            sample_e = self.env.get_energy(a)
-            #print(f'energy: {sample_e} --> {self.env.min_energy}/{self.env.max_energy}')
-            if sample_e > self.env.min_energy and sample_e < self.env.max_energy:
-                isValid = True
-        #print(f'nTrails: {nTrials}')
-        return norm_a
-
-    # def cebaf_sampling(self, ndim, std_min=0.8):
-    #     ntrails = 0
-    #     isValid = False
-    #     v = None
-    #     while (ntrails<10000):
-    #         # Create data circle
-    #         norm_dim = np.random.normal(0, std_min, ndim + 2)
-    #         norm = np.sum(norm_dim * norm_dim) ** (0.5)
-    #         vector = [norm_dim[i] / norm for i in range(ndim)]
-    #         a = self.env.denormalize_state(np.array(vector))
-    #         sample_e = self.env.get_energy(a)
-    #         #r = np.sqrt(sum([v * v for v in vector]))
-    #         #sample_e = self.env.denormalize_energy(r)
-    #         #a = self.env.denormalize_state(np.abs(vector)+0.25*np.ones(ndim))
-    #         #sample_e = np.sqrt(sum([v * v for v in a]))
-    #         # vector= np.random.uniform(0.5, 1, self.num_actions)
-    #         # a = self.env.denormalize_state(np.abs(vector))
-    #         # sample_e = np.sqrt(sum([v * v for v in a]))
-    #
-    #         #print(f'energy: {sample_e} --> {self.env.min_energy}/{self.env.max_energy}')
-    #         #print(f'action: {a}')
-    #         #print(f'r: {r} -> min/max: {self.env.normalize_energy(self.env.min_energy)}/{self.env.normalize_energy(self.env.max_energy)}')
-    #         #sys.exit()
-    #         ntrails += 1
-    #         if sample_e > self.env.min_energy and  sample_e < self.env.max_energy:
-    #             #isValid==True
-    #             # #print(f'r: {r}/rcut: {rcut} -> good')
-    #             # #td3_log.debug(f'ntrails: {ntrails}')
-    #             v = np.array(vector)
-    #         else:
-    #             v = self.env.action_space.sample()
-    #             #print(f'sample_e: {sample_e} -> {ntrails}')
-    #     td3_log.debug(f'ntrails: {ntrails}')
-    #     return v #self.env.action_space.sample()
-    #     # else:
-    #     #     self.cebaf_sampling(ndim)
-
-    def genai_cebaf_sampling_v2(self, nsamples):
-        # self.genai_cebaf_sampling_model.load_weights('../notebooks/PACES-MO-CEBAF-N-VEC-TF-20240912-181543')
-        self.genai_cebaf_sampling_model.load_weights('../notebooks/PACES-MO-CEBAF-N-VEC-TF-v0-20240912-224155')
-        #genai_cebaf_sampling_model = tf.keras.models.load_model('../notebooks/PACES-MO-CEBAF-N-VEC-TF-20240912-181242.keras')
-        energy = np.random.uniform(self.env.min_energy, self.env.max_energy, nsamples)
-        energy = np.expand_dims(energy, axis=1)
-        noise = np.random.normal(0, 1, size=(nsamples, self.num_actions))
-        # print(energy.shape)
-        # print(noise.shape)
-        norm_a = self.genai_cebaf_sampling_model.predict([energy, noise],verbose=None)
-        #print(norm_a.shape)
-        return norm_a
-
-    def genai_cebaf_sampling(self):
-        self.genai_cebaf_sampling_model.load_weights('../notebooks/PACES-MO-CEBAF-N-VEC-TF-20240912-181543')
-        #genai_cebaf_sampling_model = tf.keras.models.load_model('../notebooks/PACES-MO-CEBAF-N-VEC-TF-20240912-181242.keras')
-        energy = np.random.uniform(self.env.min_energy, self.env.max_energy, 1)
-        energy = np.expand_dims(energy, axis=1)
-        noise = np.random.normal(0, 0.5, size=(1, 10))
-        # print(energy.shape)
-        # print(noise.shape)
-        norm_a = self.genai_cebaf_sampling_model.predict([energy, noise],verbose=None)
-        #print(norm_a.shape)
-        return norm_a[0]
 
     def action(self, state, alphas, train=True):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
         if self.buffer.size() < np.max([self.batch_size, self.warmup_size]):
             sampled_action = self.env.action_space.sample()
-            # print(type(sampled_action))
-            # print((sampled_action.shape))
-
-            #sampled_action = self.genai_cebaf_samples[self.buffer.size()]
-            # noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-            #                           stddev=self.actor_model.action_scale * self.action_noise,
-            #                           dtype=tf.float32)).numpy()
-            # sampled_action = np.clip(sampled_action + noise, self.lower_bound, self.upper_bound)
-            # print(type(sampled_action))
-            # print((sampled_action.shape))
-            # sys.exit()
-            #td3_log.debug(f'default sampled_action: {(sampled_action)}')
-            # td3_log.debug(f'default sampled_action: {(sampled_action.shape)}')
-            # td3_log.debug(f'default sampled_action: {type(sampled_action)}')
-            # print(f'Env name: {(self.env.__str__).__name__}')
-            # sys.exit()
-            # sampled_action = self.env.action_space.sample()
-            # if 'mo_cebaf_env' in self.env.__str__:
-            #sampled_action = self.cebaf_sampling()
-
-            #self.num_actions)
-            #td3_log.debug(f'sampled_action: {(sampled_action)}')
-            # td3_log.debug(f'sampled_action: {(sampled_action.shape)}')
-            #td3_log.debug(f'sampled_action: {type(sampled_action)}')
-            #td3_log.debug(f'state: {(state)}')
-            #sampled_action = state+np.random.normal(0, 1, self.num_actions)
             noise = np.zeros(self.num_actions)
-            #sys.exit()
         # Warmup completed, sample from actor
         else:
-            #sys.exit()
             state = tf.cast(tf.expand_dims(state, 0), tf.float32)
             alphas = tf.cast(tf.expand_dims(alphas, 0), tf.float32)
             sampled_action = self.actor_model(state, alphas).numpy()
             if train:
                 # Update the noise
                 if self.nactions % self.naction_for_noise_decay == 0:
-                    self.action_noise = self.action_noise * self.action_decay
+                    self.action_noise = self.action_noise * self.action_noise_decay
                     if self.action_noise < self.action_noise_min:
                         self.action_noise = self.init_action_noise
                     td3_log.info(f'-> Updating action noise is {self.action_noise}')
-                # noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                #          stddev=self.actor_model.action_scale * self.action_noise, dtype=tf.float32)).numpy()
-                noise = circle_rdm_samples(self.num_actions, nsamples=1, std_min=1, r_norm=self.action_noise)#self.actor_model.action_scale * self.action_noise)
-                #print(f'noise: {noise.shape}')
-                #noise = np.abs(np.sin(tf.random.uniform(shape=(self.num_actions,)).numpy() * 2))*self.actor_model.action_scale
+                noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
+                         stddev=self.actor_model.action_scale * self.action_noise, dtype=tf.float32)).numpy()
                 sampled_action = np.clip(sampled_action + noise, self.lower_bound, self.upper_bound)
             else:
                 noise = np.zeros(self.num_actions)
