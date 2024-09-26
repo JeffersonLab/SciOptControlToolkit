@@ -96,6 +96,9 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     elif 'PACES' in env_id:
         import paces.paces_envs as gym
         env = gym.make(env_id)
+    elif 'SCORE' in env_id:
+        import score.envs as gym
+        env = gym.make(env_id)
     else:
         import gymnasium as gym
         env = gym.make(env_id)

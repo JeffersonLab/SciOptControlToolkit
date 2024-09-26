@@ -193,7 +193,7 @@ class MO_KerasLCTD3(jlab_opt_control.Agent):
         #print(f'relative_error: {relative_error}')
         #sys.exit()
         #self.init_action_noise = float(cfg_utils.cfg_get(data, 'init_actor_noise', relative_error))
-        self.init_action_noise = relative_error/2.0
+        self.init_action_noise = relative_error/4
         self.action_noise = self.init_action_noise
         self.action_noise_min = float(cfg_utils.cfg_get(data, 'action_noise_min', 1e-5))
         self.action_noise_decay = float(cfg_utils.cfg_get(data, 'action_noise_decay', 0.95))

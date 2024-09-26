@@ -43,7 +43,7 @@ class MO_ActorFCNN(Model):
         # Actor Architecture
         #input_shape = (state_dim + reward_dim,) # No need to input state since it's always the same for CEBAF one step env
         #input_shape = (reward_dim,)
-        self.input_layer = layers.Dense(128)#, input_shape=input_shape)
+        self.input_layer = layers.Dense(128, activation='tanh')#, input_shape=input_shape)
         
         # Dynamic Actor Architecture
         self.hidden_layers = []

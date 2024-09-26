@@ -36,7 +36,6 @@ import sys
 import time
 from os.path import join
 
-import numpy as np
 import tensorflow as tf
 
 import jlab_opt_control as jlab_opt_control
@@ -50,6 +49,18 @@ td3_log = logging.getLogger("MO TD3-Agent")
 td3_log.setLevel(logging.ERROR)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
+# Create data circle
+import numpy as np
+def circle_rdm_samples(ndim=2, nsamples=100, std_min=1, r_norm=1):
+  vectors = []
+  ntrials = 0
+  while len(vectors)<(nsamples):
+    ntrials += 1
+    norm_dim = np.random.normal(0,std_min, ndim+2)
+    norm = np.sum(norm_dim*norm_dim)**(0.5)
+    vector = [norm_dim[i]/norm*r_norm for i in range(ndim)]
+    vectors.append(vector)
+  return np.array(vectors)
 
 class GenEnergy(tf.keras.Model):
     def __init__(self, **kwargs):
@@ -196,7 +207,8 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         self.nactions = 0
 
         # action noise parameters
-        self.init_action_noise = 1e-2
+        delta_e = 2*(self.env.max_energy-self.env.min_energy)/(self.env.max_energy+self.env.min_energy)
+        self.init_action_noise = delta_e# 1e-2
         self.action_noise = self.init_action_noise
         self.action_noise_min = 1e-6
         self.action_decay = 0.95
@@ -588,8 +600,10 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                     if self.action_noise < self.action_noise_min:
                         self.action_noise = self.init_action_noise
                     td3_log.info(f'-> Updating action noise is {self.action_noise}')
-                noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                         stddev=self.actor_model.action_scale * self.action_noise, dtype=tf.float32)).numpy()
+                # noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
+                #          stddev=self.actor_model.action_scale * self.action_noise, dtype=tf.float32)).numpy()
+                noise = circle_rdm_samples(self.num_actions, nsamples=1, std_min=1, r_norm=self.action_noise)#self.actor_model.action_scale * self.action_noise)
+                #print(f'noise: {noise.shape}')
                 #noise = np.abs(np.sin(tf.random.uniform(shape=(self.num_actions,)).numpy() * 2))*self.actor_model.action_scale
                 sampled_action = np.clip(sampled_action + noise, self.lower_bound, self.upper_bound)
             else:
@@ -610,8 +624,10 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 for i in range(self.num_actions):
                     tf.summary.scalar('Action #{}'.format(
                         i), data=sampled_action[i], step=int(self.nactions))
-
+                    tf.summary.scalar('Action noise#{}'.format(
+                        i), data=noise[i], step=int(self.nactions))
         # Insure action output by actor is in legal environment range
+        sampled_action = np.clip(sampled_action, self.lower_bound, self.upper_bound)
         return sampled_action, noise
 
     def memory(self, obs_tuple):
