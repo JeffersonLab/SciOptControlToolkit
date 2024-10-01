@@ -29,11 +29,11 @@
 import tensorflow as tf
 import numpy as np
 
-def find_pareto_front(solutions):
+def find_pareto_front(myArray):
     """
     """
-    if solutions.shape[0] == 0:
-        return solutions
+    if myArray.shape[0] == 0:
+        return myArray
     
     # Sort on first dimension (descending value) (weighted sum method using the sum of all elements)
     tempArray = -1*np.array([sum(x) for x in myArray])

@@ -30,6 +30,7 @@ import argparse
 import io
 import logging
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = "-10"
 import warnings
 from datetime import datetime
 from pymoo.indicators.hv import Hypervolume 
@@ -54,10 +55,13 @@ run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
-seed = 1  # time.time_ns()
+seed = np.random.randint(0, 1000)
 tf.random.set_seed(seed)
 np.random.seed(seed)
 # run_openai_log.info(f'seeds {tf.random.}')
+
+import platform
+print(platform.processor())
 
 
 def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, ga_results_loc):
@@ -76,12 +80,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     else:
         buffer_size_log = str(buffer_size)
 
-    if logdir == 'None':
-        logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
-                 + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
-    else:
-        logdir = logdir + "/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_date_" \
-            + datetime.now().strftime("%Y%m%d-%H%M%S")
+    logdir = os.path.join(logdir, "trial_"+str(index))
 
     try:
         os.makedirs(logdir)
@@ -157,6 +156,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                          ideal=ideal,
                          nadir=ref)
     max_vol = (ref[0] - ideal[0]) * (ref[1] - ideal[1])
+    
     if ga_results_loc is not None:
         if '8D' in env_id:
             ga_results = np.load(os.path.join(ga_results_loc, "1L10_TEST8_nsga_II_results.npy"))
@@ -170,18 +170,18 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     else:
         ga_results = None
 
+    
     total_nsteps = 0
     inference_best_total_reward = 0.0
 
-    final_results = {"iteration": [], "heat": [], "trip": [], "alpha": [], "t_elapsed": []}
-    total_time = 0.
+    t_elapsed = 0.
+    step_time = 0.
     for ep in tqdm(range(1, max_nepisodes+1), desc='Index {} - Episodes'.format(index)):
         start_time = time.time()
-        # agent.train(ref, [env.min_energy, env.max_energy])
         agent.train()
-        #print(f'agent.batch_size: {agent.batch_size}')
         time_per_step = time.time() - start_time
-        total_time += time_per_step
+        t_elapsed += time_per_step
+        step_time += time_per_step
         total_nsteps += 1
 
         # Run inference test
@@ -197,7 +197,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             for step in range(max_nsteps):
                 inference_actions, inference_action_noise, inference_alphas = agent.action(states, alphas, train=False)
                 next_state, rewards, done, _, info = env.step(inference_actions)
-                heat, trip = info['heat'], info['trip']
+                heat, trip, energy = info['heat'], info['trip'], info['energy']
                 scan_trips = trip.numpy()
                 scan_heats = heat.numpy()
                 scan_alphas = inference_alphas.numpy()
@@ -206,12 +206,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 states = next_state
                 
             
-            energy = np.sum(env.denormalize_state(states.numpy()) * env.linac.lengths, axis=1)
+            energy = info['energy'].numpy()
             out_of_bound = np.where((energy < env.min_energy) | (energy > env.max_energy))[0]
             scan_heats = np.delete(scan_heats, out_of_bound, axis=0)
             scan_trips = np.delete(scan_trips, out_of_bound, axis=0)
             scan_alphas = np.delete(scan_alphas, out_of_bound, axis=0)
-             
+            scan_energy = np.delete(energy, out_of_bound, axis=0)
+            
             inference_total_reward = inference_total_reward/100
             run_openai_log.debug(f'inference_total_reward: {inference_total_reward} '
                                 f'and inference_best_total_reward: {inference_best_total_reward}')
@@ -232,11 +233,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             good_indices = np.where((rl_points[:, 0] <= ref[0]) & (rl_points[:, 1] <= ref[1]))[0]
             rl_points = rl_points[good_indices]
             trimmed_alphas = scan_alphas[good_indices]
+            trimmed_energy = scan_energy[good_indices]
 
             if len(rl_points) > 0:
                 uniform_indices = np.random.randint(0, rl_points.shape[0], size=512)
                 rl_points = rl_points[uniform_indices]
                 trimmed_alphas = trimmed_alphas[uniform_indices]
+                trimmed_energy = trimmed_energy[uniform_indices]
                 print(rl_points.shape)
 
                 rl_hv = np.round(hypervolume(rl_points, ref)*100/max_vol, 3)
@@ -278,13 +281,29 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 if rl_points.shape[0] <= 0:
                     rl_points = [[np.nan, np.nan]]
                     trimmed_alphas = [np.nan]
-
-                final_results["heat"].append(rl_points[:, 0])
-                final_results["trip"].append(rl_points[:, 1])
-                final_results["alpha"].append(trimmed_alphas)
-                final_results["t_elapsed"].append(total_time)
-                total_time = 0.
-                with open(logdir + f'/inference_results_steps{total_nsteps}.pkl', "wb") as f:
+                
+                final_results = {"heat":rl_points[:, 0],
+                                 "trip":rl_points[:, 1],
+                                 "alpha":trimmed_alphas,
+                                 "energy":trimmed_energy,
+                                 "t_elapsed":t_elapsed,
+                                "step_time": step_time
+                    }
+                step_time = 0.
+                
+                with open(os.path.join(logdir, 'inference_results_'+str(total_nsteps).zfill(6)+'.pkl'), "wb") as f:
+                    pickle.dump(final_results, f)
+            else:
+                final_results = {"heat":[],
+                                 "trip":[],
+                                 "alpha":[],
+                                 "energy":[],
+                                 "t_elapsed":t_elapsed,
+                                "step_time": step_time
+                    }
+                step_time = 0.
+                
+                with open(os.path.join(logdir, 'inference_results_'+str(total_nsteps).zfill(6)+'.pkl'), "wb") as f:
                     pickle.dump(final_results, f)
 
 
@@ -292,7 +311,7 @@ def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument( "--index", help="Index for tracking", type=int, default=0)
     parser.add_argument( "--nepisodes", help="Number of episodes", type=int, default=500000)
-    parser.add_argument("--nsteps", help="Number of steps",type=int, default=-1)
+    parser.add_argument("--nsteps", help="Number of steps",type=int, default=1)
     parser.add_argument("--bsize", help="Buffer size", type=int, default=None)
     parser.add_argument("--btype", help="Buffer Type", type=str, default=None)
     parser.add_argument("--agent", help="Agent used for RL",type=str, default='MO-KerasTD3-v0')
