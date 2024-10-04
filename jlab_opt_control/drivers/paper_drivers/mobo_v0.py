@@ -15,7 +15,7 @@ from xopt import Xopt, Evaluator, VOCS
 from xopt.generators.bayesian import MOBOGenerator
 
 
-def run(env_id, n_iterations, logdir, warmup_size, index):
+def run(env_id, n_iterations, logdir, warmup_size, index, init_path=None):
     result_dir = "trial_"+str(index) #"index_"+str(index)+"_MOBO_Linac_"+str(env_id)+"nsteps_"+str(n_iterations)
     logdir = os.path.join(logdir, result_dir)
     os.makedirs(logdir, exist_ok=True)
@@ -108,9 +108,16 @@ def run(env_id, n_iterations, logdir, warmup_size, index):
     
     evaluator = Evaluator(function=eval_cebaf)
     X = Xopt(generator=generator, evaluator=evaluator, vocs=vocs)
-    # X.generator.use_cuda = True
     X.generator.reference_point = {"heat":4904.5273, "trip":24}
-    X.random_evaluate(warmup_size)
+    # X.generator.use_cuda = True
+    if init_path is not None:
+        init_samples = np.load(init_path)
+        norm_samples = np.array([env.normalize_action(init_samples[i]) for i in range(len(init_samples))])
+        x_init = pd.DataFrame(norm_samples, columns=cavity_list)
+        X.evaluate_data(x_init)
+        print(X.data)
+    else:
+        X.random_evaluate(warmup_size)
     
     
     #will keep track of these globally once initialized here
@@ -174,6 +181,7 @@ if __name__ == "__main__":
     parser.add_argument("--logdir", help="Location of directory where results shoule be saved", type=str, default="./paper_results/mobo_8d")
     parser.add_argument("--warmup_size", help="Size of random initial warmup", type=int, default=9)
     parser.add_argument("--index", help="Index for result directory", type=int, default=101)
+    parser.add_argument("--init_points", help="Initialization point for warm start of MOBO", type=str, default=None)
     
     # Get input arguments and overwrite the configuration
     args = parser.parse_args()
@@ -183,5 +191,6 @@ if __name__ == "__main__":
     logdir = getattr(args, "logdir")
     warmup_size = getattr(args, "warmup_size")
     index = getattr(args, "index")
+    init_path = getattr(args, "init_points")
     
-    run(env_id, n_iterations, logdir, warmup_size, index)
+    run(env_id, n_iterations, logdir, warmup_size, index, init_path)
