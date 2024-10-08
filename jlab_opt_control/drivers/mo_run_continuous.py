@@ -49,7 +49,7 @@ run_openai_log = logging.getLogger("RunOpenAI")
 run_openai_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
-seed = 1  # time.time_ns()
+seed = np.random.randint(1, 1000)
 tf.random.set_seed(seed)
 np.random.seed(seed)
 # run_openai_log.info(f'seeds {tf.random.}')
