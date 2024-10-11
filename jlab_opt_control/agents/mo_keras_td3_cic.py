@@ -210,12 +210,20 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
 
         # Projections Layer
         import score.envs as gym
-        env_id = 'SCORE-MO-CEBAF-8D-VEC-TF'
-        if self.num_actions==197:
+        if self.num_actions==8:
+            env_id = 'SCORE-MO-CEBAF-8D-VEC-TF'
+        elif self.num_actions == 16:
+            env_id = 'SCORE-MO-CEBAF-16D-VEC-TF'
+        elif self.num_actions == 32:
+            env_id = 'SCORE-MO-CEBAF-32D-VEC-TF'
+        elif self.num_actions==197:
             env_id = 'SCORE-MO-CEBAF-N-VEC-TF-v0'
+        else:
+            td3_log.error('Invalid CEBAF env')
+            sys.exit()
         td3_log.info(f'Using env: {env_id}')
         self.gc_env = gym.make(env_id)
-        x4sampler = tf.random.uniform(shape=(10000, self.num_actions), minval=-1, maxval=1)
+        x4sampler = tf.random.uniform(shape=(100000, self.num_actions), minval=-1, maxval=1)
         a = env.denormalize_action(x4sampler)
         true_energies = self.gc_env.get_energy(a)[:, 0]
         true_trip = self.gc_env.linac.getTripRates(gradients=a)
@@ -230,10 +238,9 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
         plt.savefig(logdir+'/default_sampler.png')
 
         # Train
-        self.projection_layer = CEBAFImplicitConstraintLayer(env=self.gc_env, max_iter=1000)
-        a4sampler = tf.random.uniform(shape=(10000, self.num_rewards), minval=0, maxval=1)
-
-        a_norm = self.projection_layer(x4sampler,a4sampler, train=True)
+        #self.projection_layer = CEBAFImplicitConstraintLayer(env=self.gc_env, max_iter=1000, trip_high=5, heat_high=2450)
+        self.projection_layer = CEBAFImplicitConstraintLayer(env=self.gc_env, max_iter=1000, trip_high=0.45, heat_high=22)
+        a_norm = self.projection_layer(x4sampler, train=True)
         a = env.denormalize_action(a_norm)
         pred_energies = self.gc_env.get_energy(a)[:, 0]
         pred_trip = self.gc_env.linac.getTripRates(gradients=a)
@@ -357,9 +364,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
         # Use Critic 1
         with tf.GradientTape() as tape:
             actions = self.actor_model(states, alphas, training=True)
-            #print(f'actions {actions.shape}')
-            actions = self.projection_layer(actions, alphas)
-            #print(f'actions {actions.shape}')
+            actions = self.projection_layer(actions, train=True)
 
             q_values1 = self.critic_model1(states, actions, training=False)
             q_values2 = self.critic_model2(states, actions, training=False)
@@ -444,14 +449,9 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
                 tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
                 tf.summary.scalar('Cosine Loss', data=cosine_loss, step=int(self.ntrain_calls))
                 #
-                _ = self.projection_layer(self.actor_model(state_batch, alpha_batch), alpha_batch, train=True)
+                #_ = self.projection_layer(self.actor_model(state_batch, alpha_batch), train=True)
                 tf.summary.scalar('Projection Loss', data=self.projection_layer.err, step=int(self.ntrain_calls))
-
-                # if self.buffer.size() % 2*self.batch_size == 0:
-                #     states, _, _, _, _, _, alphas = self.buffer.sample(self.batch_size)
-                #     state_batch = tf.convert_to_tensor(states, dtype=tf.float32)
-                #     alpha_batch = tf.convert_to_tensor(alphas, dtype=tf.float32)
-                #     self.plot_sampler(a_norm)
+                self.plot_sampler(alpha_batch)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
                     self.soft_update(self.target_actor.variables, self.actor_model.variables)
@@ -469,9 +469,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
         if self.buffer.size() < np.max([self.batch_size, self.warmup_size]):
             sampled_action = self.env.action_space.sample()
             #print(f'sampled_action {sampled_action.shape}')
-            sampled_action = self.projection_layer( tf.expand_dims(sampled_action, 0),
-                                                    tf.cast(tf.expand_dims(alphas, 0), tf.float32),
-                                                    train=False).numpy()
+            sampled_action = self.projection_layer(tf.expand_dims(sampled_action, 0), train=False).numpy()
             #print(f'sampled_action {sampled_action.shape}')
             sampled_action = sampled_action.flatten()
             #print(f'sampled_action {sampled_action.shape}')
@@ -491,7 +489,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
             state = tf.cast(tf.expand_dims(state, 0), tf.float32)
             alphas = tf.cast(tf.expand_dims(alphas, 0), tf.float32)
             sampled_action = self.actor_model(state, alphas)
-            sampled_action = self.projection_layer(sampled_action, alphas).numpy()
+            sampled_action = self.projection_layer(sampled_action).numpy()
             if train:
                 # Update the noise
                 if self.nactions % self.naction_for_noise_decay == 0:
