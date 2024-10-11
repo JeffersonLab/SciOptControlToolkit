@@ -254,15 +254,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                         tf.convert_to_tensor(inference_alphas[s]), train=False)
                     inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = \
                         env.step(inference_action)
-                    if inference_terminate==False:
-                        scan_trips.append(inference_info['trip'])
-                        scan_heats.append(inference_info['heat'])
-                        scan_alphas.append(inference_alphas[s, 0])
+                    #if inference_terminate==False:
+                    scan_trips.append(inference_info['trip'])
+                    scan_heats.append(inference_info['heat'])
+                    scan_alphas.append(inference_alphas[s, 0])
                     inference_prev_state = inference_state
                     inference_done = (inference_terminate or inference_truncate)
 
             rl_points = np.stack([scan_heats, scan_trips], axis=1)
-            good_indices = np.where((rl_points[:, 0] <= ref[0]) & (rl_points[:, 1] <= ref[1]))[0]
+            #good_indices = np.where((rl_points[:, 0] <= ref[0]) & (rl_points[:, 1] <= ref[1]))[0]
+            good_indices = np.arange(rl_points.shape[0])
             print(f'Number of valid scans: {len(good_indices)}')
             #print(f'Number of valid scans: {(good_indices)}')
             scan_alphas = np.array(scan_alphas)
