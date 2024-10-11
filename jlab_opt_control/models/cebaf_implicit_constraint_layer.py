@@ -31,13 +31,15 @@ class CEBAFImplicitConstraintLayer(tf.keras.layers.Layer):
                     pred_energies = self.env.get_energy(pred_actions)[:, 0]
                     pred_trip = self.env.linac.getTripRates(gradients=pred_actions)
                     pred_heat = self.env.linac.getRFHeat(gradients=pred_actions)
-                    self.err_min = tf.keras.activations.relu(self.env.min_energy - pred_energies)
+                    self.err_min = 5.0*tf.keras.activations.relu(self.env.min_energy - pred_energies)
                     self.err_max = tf.keras.activations.relu(pred_energies - self.env.max_energy)
                     self.err_trip = (pred_trip - self.trip_high)/self.trip_high
                     self.err_heat = (pred_heat - self.heat_high)/self.heat_high
+                    distance = tf.keras.losses.CosineSimilarity()(safe_x,safe_x)
                     #self.err_trip = tf.keras.activations.relu(pred_trip - self.trip_high)/self.trip_high
                     #self.err_heat = tf.keras.activations.relu(pred_heat - self.heat_high)/self.heat_high
-                    self.err = tf.reduce_mean(self.err_min + self.err_max + self.err_trip + self.err_heat)
+                    self.err = tf.reduce_mean(self.err_min + self.err_max + self.err_trip + self.err_heat )
+                    self.err -=distance
 
                 if self.err < self.tolerance:
                     break
