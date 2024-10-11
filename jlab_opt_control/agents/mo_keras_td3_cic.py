@@ -451,7 +451,8 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
                 #
                 #_ = self.projection_layer(self.actor_model(state_batch, alpha_batch), train=True)
                 tf.summary.scalar('Projection Loss', data=self.projection_layer.err, step=int(self.ntrain_calls))
-                self.plot_sampler(alpha_batch)
+                if self.buffer.size()%1000==0:
+                    self.plot_sampler(action_batch)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
                     self.soft_update(self.target_actor.variables, self.actor_model.variables)

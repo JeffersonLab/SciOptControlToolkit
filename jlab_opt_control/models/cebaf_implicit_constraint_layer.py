@@ -11,7 +11,7 @@ class CEBAFImplicitConstraintLayer(tf.keras.layers.Layer):
         self.tolerance = 0.05
         self.max_iter = max_iter
         self.iterations = 0
-        self.opt = tf.keras.optimizers.legacy.Adam(learning_rate=0.01)
+        self.opt = tf.keras.optimizers.legacy.Adam(learning_rate=0.005)
         self.trip_high = trip_high
         self.heat_high = heat_high
 
