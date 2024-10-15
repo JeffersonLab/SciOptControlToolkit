@@ -122,7 +122,7 @@ register(
 
 from jlab_opt_control.models.mo_actor_fcnn_cic import MO_ActorFCNN_CIC
 register(
-    id="mo_actor_fcnn-cic-v0",
+    id="mo_actor_fcnn_cic-v0",
     entry_point='jlab_opt_control.models:MO_ActorFCNN_CIC',
     kwargs={'cfg': 'actor_fcnn.cfg'}
 )

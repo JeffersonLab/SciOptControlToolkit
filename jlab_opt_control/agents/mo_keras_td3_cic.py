@@ -47,42 +47,13 @@ from jlab_opt_control.models.cebaf_implicit_constraint_layer import CEBAFImplici
 
 processor = platform.processor()
 
-td3_log = logging.getLogger("MO TD3-Agent")
+td3_log = logging.getLogger("MO_ActorFCNN_CIC Agent")
 td3_log.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
-
-class GenEnergy(tf.keras.Model):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        #        self.input_layer = tf.keras.Input(shape = (None, energies.shape[1]))
-        nactions = 197
-        self.hidden1 = tf.keras.layers.Dense(2 * nactions, activation='leaky_relu')
-        self.hidden2 = tf.keras.layers.Dense(4 * nactions, activation='leaky_relu')
-        self.hidden3 = tf.keras.layers.Dense(8 * nactions, activation='leaky_relu')
-        self.hidden4 = tf.keras.layers.Dense(4 * nactions, activation='leaky_relu')
-        self.hidden5 = tf.keras.layers.Dense(2 * nactions, activation='leaky_relu')
-        self.output_layer = tf.keras.layers.Dense(nactions, activation='tanh')
-
-        # self.action_scale = tf.constant((max_action - min_action) / 2, dtype=tf.float32)
-        # self.action_bias = tf.constant((max_action + min_action) / 2, dtype=tf.float32)
-
-    def call(self, inputs):
-        # x = self.input_layer(energy)
-        x, noise = inputs
-        x = tf.keras.layers.concatenate([x, noise])
-        x = self.hidden1(x)
-        x = self.hidden2(x)
-        x = self.hidden3(x)
-        x = self.hidden4(x)
-        x = self.hidden5(x)
-        x = self.output_layer(x)
-        return x
-
 class MO_KerasTD3CiC(jlab_opt_control.Agent):
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='mo_keras_td3_cic.json'):
+    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='mo_keras_td3_cic.cfg'):
         """ Define all key variables required for all agent """
 
         # Get env info
@@ -92,7 +63,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
         self.critic_model1 = None
         self.target_actor = None
         self.actor_model = None
-        td3_log.info('Running KerasMOTD3 __init__')
+        td3_log.info('Running MO_ActorFCNN_CIC __init__')
 
         # Environment setup
         self.env = env
@@ -120,9 +91,11 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
         self.pfn_json_file = os.path.join(full_path, cfg)
-        td3_log.debug(f'pfn_json_file:{self.pfn_json_file}')
+        td3_log.info(f'pfn_json_file:{self.pfn_json_file}')
         with open(self.pfn_json_file) as json_file:
             data = json.load(json_file)
+        #td3_log.info(f'Cfg info :{self.data}')
+
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
         self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
@@ -132,7 +105,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
         self.lr_decay_rate = cfg_utils.cfg_get(data, 'lr_decay_rate', 0.95)
 
         self.actor_model_type = cfg_utils.cfg_get(
-            data, 'actor_model', "mo_actor_fcnn-v0")
+            data, 'actor_model', "mo_actor_fcnn_cic-v0")
         self.critic_model_type = cfg_utils.cfg_get(
             data, 'critic_model', "mo_critic_fcnn-v0")
 
@@ -253,7 +226,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
         axs[1].scatter(pred_heat, pred_trip)
         plt.tight_layout()
         plt.savefig(logdir+'/implicit_sampler.png')
-        self.projection_layer.max_iter = 10
+        self.projection_layer.max_iter = 25
 
         #sys.exit()
 
@@ -276,6 +249,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
     def initialize_new_models(self):
         """ Initialize new models from scratch """
         td3_log.info('Running KerasTD3 initialize_new_models()')
+        td3_log.info(f'\t MOKerasTD3CiC {self.actor_model_type}')
 
         self.actor_model = jlab_opt_control.models.make(
             self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, reward_dim=self.num_rewards, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
@@ -364,8 +338,6 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
         # Use Critic 1
         with tf.GradientTape() as tape:
             actions = self.actor_model(states, alphas, training=True)
-            actions = self.projection_layer(actions, train=True)
-
             q_values1 = self.critic_model1(states, actions, training=False)
             q_values2 = self.critic_model2(states, actions, training=False)
             q_values = q_values1+q_values2
@@ -448,9 +420,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
                 tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
                 tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
                 tf.summary.scalar('Cosine Loss', data=cosine_loss, step=int(self.ntrain_calls))
-                #
-                #_ = self.projection_layer(self.actor_model(state_batch, alpha_batch), train=True)
-                tf.summary.scalar('Projection Loss', data=self.projection_layer.err, step=int(self.ntrain_calls))
+                tf.summary.scalar('Projection Loss', data=self.actor_model.err, step=int(self.ntrain_calls))
                 if self.buffer.size()%1000==0:
                     self.plot_sampler(action_batch)
 
@@ -489,8 +459,8 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
             #sys.exit()
             state = tf.cast(tf.expand_dims(state, 0), tf.float32)
             alphas = tf.cast(tf.expand_dims(alphas, 0), tf.float32)
-            sampled_action = self.actor_model(state, alphas)
-            sampled_action = self.projection_layer(sampled_action).numpy()
+            sampled_action = self.actor_model(state, alphas).numpy()
+            #sampled_action = self.projection_layer(sampled_action).numpy()
             if train:
                 # Update the noise
                 if self.nactions % self.naction_for_noise_decay == 0:
