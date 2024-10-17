@@ -132,12 +132,13 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
 
     agent.save_cfg()
     agent.save("init")
+    ref = [env.linac.max_allowed_heat, env.linac.max_allowed_trip]
 
     ga_results_loc = '../notebooks'
     if ga_results_loc is not None:
         if '8D' in env_id:
             ga_results = np.load(os.path.join(ga_results_loc, "1L10_TEST8_nsga_II_results.npy"))
-            ref = [22.0, 0.04]
+            #ref = [22.0, 0.04]
             # ideal = [20.0, 0.01]
             # metric = Hypervolume(ref_point= ref,
             #              norm_ref_point=False,
@@ -152,7 +153,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results.npy"))
             #ga_results = np.load(os.path.join(ga_results_loc, "NORTH_nsga_II_results_045000.npy"))
             #ref = [2530.0, 6.0]
-            ref = [3000.0, 20.0]
+            #ref = [3000.0, 20.0]
             metric = Hypervolume(ref_point=ref)
             # ideal = [2380.0, 1.0]
             # metric = Hypervolume(ref_point= ref,

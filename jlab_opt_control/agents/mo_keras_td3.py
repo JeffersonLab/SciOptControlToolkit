@@ -354,6 +354,7 @@ class MO_KerasTD3(jlab_opt_control.Agent):
 
         gradients = tape.gradient(
             critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
+        gradients = [(tf.clip_by_value(grad, clip_value_min=-1.0, clip_value_max=1.0)) for grad in gradients]
         self.critic_optimizer.apply_gradients(zip(
             gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
 
@@ -375,9 +376,11 @@ class MO_KerasTD3(jlab_opt_control.Agent):
             cosine_loss = self.cosine_loss(q_values, alphas)
             loss = q_loss
 
-        gradient = tape.gradient(loss, self.actor_model.trainable_variables)
+        gradients = tape.gradient(loss, self.actor_model.trainable_variables)
+        gradients = [(tf.clip_by_value(grad, clip_value_min=-1.0, clip_value_max=1.0)) for grad in gradients]
+
         self.actor_optimizer.apply_gradients(
-            zip(gradient, self.actor_model.trainable_variables))
+            zip(gradients, self.actor_model.trainable_variables))
 
         return loss, q_loss, cosine_loss
 

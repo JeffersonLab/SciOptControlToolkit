@@ -89,21 +89,18 @@ from jlab_opt_control.models.mo_actor_fcnn import MO_ActorFCNN
 register(
     id="mo_actor_fcnn-v0",
     entry_point='jlab_opt_control.models:MO_ActorFCNN',
-    kwargs={'cfg': 'actor_fcnn.cfg'}
 )
 
 from jlab_opt_control.models.mo_actor_fcnn_v2 import MO_ActorFCNN_v2
 register(
     id="mo_actor_fcnn-v2",
     entry_point='jlab_opt_control.models:MO_ActorFCNN_v2',
-    kwargs={'cfg': 'actor_fcnn.cfg'}
 )
 
 from jlab_opt_control.models.mo_critic_fcnn import MO_CriticFCNN
 register(
     id="mo_critic_fcnn-v0",
     entry_point='jlab_opt_control.models:MO_CriticFCNN',
-    kwargs={'cfg': 'critic_fcnn.cfg'}
 )
 
 from jlab_opt_control.models.mo_stateless_actor_fcnn import MO_StatelessActorFCNN
@@ -117,12 +114,17 @@ register(
 register(
     id="mo_stateless_critic_fcnn-v0",
     entry_point='jlab_opt_control.models:MO_StatelessCriticFCNN',
-    kwargs={'cfg': 'critic_fcnn.cfg'}
 )
 
 from jlab_opt_control.models.mo_actor_fcnn_cic import MO_ActorFCNN_CIC
 register(
     id="mo_actor_fcnn_cic-v0",
     entry_point='jlab_opt_control.models:MO_ActorFCNN_CIC',
-    kwargs={'cfg': 'actor_fcnn.cfg'}
+)
+
+from jlab_opt_control.models.mo_critic_resnet import MO_Critic_Resnet
+register(
+    id="mo_critic_resnet-v0",
+    entry_point='jlab_opt_control.models:MO_Critic_Resnet',
+    kwargs={'cfg': 'mo_critic_resnet.cfg'}
 )

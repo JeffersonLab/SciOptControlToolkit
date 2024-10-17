@@ -196,7 +196,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
             sys.exit()
         td3_log.info(f'Using env: {env_id}')
         self.gc_env = gym.make(env_id)
-        x4sampler = tf.random.uniform(shape=(100000, self.num_actions), minval=-1, maxval=1)
+        x4sampler = tf.random.uniform(shape=(1000, self.num_actions), minval=-1, maxval=1)
         a = env.denormalize_action(x4sampler)
         true_energies = self.gc_env.get_energy(a)[:, 0]
         true_trip = self.gc_env.linac.getTripRates(gradients=a)
@@ -212,7 +212,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
 
         # Train
         #self.projection_layer = CEBAFImplicitConstraintLayer(env=self.gc_env, max_iter=1000, trip_high=5, heat_high=2450)
-        self.projection_layer = CEBAFImplicitConstraintLayer(env=self.gc_env, max_iter=1000, trip_high=0.45, heat_high=22)
+        self.projection_layer = CEBAFImplicitConstraintLayer(env=self.gc_env, max_iter=100)
         a_norm = self.projection_layer(x4sampler, train=True)
         a = env.denormalize_action(a_norm)
         pred_energies = self.gc_env.get_energy(a)[:, 0]
@@ -237,10 +237,14 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
         pred_heat = self.gc_env.linac.getRFHeat(gradients=a)
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(2)
-        _ = axs[0].hist(pred_energies, bins=100, color='black', alpha=0.75, density=True, label='OpenAI Gym Sampler')
+        _ = axs[0].hist(pred_energies, bins=100, color='black', alpha=0.75, density=True)
         axs[0].axvline(x=self.gc_env.max_energy, linewidth=2, color='r')
         axs[0].axvline(x=self.gc_env.min_energy, linewidth=2, color='r')
-        axs[1].scatter(pred_heat, pred_trip)
+        im = axs[1].scatter(pred_heat, pred_trip, c=pred_energies)
+        axs[1].set_xlabel('Heat Load [W]')
+        axs[1].set_ylabel('Trip Rate [per hour]');
+        plt.colorbar(im, ax=axs[1])
+        #fig.colorbar()
         plt.tight_layout()
         plt.savefig(self.logdir+f'/active_implicit_sampler_{self.ntrain_calls}.png')
 
@@ -325,6 +329,7 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
 
         gradients = tape.gradient(
             critic_losses, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables)
+        gradients = [(tf.clip_by_value(grad, clip_value_min=-1.0, clip_value_max=1.0)) for grad in gradients]
         self.critic_optimizer.apply_gradients(zip(
             gradients, self.critic_model1.trainable_variables + self.critic_model2.trainable_variables))
 
@@ -346,9 +351,11 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
             cosine_loss = self.cosine_loss(q_values, alphas)
             loss = q_loss
 
-        gradient = tape.gradient(loss, self.actor_model.trainable_variables)
+        gradients = tape.gradient(loss, self.actor_model.trainable_variables)
+        gradients = [(tf.clip_by_value(grad, clip_value_min=-1.0, clip_value_max=1.0)) for grad in gradients]
+
         self.actor_optimizer.apply_gradients(
-            zip(gradient, self.actor_model.trainable_variables))
+            zip(gradients, self.actor_model.trainable_variables))
 
         return loss, q_loss, cosine_loss
 
@@ -420,7 +427,8 @@ class MO_KerasTD3CiC(jlab_opt_control.Agent):
                 tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
                 tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
                 tf.summary.scalar('Cosine Loss', data=cosine_loss, step=int(self.ntrain_calls))
-                tf.summary.scalar('Projection Loss', data=self.actor_model.err, step=int(self.ntrain_calls))
+                if 'cic' in self.actor_model_type:
+                    tf.summary.scalar('Projection Loss', data=self.actor_model.err, step=int(self.ntrain_calls))
                 if self.buffer.size()%1000==0:
                     self.plot_sampler(action_batch)
 

@@ -27,9 +27,9 @@ class MO_ActorFCNN(Model):
         with open(self.pfn_json_file, 'r') as f:
             cfg_data = json.load(f)
             
-        hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
-        nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
-        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers)  # Defaults
+        hidden_layers = cfg_data.get('hidden_layers', 5)  # Default to 2 if not specified
+        nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256, 256, 256, 256])  # Default
+        activation_functions = cfg_data.get('activation_functions', ["leaky_relu"] * hidden_layers)  # Defaults
 
         initializer = tf.keras.initializers.TruncatedNormal(mean=0., stddev=0.66)
         self.logdir = logdir

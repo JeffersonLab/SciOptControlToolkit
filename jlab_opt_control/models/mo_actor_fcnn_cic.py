@@ -34,6 +34,8 @@ class MO_ActorFCNN_CIC(Model):
 
         act_log.info(f'Using env: {env_id}')
         self.gc_env = gym.make(env_id)
+        self.trip_high = self.gc_env.linac.max_allowed_trip
+        self.heat_high = self.gc_env.linac.max_allowed_heat
 
         # Load configuration
         absolute_path = os.path.dirname(__file__)
@@ -83,8 +85,6 @@ class MO_ActorFCNN_CIC(Model):
 
         self.err = 99999
         self.tolerance = 1e-2
-        self.trip_high = 0.50
-        self.heat_high = 22.0
 
     def call(self, state, alphas, training=False):
         # Ideally need to concat state with alpha but for CEBAF, init state is always same
@@ -104,19 +104,21 @@ class MO_ActorFCNN_CIC(Model):
                     safe_a = tf.clip_by_value(safe_a, -1, 1)
                     pred_actions = self.gc_env.denormalize_action(safe_a)
                     pred_energies = self.gc_env.get_energy(pred_actions)[:, 0]
+                    self.err_min = 10.0 * tf.keras.activations.relu(self.gc_env.min_energy - pred_energies)/self.gc_env.min_energy
+                    self.err_max = 10.0 * tf.keras.activations.relu(pred_energies - self.gc_env.max_energy)/self.gc_env.max_energy
                     # pred_trip = self.gc_env.linac.getTripRates(gradients=pred_actions)
                     # pred_heat = self.gc_env.linac.getRFHeat(gradients=pred_actions)
-                    self.err_min = 10.0 * tf.keras.activations.relu(self.gc_env.min_energy - pred_energies)
-                    self.err_max = 10.0 * tf.keras.activations.relu(pred_energies - self.gc_env.max_energy)
-                    #self.err_trip = (pred_trip - self.trip_high) / self.trip_high * alphas[:,0]
-                    #self.err_heat = (pred_heat - self.heat_high) / self.heat_high * alphas[:,0]
-                    distance = tf.keras.losses.CosineSimilarity()(safe_a,safe_a)
-                    self.err = tf.reduce_mean(self.err_min + self.err_max)# + self.err_trip + self.err_heat )
-                    self.err += distance
+                    # self.err_trip = (pred_trip - self.trip_high) / self.trip_high
+                    # self.err_heat = (pred_heat - self.heat_high) / self.heat_high
+                    self.err = tf.reduce_mean(self.err_min + self.err_max ) #+ self.err_trip + self.err_heat )
+                    # distance = tf.keras.losses.CosineSimilarity()(safe_a, safe_a)
+                    # self.err -= distance
                     if self.err < self.tolerance:
                         break
                 # Update gradient
                 gradients = tape.gradient(self.err, self.projection.trainable_variables)
+                gradients = [(tf.clip_by_value(grad, clip_value_min=-1.0, clip_value_max=1.0)) for grad in gradients]
+
                 self.opt.apply_gradients(zip(gradients, self.projection.trainable_variables))
         else:
             concatenated_input = tf.concat([state, alphas], axis=1)
