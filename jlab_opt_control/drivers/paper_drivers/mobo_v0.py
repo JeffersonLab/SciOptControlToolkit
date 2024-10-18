@@ -8,6 +8,7 @@ import time
 import argparse
 import os
 import pickle
+import sys
 
 # Internal imports
 import score.envs as envs
@@ -15,7 +16,7 @@ from xopt import Xopt, Evaluator, VOCS
 from xopt.generators.bayesian import MOBOGenerator
 
 
-def run(env_id, n_iterations, logdir, warmup_size, index, init_path=None):
+def run(env_id, n_iterations, logdir, warmup_size, index, init_path=None, turbo=False):
     result_dir = "trial_"+str(index) #"index_"+str(index)+"_MOBO_Linac_"+str(env_id)+"nsteps_"+str(n_iterations)
     logdir = os.path.join(logdir, result_dir)
     os.makedirs(logdir, exist_ok=True)
@@ -35,7 +36,7 @@ def run(env_id, n_iterations, logdir, warmup_size, index, init_path=None):
                                             action_dict["1L10-6"],
                                             action_dict["1L10-7"],
                                             action_dict["1L10-8"]]).flatten()
-        elif "-N-" in env_id:
+        else:
             action = np.array(list(action_dict.values())).flatten()
 
         inf_next_state, inf_reward, inf_terminate, inf_truncate, inf_info = env.step(action)     
@@ -82,6 +83,14 @@ def run(env_id, n_iterations, logdir, warmup_size, index, init_path=None):
                          '1L24-4' , '1L24-5', '1L24-6', '1L24-7', '1L24-8', '1L25-1','1L25-2', '1L25-3',
                          '1L25-4' , '1L25-5', '1L25-6', '1L25-7', '1L25-8', '1L26-1','1L26-2', '1L26-3',
                          '1L26-4' , '1L26-5', '1L26-6', '1L26-7', '1L26-8']
+    elif "-16D-" in env_id:
+        cavity_list = ['1L10-1' , '1L10-2', '1L10-3', '1L10-4', '1L10-5', '1L10-6','1L10-7', '1L10-8',
+                         '1L11-1' , '1L11-2', '1L11-3', '1L11-4', '1L11-5', '1L11-6','1L11-7', '1L11-8']
+    elif "-32D-" in env_id:
+        cavity_list = ['1L10-1' , '1L10-2', '1L10-3', '1L10-4', '1L10-5', '1L10-6','1L10-7', '1L10-8',
+                        '1L11-1' , '1L11-2', '1L11-3', '1L11-4', '1L11-5', '1L11-6','1L11-7', '1L11-8',
+                        '1L12-1' , '1L12-2', '1L12-3', '1L12-4', '1L12-5', '1L12-6','1L12-7', '1L12-8',
+                        '1L13-1' , '1L13-2', '1L13-3', '1L13-4', '1L13-5', '1L13-6','1L13-7', '1L13-8']
     else:
         print("Environment is not identified, exiting the program...")
         sys.exit(0)
@@ -95,20 +104,23 @@ def run(env_id, n_iterations, logdir, warmup_size, index, init_path=None):
         objectives = {"heat": "MINIMIZE",
                         "trip": "MINIMIZE"},
                 
-        constraints = {"heat": ["LESS_THAN",  env.linac.max_allowed_heat],
-                    "trip": ["LESS_THAN",  env.linac.max_allowed_trip],
+        constraints = {"heat": ["LESS_THAN",  env.linac.max_heat],
+                    "trip": ["LESS_THAN",  env.linac.max_trip_rate],
                     "energy":["LESS_THAN", env.max_energy],
                     "energy1":["GREATER_THAN", env.min_energy]
                     }
     )
     # Set up Xopt
-    generator = MOBOGenerator(vocs=vocs, reference_point = {"heat":env.linac.max_allowed_heat, "trip":env.linac.max_allowed_trip},use_pf_as_initial_points=False)
+    if turbo:
+        generator = MOBOGenerator(vocs=vocs, reference_point = {"heat":env.linac.max_heat, "trip":env.linac.max_trip_rate},use_pf_as_initial_points=True, turbo_controller="optimize")
+    else:
+        generator = MOBOGenerator(vocs=vocs, reference_point = {"heat":env.linac.max_allowed_heat, "trip":env.linac.max_allowed_trip}, use_pf_as_initial_points=False)
     generator.n_monte_carlo_samples = 240
     generator.numerical_optimizer.n_restarts = 60
     
     evaluator = Evaluator(function=eval_cebaf)
     X = Xopt(generator=generator, evaluator=evaluator, vocs=vocs)
-    X.generator.reference_point = {"heat":4904.5273, "trip":24}
+    X.generator.reference_point = {"heat":env.linac.max_heat, "trip":env.linac.max_trip_rate}
     # X.generator.use_cuda = True
     if init_path is not None:
         init_samples = np.load(init_path)
@@ -123,8 +135,17 @@ def run(env_id, n_iterations, logdir, warmup_size, index, init_path=None):
     #will keep track of these globally once initialized here
     t_elapsed_list = []
     
-    X.generator.use_pf_as_initial_points = False
-    pf= False
+    X.generator.use_pf_as_initial_points = True
+    pf = False
+    if turbo:
+        X.generator.turbo_controller = "optimize"
+        X.generator.train_model()
+        X.generator.turbo_controller.update_state(X.generator)
+        X.generator.turbo_controller.get_trust_region(X.generator)
+        X.generator.turbo_controller.success_tolerance =3
+        X.generator.turbo_controller.failure_tolerance =10
+        X.generator.turbo_controller.length = 1
+        
     t_elapsed = 0.
     for i in range(warmup_size, n_iterations+warmup_size):
         
@@ -182,6 +203,7 @@ if __name__ == "__main__":
     parser.add_argument("--warmup_size", help="Size of random initial warmup", type=int, default=9)
     parser.add_argument("--index", help="Index for result directory", type=int, default=101)
     parser.add_argument("--init_points", help="Initialization point for warm start of MOBO", type=str, default=None)
+    parser.add_argument("--turbo", help="On/Off for turbo mode; uses turbe=optimize", action='store_true')
     
     # Get input arguments and overwrite the configuration
     args = parser.parse_args()
@@ -192,5 +214,6 @@ if __name__ == "__main__":
     warmup_size = getattr(args, "warmup_size")
     index = getattr(args, "index")
     init_path = getattr(args, "init_points")
+    turbo = getattr(args, "turbo")
     
-    run(env_id, n_iterations, logdir, warmup_size, index, init_path)
+    run(env_id, n_iterations, logdir, warmup_size, index, init_path, turbo)
