@@ -22,7 +22,7 @@ def run(env_id, n_iterations, result_loc, pop_size, index, save_interval=100):
     if "-N-" in env_id:
         lem_prob = MOGA(c_dim=3, c_ineq_dim=3, env=env, heat_max=4000., trip_max=3000.)
     else:
-        lem_prob = MOGA(c_dim=3, c_ineq_dim=3, env=env, heat_max=heat_max, trip_max=trip_max)
+        lem_prob = MOGA(c_dim=3, c_ineq_dim=3, env=env, heat_max=4000, trip_max=3000)
     prob = problem(lem_prob)
     
     print('orignal problem:')
