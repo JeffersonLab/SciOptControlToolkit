@@ -41,9 +41,8 @@ import warnings
 import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
-import gym
-import pybulletgym
-from gym.wrappers import FlattenObservation, FrameStack, RescaleAction, TimeLimit
+import gymnasium as gym
+from gymnasium.wrappers import FlattenObservation, FrameStack, RescaleAction, TimeLimit
 
 # Local Application/Library Specific Imports
 import jlab_opt_control.agents
@@ -319,7 +318,7 @@ def run_episode(env, agent, train=True, max_steps=-1):
         Tuple[float, int]: A tuple containing the total episodic reward and the number of steps taken.
     """
     
-    state = env.reset()
+    state, _ = env.reset()
     episodic_reward = 0
     done = False
     steps = 0
@@ -362,7 +361,7 @@ def run_episode(env, agent, train=True, max_steps=-1):
             # run_openai_log.info(f"Agent training took {train_end_time - train_start_time:.4f} seconds")
 
         state = next_state
-        run_openai_log.info(f"Step {steps} with done signal showing: {done}")
+        # run_openai_log.info(f"Step {steps} with done signal showing: {done}")
         steps += 1
 
     return episodic_reward, steps
