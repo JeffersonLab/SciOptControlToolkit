@@ -31,15 +31,19 @@ import argparse
 import logging
 import os
 import time
+import math
+import psutil
 from datetime import datetime
+from collections import deque
 import warnings
 
 # Third-Party Imports
 import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
-import gymnasium as gym
-from gymnasium.wrappers import FlattenObservation, FrameStack, RescaleAction, TimeLimit
+import gym
+import pybulletgym
+from gym.wrappers import FlattenObservation, FrameStack, RescaleAction, TimeLimit
 
 # Local Application/Library Specific Imports
 import jlab_opt_control.agents
@@ -63,59 +67,118 @@ except ImportError:
 seed = time.time_ns() % np.power(2, 32)  # Numpy seed must be between 0 and 2^32 - 1
 tf.random.set_seed(seed)
 np.random.seed(seed)
-# run_openai_log.info(f'seeds {tf.random.}')
 
+def log_memory_usage():
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    run_openai_log.info(f"Memory usage: {mem_info.rss / 1024 / 1024:.2f} MB")
 
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold):
+def generate_logdir(index, env_id, agent_id, use_env_subdir=False):
+    """Generate a log directory path based on the given parameters.
+    
+    Args:
+        index (int): Index for tracking multiple runs.
+        env_id (str): Identifier for the environment.
+        agent_id (str): Identifier for the agent.
+        use_env_subdir (bool, optional): Whether to use environment as a subdirectory. Defaults to False.
+    
+    Returns:
+        str: The generated log directory path.
+    """
+
     githash = get_git_revision_short_hash()
-    run_openai_log.debug(githash)
-    run_openai_log.debug(logdir)
+    run_openai_log.debug(f"Git Hash: {githash}")
 
-    # Checks for buffer logging information, will default to config if not set in command line
-    if buffer_type is None:
-        buffer_type_log = "cfg"
+    # Format timestamp
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    # Construct the folder name
+    folder_name = f"env_{env_id}_agent_{agent_id}_hash_{githash}_time_{timestamp}"
+
+    # Add index to the beginning of the folder name
+    folder_name = f"index{index:03d}_{folder_name}"
+
+    # Construct the full path
+    if use_env_subdir:
+        logdir = os.path.join("./results", env_id, folder_name)
     else:
-        buffer_type_log = str(buffer_type)
+        logdir = os.path.join("./results", folder_name)
 
-    if buffer_size is None:
-        buffer_size_log = "cfg"
+    run_openai_log.debug(f"Generated logdir: {logdir}")
+
+    return logdir
+
+def create_and_configure_env(env_id, difficulty=None, max_nsteps=0):
+    """Create and configure an environment based on the given environment ID.
+    
+    Args:
+        env_id (str): Identifier for the environment to create.
+        difficulty (float, optional): Difficulty level for curriculum learning. Defaults to None.
+        max_nsteps (int, optional): Maximum number of steps per episode. Defaults to 0.
+    
+    Returns:
+        gym.Env: The created and configured environment.
+    
+    Raises:
+        ValueError: If the environment is not found in any registered modules.
+    """
+
+    run_openai_log.info(f'Creating environment: {env_id}')
+
+    env_creators = {
+        'gym': (gym.envs.registry, gym.make),
+        'custom': (custom_gym.list_registered_modules(), custom_gym.make),
+        'paces': (paces_gym.list_registered_modules() if 'paces_gym' in globals() else set(), paces_gym.make if 'paces_gym' in globals() else None)
+    }
+
+    for env_type, (registry, make_func) in env_creators.items():
+        if env_id in registry:
+            env = make_func(env_id)
+            run_openai_log.info(f'Created {env_type} environment: {env_id}')
+            break
     else:
-        buffer_size_log = str(buffer_size)
+        raise ValueError(f'Environment {env_id} not found in any registered modules')
 
+    return env
+
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold, use_env_subdir=False, inference_interval=10):
+    """Run the optimization process for reinforcement learning.
+    
+    Args:
+        index (int): Index for tracking multiple runs or ran.
+        max_nepisodes (int): Maximum number of episodes to run.
+        max_nsteps (int): Maximum number of steps per episode.
+        agent_id (str): Identifier for the agent to use.
+        env_id (str): Identifier for the environment to use.
+        logdir (str): Directory to save logs and results.
+        buffer_type (str): Type of replay buffer to use.
+        buffer_size (int): Size of the replay buffer.
+        inference_flag (bool): Whether to run in inference mode only.
+        difficulty (float): Difficulty level for curriculum learning.
+        nepisode_avg (int): Number of episodes to average over for logging and saving.
+        model_save_threshold (float): Threshold for improvement to trigger model saving.
+        use_env_subdir (bool, optional): Whether to use environment as a subdirectory. Defaults to False.
+    
+    Returns:
+        None
+    """
+    
+    # Generate Log Directory
     if logdir == 'None':
-        logdir = "./results/index" + str(index) + "_agent_" + agent_id + "_buf_" + buffer_type_log + "_bsize_" + buffer_size_log + "_env_" + env_id + "_hash" \
-                 + githash + "_results_" + datetime.now().strftime("%Y%m%d-%H%M%S")
+        logdir = generate_logdir(index, env_id, agent_id, use_env_subdir)
     else:
-        logdir = logdir + "/index" + str(index) + "_agent_" + agent_id + "_env_" + env_id + "_date_" \
-            + datetime.now().strftime("%Y%m%d-%H%M%S")
+        # If a custom logdir is provided, append the generated folder name to it
+        folder_name = os.path.basename(generate_logdir(index, env_id, agent_id, use_env_subdir))
+        logdir = os.path.join(logdir, folder_name)
 
-    try:
-        os.makedirs(logdir)
-    except OSError as error:
-        run_openai_log.error('Error making file:', error)
-
-    #
-    # Environment
+    # Environment Handling
     run_openai_log.info('Running env: {}'.format(env_id))
-
-    if env_id in gym.envs.registry:
-        env = gym.make(env_id)
-    elif env_id in custom_gym.list_registered_modules():
-        env = custom_gym.make(env_id)
-    elif 'paces_gym' in globals() and env_id in paces_gym.list_registered_modules():
-        env = paces_gym.make(env_id)
-        if 'LCLS' in env_id:
-            env.set_curriculum_difficulty(difficulty)
-            # Check if max_nsteps is not defined, set it to default (10) for lcls env
-            if max_nsteps <= 0:
-                max_nsteps = 10 
-            env = TimeLimit(env, max_nsteps)
-            env = RescaleObservation(env, -1, 1)
-            env = RescaleAction(env, -1, 1)
-            env = FlattenObservation(env)
-            # env = FrameStack(env, 1)
-    else:
-        run_openai_log.error('Error finding environment')
+    
+    try:
+        env = create_and_configure_env(env_id, difficulty, max_nsteps)
+    except ValueError as e:
+        run_openai_log.error(str(e))
+        return
 
     if max_nsteps != -1:
         env._max_episode_steps = max_nsteps
@@ -133,6 +196,12 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     run_openai_log.info("Max Value of Action ->  {}".format(upper_bound))
     run_openai_log.info("Min Value of Action ->  {}".format(lower_bound))
 
+    try:
+        os.makedirs(logdir)
+        os.makedirs(logdir + "/buffers/", exist_ok=True)
+    except OSError as error:
+        run_openai_log.error('Error making file:', error)
+
     run_openai_log.info(f'Log Path: {logdir}')
     tfb_path = os.path.join(logdir, 'metrics')
     run_openai_log.info(f'TFB Path: {tfb_path}')
@@ -140,152 +209,174 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     tfb_path = os.path.join(logdir, 'metrics')
     file_writer.set_as_default()
 
-    # Agent
+    # Agent Handling
     agent = jlab_opt_control.agents.make(
         agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
 
+    # Save agents initial configuration and models
     agent.save_cfg()
     agent.save("init")
 
-    # To store reward history of each episode
-    ep_reward_list = []
-    inf_ep_reward_list = []
-    # To store average reward history of last few episodes
-    avg_reward_list = []
-
-    # Variable to hold previous max
-    # Init at very small number
-    inference_episodic_hold = 0
-
+    # Logging information
     total_nsteps = 0
+    ep_reward_list = []
+    avg_reward_list = []
+    inference_reward_list = []
+    best_avg_inference_reward = float('-inf')
 
-    # Only inference
-    if inference_flag:
-        for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
-            time_start = time.process_time()
-            inference_episodic_reward = 0
-            inference_prev_state, _ = env.reset()
-            inference_done = False
-            while inference_done is False:
-                total_nsteps += 1
-                inference_action, inference_action_noise = agent.action(
-                    tf.convert_to_tensor(inference_prev_state), train=False, inference=True)
-                inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(
-                    inference_action)
-                inference_episodic_reward += inference_reward
-                inference_prev_state = inference_state
-                inference_done = (inference_terminate or inference_truncate)
-            
-            tf.summary.scalar('Inference Reward',
-                            data=inference_episodic_reward, step=int(ep))
+    stats_window_size = 100
+    ep_lengths = deque(maxlen=stats_window_size)
+    ep_rewards = deque(maxlen=stats_window_size)
 
-            ep_reward_list.append(inference_episodic_reward)
+    for ep in tqdm(range(max_nepisodes), desc=f'Index {index} - Episodes'):
+        time_start = time.process_time()
+        episode_start_time = time.time()
+        run_openai_log.info(f"Starting episode {ep} at {episode_start_time}")
 
-            avg_reward = np.mean(ep_reward_list[-nepisode_avg:])
-            time_end = time.process_time()
-            if total_nsteps % 1000 == 0:
-                run_openai_log.info(
-                    "Episode Elapsed Time {}".format((time_end - time_start)))
-                run_openai_log.info(
-                    "Episode * {} * Inference Episodic Reward is ==> {}".format(ep, inference_episodic_reward))
-                run_openai_log.info(
-                    "Episode * {} * Inference Avg Reward is ==> {}".format(ep, avg_reward))
-            avg_reward_list.append(avg_reward)
+        if ep % 10 == 0:
+            log_memory_usage()
 
-            with open(logdir + '/results.npy', 'wb') as f:
-                np.save(f, np.array(ep_reward_list))
-            
-    # Training w/ inference
-    else:
-        for ep in tqdm(range(max_nepisodes), desc='Index {} - Episodes'.format(index)):
-            time_start = time.process_time()
-            prev_state, _ = env.reset()
-            episode_timesteps = 0
-            episodic_reward = 0
-            done = False
-            while done is False:
-                total_nsteps += 1
-                episode_timesteps += 1
-                action, action_noise = agent.action(
-                    tf.convert_to_tensor(prev_state))
-                assert 'numpy.ndarray' in str(type(action))
-                run_openai_log.debug(f'action: {action}')
-                run_openai_log.debug(f'action_noise: {action_noise}')
-
-                # Take a step
-                state, reward, terminate, truncate, info = env.step(action)
-                run_openai_log.debug(f'reward: {reward}')
-                run_openai_log.debug(f'reward: {type(reward)}')
-
-                # Check shapes and data types
-                assert 'numpy.ndarray' in str(type(state))
-                assert state.shape == (num_states,)
-                assert 'float' in str(type(reward)), str(type(reward))
-                done = (terminate or truncate)
-                done_buffer = terminate
-
-                agent.memory((prev_state, action, reward, state, done_buffer))
-                episodic_reward += reward
-                agent.train()
-                prev_state = state
-                if done:
-                    break
-
+        # Training episode
+        if not inference_flag:
+            episodic_reward, steps_taken = run_episode(env, agent, train=True, max_steps=max_nsteps)
+            total_nsteps += steps_taken
             ep_reward_list.append(episodic_reward)
-            tf.summary.scalar('Training Reward',
-                            data=episodic_reward, step=int(ep))
+            tf.summary.scalar('Training Reward', data=episodic_reward, step=ep)
 
-            # Run inference test
-            if ep % 1 == 0:
-                agent.buffer.save()
-                inference_episodic_reward = 0
-                inference_prev_state, _ = env.reset()
-                inference_done = False
-                while inference_done is False:
-                    inference_action, inference_action_noise = agent.action(
-                        tf.convert_to_tensor(inference_prev_state), train=False, inference=True)
-                    inference_state, inference_reward, inference_terminate, inference_truncate, inference_info = env.step(
-                        inference_action)
-                    inference_episodic_reward += inference_reward
-                    inference_prev_state = inference_state
-                    inference_done = (inference_terminate or inference_truncate)
-                    if inference_done:
-                        break
-                
-                # init for first epoch
-                if (ep == 0):
-                    inference_episodic_hold = inference_episodic_reward
-                
+            # Add episode length and reward to deques
+            ep_lengths.append(steps_taken)
+            ep_rewards.append(episodic_reward)
 
-                inf_ep_reward_list.append(inference_episodic_reward)
-                inf_avg_reward = np.mean(inf_ep_reward_list[-nepisode_avg:])
+            # Calculate and log rolling averages
+            ep_len_mean = np.mean(ep_lengths) if ep_lengths else 0
+            ep_rew_mean = np.mean(ep_rewards) if ep_rewards else 0
+            
+            tf.summary.scalar('Training Reward', data=episodic_reward, step=ep)
+            tf.summary.scalar('ep_len_mean', data=ep_len_mean, step=ep)
+            tf.summary.scalar('ep_rew_mean', data=ep_rew_mean, step=ep)
 
-                if inf_avg_reward != 0:
-                    percentage_change = (inf_avg_reward - inference_episodic_hold) / abs(inference_episodic_hold)
-                    if percentage_change >= model_save_threshold:
-                        str_pct_inc = 'epoch_' + str(ep) + '_' + f"{int(100*percentage_change):03d}"
-                        agent.save(str_pct_inc)
-                        inference_episodic_hold = inf_avg_reward
+        # Inference episode (run every episode if inference_flag, otherwise every 10 episodes)
+        if inference_flag or ep % inference_interval == 0:
+            inference_episodic_reward, inference_steps_taken = run_episode(env, agent, train=False, max_steps=max_nsteps)
+            inference_reward_list.append(inference_episodic_reward)
+            
+            tf.summary.scalar('Inference Reward', data=inference_episodic_reward, step=ep)
+            tf.summary.scalar('Inference Episode Length', data=inference_steps_taken, step=ep)
 
-                tf.summary.scalar('Inference Reward',
-                                data=inference_episodic_reward, step=int(ep))
+            # Calculate average of last nepisode_avg inference rewards
+            avg_inference_reward = np.mean(inference_reward_list[-nepisode_avg:])
 
-            avg_reward = np.mean(ep_reward_list[-nepisode_avg:])
-            time_end = time.process_time()
-            if total_nsteps % 1000 == 0:
-                run_openai_log.info(
-                    "Episode Elapsed Time {}".format((time_end - time_start)))
-                run_openai_log.info(
-                    "Episode * {} * Episodic Reward is ==> {}".format(ep, episodic_reward))
-                run_openai_log.info(
-                    "Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
-            avg_reward_list.append(avg_reward)
+            # Model saving logic
+            if avg_inference_reward > best_avg_inference_reward * (1 + model_save_threshold):
+                percentage_increase = (avg_inference_reward - best_avg_inference_reward) / abs(best_avg_inference_reward) if best_avg_inference_reward != float('-inf') else 0
+                str_pct_inc = f'epoch_{ep:05d}_{min(int(percentage_increase * 100), 999):03d}'
+                agent.save(str_pct_inc)
+                best_avg_inference_reward = avg_inference_reward
+            
+            run_openai_log.info(f"Episode {ep}: Inference reward: {inference_episodic_reward}, Avg Inference reward: {avg_inference_reward:.2f}, Best Avg: {best_avg_inference_reward:.2f}")
 
-            with open(logdir + '/results.npy', 'wb') as f:
-                np.save(f, np.array(ep_reward_list))
-        agent.buffer.save()
+        # Periodic saving
+        if ep % math.ceil(max_nepisodes/10) == 0:
+            agent.save(f'epoch_{ep:05d}')
+            if not inference_flag:
+                agent.buffer.save(f'{logdir}/buffers/buffer.npy')
+
+        # Logging
+        avg_reward = np.mean(ep_reward_list[-nepisode_avg:])
+        avg_reward_list.append(avg_reward)
+        time_end = time.process_time()
+        
+        # Log every episode
+        run_openai_log.info(f"Episode: {ep}, Total Steps: {total_nsteps}")
+        run_openai_log.info(f"Episode Elapsed Time {time_end - time_start}")
+        run_openai_log.info(f"Episode * {ep} * {'Inference' if inference_flag else 'Training'} Episodic Reward is ==> {episodic_reward if not inference_flag else inference_episodic_reward}")
+        run_openai_log.info(f"Episode * {ep} * Avg Reward is ==> {avg_reward}")
+        run_openai_log.info(f"Episode * {ep} * Mean Episode Length is ==> {ep_len_mean}")
+        run_openai_log.info(f"Episode * {ep} * Mean Episode Reward is ==> {ep_rew_mean}")
+
+        # Save results
+        with open(f'{logdir}/results.npy', 'wb') as f:
+            np.save(f, np.array(ep_reward_list))
+
+        episode_end_time = time.time()
+        # run_openai_log.info(f"Finished episode {ep} at {episode_end_time}. Duration: {episode_end_time - episode_start_time:.2f} seconds")
+
+    # Final save
+    agent.save(f'epoch_{max_nepisodes:05d}')
+    if not inference_flag:
+        agent.buffer.save(f'{logdir}/buffers/buffer.npy')
+
+def run_episode(env, agent, train=True, max_steps=-1):
+    """Run a single episode in the given environment with the specified agent.
+    
+    Args:
+        env (gym.Env): The environment to run the episode in.
+        agent (Any): The agent to use for actions.
+        train (bool, optional): Whether to train the agent during this episode. Defaults to True.
+        max_steps (int, optional): Maximum number of steps for this episode. Defaults to -1 (no limit).
+    
+    Returns:
+        Tuple[float, int]: A tuple containing the total episodic reward and the number of steps taken.
+    """
+    
+    state = env.reset()
+    episodic_reward = 0
+    done = False
+    steps = 0
+
+    # Get environment dimensions
+    num_states = env.observation_space.shape[0]
+    num_actions = env.action_space.shape[0]
+
+    while not done and (max_steps == -1 or steps < max_steps):
+        # Assert state shape
+        assert isinstance(state, np.ndarray), f"State should be a numpy array, but got {type(state)}"
+        assert state.shape == (num_states,), f"State shape should be ({num_states},), but got {state.shape}"
+
+        action_start_time = time.time()
+        action, _ = agent.action(tf.convert_to_tensor(state), train=train)
+        action_end_time = time.time()
+        # run_openai_log.info(f"Agent action took {action_end_time - action_start_time:.4f} seconds")
+
+        # Assert action shape
+        assert isinstance(action, np.ndarray), f"Action should be a numpy array, but got {type(action)}"
+        assert action.shape == (num_actions,), f"Action shape should be ({num_actions},), but got {action.shape}"
+
+        next_state, reward, terminate, truncate, _ = env.step(action)
+
+        # Assert next_state shape
+        assert isinstance(next_state, np.ndarray), f"Next state should be a numpy array, but got {type(next_state)}"
+        assert next_state.shape == (num_states,), f"Next state shape should be ({num_states},), but got {next_state.shape}"
+
+        # Assert reward type
+        assert isinstance(reward, (int, float)), f"Reward should be a number, but got {type(reward)}"
+
+        episodic_reward += reward
+        done = terminate or truncate
+
+        if train:
+            agent.memory((state, action, reward, next_state, done))
+            train_start_time = time.time()
+            agent.train()
+            train_end_time = time.time()
+            # run_openai_log.info(f"Agent training took {train_end_time - train_start_time:.4f} seconds")
+
+        state = next_state
+        run_openai_log.info(f"Step {steps} with done signal showing: {done}")
+        steps += 1
+
+    return episodic_reward, steps
 
 def main(args=None):
+    """Main entry point of the script. Handles argument parsing and calls run_opt.
+    
+    Args:
+        args (List[str], optional): Command line arguments. Defaults to None.
+    
+    Returns:
+        None
+    """
+    
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--index", help="Index for tracking", type=int, default=0)
@@ -302,13 +393,17 @@ def main(args=None):
     parser.add_argument(
         "--logdir", help="Directory to save results", type=str, default='None')
     parser.add_argument(
-        "--inference", help="Inference only run flag", type=str, default=None)
+        "--inference", action="store_true", help="Inference only run flag")
     parser.add_argument(
         "--difficulty", help="Curriculum difficulty level for LCLS env", type=float, default=0.08)
     parser.add_argument(
         "--nepisode_avg", help="Number of episodes to average the reward over", type=int, default=20)
     parser.add_argument(
         "--model_save_threshold", help="Percentage increase threshold (in fraction) to save the model", type=float, default=0.05)
+    parser.add_argument(
+        "--use_env_subdir", action="store_true", help="Use environment as subdirectory in results folder")
+    parser.add_argument(
+        "--inference_interval", help="Use environment as subdirectory in results folder", type=int, default=10)
 
     # Get input arguments
     if args is not None:
@@ -328,9 +423,11 @@ def main(args=None):
     args_difficulty = args.difficulty
     args_nepisode_avg = args.nepisode_avg
     args_model_save_threshold = args.model_save_threshold
+    args_use_env_subdir = args.use_env_subdir
+    args_inference_interval = args.inference_interval
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
-            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold)
+            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold, args_use_env_subdir, args_inference_interval)
 
 if __name__ == "__main__":
     main()
