@@ -31,6 +31,7 @@ import argparse
 import logging
 import os
 import time
+import math
 from datetime import datetime
 import warnings
 
@@ -245,7 +246,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
             run_openai_log.info(f"Episode {ep}: Inference reward: {inference_episodic_reward}, Avg Inference reward: {avg_inference_reward:.2f}, Best Avg: {best_avg_inference_reward:.2f}")
 
         # Periodic saving
-        if ep % int(max_nepisodes/10) == 0:
+        if ep % math.ceil(max_nepisodes/10) == 0:
             agent.save(f'epoch_{ep:05d}')
             if not inference_flag:
                 agent.buffer.save(f'{logdir}/buffers/buffer.npy')
