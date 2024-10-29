@@ -373,7 +373,7 @@ class KerasSAC(jlab_opt_control.Agent):
             sampled_action = sampled_action.numpy().flatten()
             noise = noise.numpy().flatten()
 
-        # Log the training action(s) taken and iterate aciton counter
+        # Log the training action(s) taken and iterate action counter
         if train:
             self.nactions += 1
             for i in range(self.num_actions):

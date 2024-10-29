@@ -339,7 +339,7 @@ class KerasTD3(jlab_opt_control.Agent):
             assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
                 f"Sampled action shape is incorrect... {sampled_action.shape}"
 
-        # Log the training action(s) taken and iterate aciton counter
+        # Log the training action(s) taken and iterate action counter
         if train:
             self.nactions += 1
             for i in range(self.num_actions):
