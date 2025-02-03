@@ -114,7 +114,7 @@ def run(env_id, n_iterations, logdir, warmup_size, index, init_path=None, turbo=
     if turbo:
         generator = MOBOGenerator(vocs=vocs, reference_point = {"heat":env.linac.max_heat, "trip":env.linac.max_trip_rate},use_pf_as_initial_points=True, turbo_controller="optimize")
     else:
-        generator = MOBOGenerator(vocs=vocs, reference_point = {"heat":env.linac.max_allowed_heat, "trip":env.linac.max_allowed_trip}, use_pf_as_initial_points=False)
+        generator = MOBOGenerator(vocs=vocs, reference_point = {"heat":env.linac.max_allowed_heat, "trip":env.linac.max_allowed_trip}, use_pf_as_initial_points=True)
     generator.n_monte_carlo_samples = 240
     generator.numerical_optimizer.n_restarts = 60
     
@@ -171,9 +171,6 @@ def run(env_id, n_iterations, logdir, warmup_size, index, init_path=None, turbo=
         time_per_step = time.time() - t1
         t_elapsed += time_per_step
         
-        # print("############################################")
-        # print(X.data["heat"].iloc[i], X.data["trip"].iloc[i], X.data['energy'].iloc[i])
-        # print("############################################")
         print("Iteration: ", i, "time taken: ", time_per_step)
         
         #save all Xopt output and timing so far into yaml file every N iterations     
