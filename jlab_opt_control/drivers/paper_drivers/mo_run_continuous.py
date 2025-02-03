@@ -175,8 +175,6 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     np_alphas = np.zeros((nscans,env.reward_space.shape[0]), dtype=np.float32)
     np_alphas[:, 1] = np.linspace(0.0,1.0, nscans) #array([1.00, 0.99, 0.95, 0.90, 0.85, 0.75, 0.50, 0])
     np_alphas[:, 0] = 1.0 - np_alphas[:,1]
-    #print(f'np_alphas: {np_alphas}')
-    #print(f'np_alphas: {np_alphas.shape}')
 
     nvalid_solutions = 0
     max_nepochs = 1000
@@ -198,30 +196,11 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
                 total_nsteps += 1
                 episode_timesteps += 1
                 action, action_noise = agent.action(tf.convert_to_tensor(prev_state), tf.convert_to_tensor(alphas[scan]))
-                # assert 'numpy.ndarray' in str(type(action))
-                # run_openai_log.debug(f'action: {action}')
-                # run_openai_log.debug(f'action_noise: {action_noise}')
 
                 # Take a step
                 state, reward, terminate, truncate, info = env.step(action)
-                # run_openai_log.debug(f'reward: {reward}')
-                # run_openai_log.debug(f'reward: {type(reward)}')
-                # run_openai_log.debug(f'energy: {info["energy"]}')
-                # run_openai_log.debug(f'terminate: {terminate}/{int(terminate)}')
                 if terminate==False:
                     nvalid_solutions += 1
-                    #run_openai_log.info(f'info: {info}')
-
-                #sys.exit()
-                # if "Pareto" in agent_id:
-                #     reward = np.array([info['heat'], info['trip']])
-                #     run_openai_log.debug(f'new reward: {reward}')
-
-                # Check shapes and data types
-                # assert 'numpy.ndarray' in str(type(state))
-                # assert state.shape == (num_states,)
-                # assert 'float' in str(type(reward)), str(type(reward))
-                # assert reward.shape == (env.reward_space.shape[0],)
                 done = (terminate or truncate)
                 agent.memory((prev_state, action, reward, state, done, alphas[scan]))
                 episodic_reward += reward
