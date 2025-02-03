@@ -59,6 +59,9 @@ def run(env_id, n_iterations, result_loc, pop_size, index, save_interval=100):
                     }
         with open(os.path.join(result_dir, 'inference_results_'+str(N*save_interval).zfill(6)+'.pkl'), "wb") as f:
             pickle.dump(final_results, f)
+        with open(os.path.join(result_dir, str(env_id)+'_gradient_results_'+str(N*save_interval).zfill(6)+'.pkl'), "wb") as f:
+            pickle.dump(np.array(pop.get_x()), f)
+            
         print("Results saved at iteration: ", N)
 
 
