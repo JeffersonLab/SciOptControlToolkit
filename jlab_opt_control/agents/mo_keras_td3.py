@@ -435,10 +435,10 @@ class MO_KerasTD3(jlab_opt_control.Agent):
                 critic_loss1, critic_loss2, td_errors = self.train_critic(state_batch, action_batch, reward_batch,
                                                                           next_state_batch, done_batch, _, alpha_batch)
 
-            # tf.summary.scalar('Critic Loss 1', data=critic_loss1,
-            #                   step=int(self.ntrain_calls))
-            # tf.summary.scalar('Critic Loss 2', data=critic_loss2,
-            #                   step=int(self.ntrain_calls))
+            tf.summary.scalar('Critic Loss 1', data=critic_loss1,
+                              step=int(self.ntrain_calls))
+            tf.summary.scalar('Critic Loss 2', data=critic_loss2,
+                              step=int(self.ntrain_calls))
 
             # Update Priorities
             if "PER" in self.buffer_type:
@@ -449,9 +449,9 @@ class MO_KerasTD3(jlab_opt_control.Agent):
 
             if self.buffer.size() >= np.max([self.batch_size, self.warmup_size]):
                 actor_loss, q_loss, cosine_loss = self.train_actor(state_batch, alpha_batch)
-                # tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
-                # tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
-                # tf.summary.scalar('Cosine Loss', data=cosine_loss, step=int(self.ntrain_calls))
+                tf.summary.scalar('Actor Loss', data=actor_loss, step=int(self.ntrain_calls))
+                tf.summary.scalar('Q-Loss', data=actor_loss, step=int(self.ntrain_calls))
+                tf.summary.scalar('Cosine Loss', data=cosine_loss, step=int(self.ntrain_calls))
 
             if self.ntrain_calls % self.actor_update_freq == 0:
                     self.soft_update(self.target_actor.variables, self.actor_model.variables)
@@ -606,13 +606,13 @@ class MO_KerasTD3(jlab_opt_control.Agent):
         # Log the training action(s) taken
         if train:
             self.nactions = self.nactions + 1
-            # if self.num_actions == 0:
-            #     tf.summary.scalar('Action', data=sampled_action,
-            #                       step=int(self.nactions))
-            # else:
-            #     for i in range(self.num_actions):
-            #         tf.summary.scalar('Action #{}'.format(
-            #             i), data=sampled_action[i], step=int(self.nactions))
+            if self.num_actions == 0:
+                tf.summary.scalar('Action', data=sampled_action,
+                                  step=int(self.nactions))
+            else:
+                for i in range(self.num_actions):
+                    tf.summary.scalar('Action #{}'.format(
+                        i), data=sampled_action[i], step=int(self.nactions))
 
         # Insure action output by actor is in legal environment range
         return sampled_action, noise
