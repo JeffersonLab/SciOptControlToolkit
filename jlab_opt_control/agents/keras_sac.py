@@ -165,6 +165,7 @@ class KerasSAC(jlab_opt_control.Agent):
         file_writer = tf.summary.create_file_writer(self.logdir + '/metrics')
         file_writer.set_as_default()
         self.nactions = 0
+        self.inf_nactions = 0
 
         if self.actor_model_type.lower() == "gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
@@ -359,10 +360,10 @@ class KerasSAC(jlab_opt_control.Agent):
                 self.soft_update(self.target_critic2.variables,
                                  self.critic_model2.variables)
 
-    def action(self, state, train=True, inference=False):
+    def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
-        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and inference == False:
+        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and train == True:
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
         # Warmup completed, sample from actor or run inference
@@ -372,19 +373,18 @@ class KerasSAC(jlab_opt_control.Agent):
             sampled_action = sampled_action.numpy().flatten()
             noise = noise.numpy().flatten()
 
-
-        # Log the training action(s) taken
+        # Log the training action(s) taken and iterate action counter
         if train:
-            self.nactions = self.nactions + 1
-            if self.num_actions == 0:
-                tf.summary.scalar('Action', data=sampled_action,
-                                  step=int(self.nactions))
-            else:
-                for i in range(self.num_actions):
-                    tf.summary.scalar('Action #{}'.format(
-                        i), data=sampled_action[i], step=int(self.nactions))
+            self.nactions += 1
+            for i in range(self.num_actions):
+                tf.summary.scalar('Action #{}'.format(
+                    i), data=sampled_action[i], step=int(self.nactions))
+        else:
+            self.inf_nactions += 1
+            for i in range(self.num_actions):
+                tf.summary.scalar('Inference Action #{}'.format(
+                    i), data=sampled_action[i], step=int(self.inf_nactions))
 
-        # Insure action output by actor is in legal environment range
         return sampled_action, noise
 
     def memory(self, obs_tuple):

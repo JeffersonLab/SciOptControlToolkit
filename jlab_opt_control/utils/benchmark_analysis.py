@@ -29,7 +29,7 @@ def run(cfg="benchmark.cfg", args={'train': False}):
                 # arguments = ['--agent',str(agent_name),'--env',str(env_name),'--nepisodes',str(max_ep),'--logdir',str(path)]
                 for i in range(5):
                     # arguments = ['--agent',str(agent_name),'--env', str(env_name),'--nepisodes',str(max_ep),'--logdir', str(path)]
-                    run_opt(index=0, max_nepisodes=max_ep, max_nsteps=-1, agent_id=agent_name, env_id=env_name, logdir=str(path), buffer_type=None, buffer_size=None, inference_flag=None)
+                    run_opt(index=0, max_nepisodes=max_ep, max_nsteps=-1, agent_id=agent_name, env_id=env_name, logdir=str(path), difficulty=None, nepisode_avg=10, model_save_threshold=5, buffer_type=None, buffer_size=None, inference_flag=None)
 
     runs = os.listdir(path)
     env_list = []
@@ -44,8 +44,6 @@ def run(cfg="benchmark.cfg", args={'train': False}):
             if env_name in run:
                 agent_name = run.split("_")[2]
                 r = np.load(os.path.join(os.path.join(path, run), "results.npy"))
-                if "Cheetah" in env_name and len(r) < 500:
-                    continue
                 if agent_name in results:
                     results[agent_name].append(r)
                 else:

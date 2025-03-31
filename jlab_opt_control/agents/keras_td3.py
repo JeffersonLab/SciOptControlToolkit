@@ -156,6 +156,7 @@ class KerasTD3(jlab_opt_control.Agent):
         file_writer = tf.summary.create_file_writer(self.logdir + '/metrics')
         file_writer.set_as_default()
         self.nactions = 0
+        self.inf_nactions = 0
 
     def initialize_new_models(self):
         """ Initialize new models from scratch """
@@ -259,11 +260,6 @@ class KerasTD3(jlab_opt_control.Agent):
             actions = self.actor_model(states, training=True)
             q_value = self.critic_model1(states, actions, training=False)
             loss = -tf.math.reduce_mean(q_value)
-            with tf.GradientTape(persistent=True) as tape2:
-                dq_da, dq_ds = tape2.gradient(q_value, [actions, states])
-                print(f'dq_da: {dq_da}')
-                print(f'dq_ds: {dq_ds}')
-
         gradient = tape.gradient(loss, self.actor_model.trainable_variables)
         self.actor_optimizer.apply_gradients(
             zip(gradient, self.actor_model.trainable_variables))
@@ -320,10 +316,10 @@ class KerasTD3(jlab_opt_control.Agent):
                 self.soft_update(self.target_critic2.variables,
                                  self.critic_model2.variables)
 
-    def action(self, state, train=True, inference=False):
+    def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
-        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and inference == False:
+        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and train == True:
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
         # Warmup completed, sample from actor or run inference
@@ -343,18 +339,18 @@ class KerasTD3(jlab_opt_control.Agent):
             assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
                 f"Sampled action shape is incorrect... {sampled_action.shape}"
 
-        # Log the training action(s) taken
+        # Log the training action(s) taken and iterate action counter
         if train:
-            self.nactions = self.nactions + 1
-            if self.num_actions == 0:
-                tf.summary.scalar('Action', data=sampled_action,
-                                  step=int(self.nactions))
-            else:
-                for i in range(self.num_actions):
-                    tf.summary.scalar('Action #{}'.format(
-                        i), data=sampled_action[i], step=int(self.nactions))
+            self.nactions += 1
+            for i in range(self.num_actions):
+                tf.summary.scalar('Action #{}'.format(
+                    i), data=sampled_action[i], step=int(self.nactions))
+        else:
+            self.inf_nactions += 1
+            for i in range(self.num_actions):
+                tf.summary.scalar('Inference Action #{}'.format(
+                    i), data=sampled_action[i], step=int(self.inf_nactions))
 
-        # Insure action output by actor is in legal environment range
         return sampled_action, noise
 
     def memory(self, obs_tuple):
