@@ -104,10 +104,10 @@ class KerasUncertaintyTD3(KerasTD3):
             zip(gradient, self.actor_model.trainable_variables))
         return loss
 
-    def action(self, state, train=True, inference=False):
+    def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
-        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and inference == False:
+        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and train == True:
             sampled_action = self.env.action_space.sample()
         # Warmup completed, sample from actor or run inference
         else:

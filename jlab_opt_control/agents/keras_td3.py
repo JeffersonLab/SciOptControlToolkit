@@ -316,10 +316,10 @@ class KerasTD3(jlab_opt_control.Agent):
                 self.soft_update(self.target_critic2.variables,
                                  self.critic_model2.variables)
 
-    def action(self, state, train=True, inference=False):
+    def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
-        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and inference == False:
+        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and train == True:
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
         # Warmup completed, sample from actor or run inference
