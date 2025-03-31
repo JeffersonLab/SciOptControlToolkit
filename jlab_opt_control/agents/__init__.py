@@ -31,6 +31,7 @@ from jlab_opt_control.agents.keras_td3 import KerasTD3
 from jlab_opt_control.agents.keras_ddpg import KerasDDPG
 from jlab_opt_control.agents.keras_sac import KerasSAC
 
+
 # Single Objective Agents
 register(
     id="KerasTD3-v0",

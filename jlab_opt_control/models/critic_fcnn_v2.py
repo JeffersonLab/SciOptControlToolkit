@@ -8,13 +8,13 @@ import os
 import logging
 import json
 
-crit_log = logging.getLogger("Critic")
+crit_log = logging.getLogger("Critic-v2")
 crit_log.setLevel(logging.DEBUG)
 logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 
-class CriticFCNN(Model):
-    def __init__(self, state_dim, action_dim, logdir, cfg='critic_fcnn.cfg'):
+class CriticFCNN_v2(Model):
+    def __init__(self, state_dim, action_dim, logdir, cfg='critic_fcnn_v2.cfg'):
         super().__init__()
  
         # Load configuration
@@ -26,30 +26,36 @@ class CriticFCNN(Model):
         # Read configuration for architecture
         with open(self.pfn_json_file, 'r') as f:
             cfg_data = json.load(f)
-        hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
+        self.hidden_layers = cfg_data.get('hidden_layers', 2)  # Default to 2 if not specified
         nodes_per_layer = cfg_data.get('nodes_per_layer', [256, 256])  # Default
-        activation_functions = cfg_data.get('activation_functions', ["relu"] * hidden_layers)  # Default
- 
+
         self.logdir = logdir
 
        # Error Checking
-        if hidden_layers != len(nodes_per_layer):
+        if self.hidden_layers != len(nodes_per_layer):
             crit_log.error("Number of nodes per layer does not match the number of hidden layers in the config.")
-        elif hidden_layers != len(activation_functions):
-            crit_log.error("Number of activation functions does not match the number of hidden layers in the config.")
 
         # Dynamic Q network Architecture
-        self.hidden_layers = []
-        for i in range(hidden_layers):
-            # Layer construction with dynamic activation functions
-            self.hidden_layers.append(layers.Dense(nodes_per_layer[i], activation=activation_functions[i], input_shape=(state_dim + action_dim,) if i == 0 else ()))
+        init = tf.keras.initializers.GlorotUniform()
+        self.init_bn = tf.keras.layers.BatchNormalization()
+        #init = tf.keras.initializers.RandomUniform(minval=-5, maxval=5)  # GlorotUniform(seed)
+        self.denses1, self.bn1, self.act1 = [], [], []
+        for i in range(self.hidden_layers):
+            self.denses1.append(tf.keras.layers.Dense(nodes_per_layer[i],
+                                                      kernel_initializer=init,
+                                                      input_shape=(state_dim + action_dim,) if i == 0 else ()))
+            self.bn1.append(tf.keras.layers.BatchNormalization())
+            self.act1.append(tf.keras.activations.tanh)
         # Output layer
         self.output_layer = layers.Dense(1, activation="linear")
  
     def call(self, state, action, training=False):
         x = tf.concat([state, action], axis=1)  # Concatenate state and action as input
-        for layer in self.hidden_layers:
-            x = layer(x)
+        x = self.init_bn(x)
+        for i in range(self.hidden_layers):
+            x = self.denses1[i](x)
+            x = self.bn1[i](x)
+            x = self.act1[i](x)
         x = self.output_layer(x)
         return x
 

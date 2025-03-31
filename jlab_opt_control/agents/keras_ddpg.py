@@ -276,10 +276,10 @@ class KerasDDPG(jlab_opt_control.Agent):
             self.soft_update(self.target_critic1.variables,
                                  self.critic_model1.variables)
 
-    def action(self, state, train=True, inference=False):
+    def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
-        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and inference == False:
+        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and train == True:
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
         # Warmup completed, sample from actor or run inference
@@ -288,7 +288,7 @@ class KerasDDPG(jlab_opt_control.Agent):
             sampled_action = (self.actor_model(state)).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                         stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
+                         stddev=self.actor_model.action_scale * self.exploration_noise_fraction, dtype=tf.float32)).numpy()
                 sampled_action = np.clip(
                     sampled_action + noise, self.lower_bound, self.upper_bound)
             else:
@@ -299,19 +299,18 @@ class KerasDDPG(jlab_opt_control.Agent):
             assert sampled_action.shape == self.num_actions or sampled_action.shape == (self.num_actions,), \
                 f"Sampled action shape is incorrect... {sampled_action.shape}"
 
-        # Log the training/inference action(s) taken
+        # Log the training action(s) taken and iterate action counter
         if train:
             self.nactions += 1
             for i in range(self.num_actions):
-                    tf.summary.scalar('Action #{}'.format(
-                        i), data=sampled_action[i], step=int(self.nactions))
-        if inference:
+                tf.summary.scalar('Action #{}'.format(
+                    i), data=sampled_action[i], step=int(self.nactions))
+        else:
             self.inf_nactions += 1
             for i in range(self.num_actions):
                 tf.summary.scalar('Inference Action #{}'.format(
                     i), data=sampled_action[i], step=int(self.inf_nactions))
-                    
-        # Insure action output by actor is in legal environment range
+
         return sampled_action, noise
 
     def memory(self, obs_tuple):
@@ -339,8 +338,12 @@ class KerasDDPG(jlab_opt_control.Agent):
                 ddpg_log.info('Models loaded successfully')
             else:
                 ddpg_log.error('Models not loaded properly, please check model save directory')
-        except:
-            ddpg_log.error("Error while loading models, initializing new models...")
+        except (OSError, IOError) as e:
+            ddpg_log.error(f"Error while loading models: {str(e)}")
+            sys.exit(1)  # Exit with error code 1
+        except Exception as e:
+            ddpg_log.error(f"Unexpected error while loading models: {str(e)}")
+            sys.exit(1)  # Exit with error code 1
 
     def save(self, post_fix="test"):
         """ Save the ML models """

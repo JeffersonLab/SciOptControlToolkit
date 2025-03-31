@@ -38,5 +38,13 @@ class MyTestCase(unittest.TestCase):
         args = ['--env','Pendulum-v1', '--agent', 'KerasDDPG-v0', '--nepisodes','50', '--btype', 'ER-v0']
         main(args)
 
+    def test_sac_ER(self):
+        args = ['--env','Pendulum-v1', '--agent', 'KerasSAC-v0', '--nepisodes','50', '--btype', 'ER-v0']
+        main(args)
+
+    def test_sac_PER(self):
+        args = ['--env','Pendulum-v1', '--agent', 'KerasSAC-v0', '--nepisodes','50', '--btype', 'PER-v0']
+        main(args)
+
 if __name__ == '__main__':
     unittest.main()
