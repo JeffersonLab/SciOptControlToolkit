@@ -275,10 +275,10 @@ class KerasDDPG(jlab_opt_control.Agent):
             self.soft_update(self.target_critic1.variables,
                                  self.critic_model1.variables)
 
-    def action(self, state, train=True, inference=False):
+    def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
         # Warmup experience sample
-        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and inference == False:
+        if (self.buffer.size() < np.max([self.batch_size, self.warmup_size])) and train == True:
             sampled_action = self.env.action_space.sample()
             noise = np.zeros(self.num_actions)
         # Warmup completed, sample from actor or run inference
@@ -287,7 +287,7 @@ class KerasDDPG(jlab_opt_control.Agent):
             sampled_action = (self.actor_model(state)).numpy()
             if train:
                 noise = (tf.random.normal(shape=(self.num_actions,), mean=0,
-                         stddev=self.actor_model.action_scale * 0.1, dtype=tf.float32)).numpy()
+                         stddev=self.actor_model.action_scale * self.exploration_noise_fraction, dtype=tf.float32)).numpy()
                 sampled_action = np.clip(
                     sampled_action + noise, self.lower_bound, self.upper_bound)
             else:
