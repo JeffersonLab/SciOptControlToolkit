@@ -70,7 +70,7 @@ class KerasREDQTD3(KerasTD3):
         self.target_critics = []
         self.num_critics = int(cfg_utils.cfg_get(data, 'num_critics', 10))
         self.utd_ratio = int(cfg_utils.cfg_get(data, 'utd_ratio', 20))
-        self.num_min = int(cfg_utils.cfg_get(data, 'num_min', 2))
+        self.in_target_min = int(cfg_utils.cfg_get(data, 'in_target_min', 2))
         self.train_steps = 0
         
         # Call parent initialization with modified parameters
@@ -86,7 +86,7 @@ class KerasREDQTD3(KerasTD3):
         redq_log.info('Running KerasREDQTD3 __init__')
         redq_log.info(f'Number of critics: {self.num_critics}')
         redq_log.info(f'UTD ratio: {self.utd_ratio}')
-        redq_log.info(f'Num min (M): {self.num_min}')
+        redq_log.info(f'Num min (M): {self.in_target_min}')
 
     def initialize_new_models(self):
         """
@@ -227,7 +227,7 @@ class KerasREDQTD3(KerasTD3):
                 weights_batch = tf.convert_to_tensor(weights, dtype=tf.float32)
                 
                 # Randomly select subset of critics for in-target minimization
-                critic_indices = random.sample(range(self.num_critics), self.num_min)
+                critic_indices = random.sample(range(self.num_critics), self.in_target_min)
                 
                 # Train critics
                 critic_losses, td_errors = self.train_critics(
