@@ -235,12 +235,9 @@ class KerasREDQTD3(KerasTD3):
                     next_state_batch, done_batch, weights_batch,
                     critic_indices)
 
-                # Log losses for the first two critics (for visualization)
-                if len(critic_losses) >= 2:
-                    tf.summary.scalar('Critic Loss 1', data=critic_losses[0],
-                                    step=int(self.train_steps))
-                    tf.summary.scalar('Critic Loss 2', data=critic_losses[1],
-                                    step=int(self.train_steps))
+                # Log all critic losses to TensorBoard
+                for i, critic_loss in enumerate(critic_losses):
+                    tf.summary.scalar(f'Critic losses/Critic {i+1}', data=critic_loss, step=int(self.train_steps))
 
                 # Update Priorities if using PER
                 if "PER" in self.buffer_type:
