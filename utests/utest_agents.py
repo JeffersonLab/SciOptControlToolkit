@@ -1,4 +1,30 @@
-# Copyright (c) 2025, Jefferson Science Associates, LLC. All Rights Reserved.
+# Copyright (c) 2020, Jefferson Science Associates, LLC. All Rights Reserved. Redistribution
+# and use in source and binary forms, with or without modification, are permitted as a
+# licensed user provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice, this
+#    list of conditions and the following disclaimer in the documentation and/or other
+#    materials provided with the distribution.
+# 3. The name of the author may not be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# This material resulted from work developed under a United States Government Contract.
+# The Government retains a paid-up, nonexclusive, irrevocable worldwide license in such
+# copyrighted data to reproduce, distribute copies to the public, prepare derivative works,
+# perform publicly and display publicly and to permit others to do so.
+#
+# THIS SOFTWARE IS PROVIDED BY JEFFERSON SCIENCE ASSOCIATES LLC "AS IS" AND ANY EXPRESS
+# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL
+# JEFFERSON SCIENCE ASSOCIATES, LLC OR THE U.S. GOVERNMENT BE LIABLE TO LICENSEE OR ANY
+# THIRD PARTES FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+# OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+# OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
 import numpy as np
@@ -105,16 +131,11 @@ class AgentFunctionalityTest(unittest.TestCase):
                                    all(action <= self.env.action_space.high),
                                   f"Agent {agent_id} action out of bounds: {action}")
                     
-                    # Test inference action if supported
-                    try:
-                        inf_action, inf_noise = agent.action(self.sample_state, train=False, inference=True)
-                        self.assertIsNotNone(inf_action, f"Agent {agent_id} returned None action in inference mode")
-                        self.assertEqual(len(inf_action), self.env.action_space.shape[0],
-                                        f"Agent {agent_id} inference action dimension mismatch")
-                    except TypeError:
-                        # Some agents might not support the inference parameter
-                        inf_action, inf_noise = agent.action(self.sample_state, train=False)
-                        self.assertIsNotNone(inf_action, f"Agent {agent_id} returned None action in non-training mode")
+                    # Test inference action
+                    inf_action, inf_noise = agent.action(self.sample_state, train=False)
+                    self.assertIsNotNone(inf_action, f"Agent {agent_id} returned None action in inference mode")
+                    self.assertEqual(len(inf_action), self.env.action_space.shape[0],
+                                    f"Agent {agent_id} inference action dimension mismatch")
                     
                     print(f"Successfully tested action selection for agent: {agent_id}")
                 except Exception as e:
@@ -130,10 +151,8 @@ class AgentFunctionalityTest(unittest.TestCase):
                     os.makedirs(agent_dir, exist_ok=True)
                     agent = agents.make(agent_id, env=self.env, logdir=agent_dir)
                     
-                    # Add a few experiences to the buffer
-                    # Note: This won't be enough for actual training in most cases
-                    # but should exercise the memory and train methods
-                    for _ in range(5):
+                    # Add a enough experience to the buffer to pass warmup period
+                    for _ in range(5000):
                         state = self.env.reset()[0]
                         action, _ = agent.action(state)
                         next_state, reward, done, truncated, _ = self.env.step(action)
@@ -142,7 +161,7 @@ class AgentFunctionalityTest(unittest.TestCase):
                         if hasattr(agent, 'memory'):
                             agent.memory((state, action, reward, next_state, float(done or truncated)))
                     
-                    # Try a training step (may not actually train if buffer is not filled enough)
+                    # Try a training step
                     if hasattr(agent, 'ntrain_calls'):
                         before_train = agent.ntrain_calls
                     agent.train()
@@ -178,9 +197,8 @@ class AgentFunctionalityTest(unittest.TestCase):
                     self.assertGreater(len(model_files), 0, 
                                       f"Agent {agent_id} did not save any model files in {model_dir}")
                     
-                    # Create a new agent and test load functionality 
-                    # Skip actual loading as it might require special setup
-                    # Just verify the method runs without errors
+                    # Create a new agent and test load functionality
+                    agent = agents.make(agent_id, env=self.env, logdir=agent_dir)
                     agent.model_load_path = model_dir
                     try:
                         agent.load()
