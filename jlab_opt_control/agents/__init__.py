@@ -28,6 +28,7 @@
 
 from jlab_opt_control.agents.registration import register, make, list_registered_modules
 from jlab_opt_control.agents.keras_td3 import KerasTD3
+from jlab_opt_control.agents.keras_redq_td3 import KerasREDQTD3
 from jlab_opt_control.agents.keras_ddpg import KerasDDPG
 from jlab_opt_control.agents.keras_sac import KerasSAC
 from jlab_opt_control.agents.keras_sindy_critic_td3 import KerasSINDyCriticTD3
@@ -40,6 +41,12 @@ register(
     id="KerasTD3-v0",
     entry_point="jlab_opt_control.agents:KerasTD3",
     kwargs={"cfg": "keras_td3.cfg"},
+)
+
+register(
+    id="KerasREDQTD3-v0",
+    entry_point="jlab_opt_control.agents:KerasREDQTD3",
+    kwargs={"cfg": "keras_redq_td3.cfg"},
 )
 
 register(
