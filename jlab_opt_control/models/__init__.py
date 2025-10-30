@@ -48,3 +48,20 @@ register(
     entry_point='jlab_opt_control.models:ActorGaussian',
     kwargs={'cfg': 'actor_fcnn.cfg'},
 )
+
+# Multi-objective Models
+
+from jlab_opt_control.models.mo_actor_fcnn import MOActorFCNN
+from jlab_opt_control.models.mo_critic_fcnn import MOCriticFCNN
+
+register(
+    id='mo_actor_fcnn-v0',
+    entry_point='jlab_opt_control.models:MOActorFCNN',
+    kwargs={'cfg': 'actor_fcnn.cfg'},
+)
+
+register(
+    id='mo_critic_fcnn-v0',
+    entry_point='jlab_opt_control.models:MOCriticFCNN',
+    kwargs={'cfg': 'critic_fcnn.cfg'},
+)
