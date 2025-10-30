@@ -49,3 +49,12 @@ register(
     entry_point='jlab_opt_control.agents:KerasSAC',
     kwargs={'cfg': 'keras_sac.cfg'},
 )
+
+# Multi Objective Agents
+from jlab_opt_control.agents.keras_motd3 import KerasMOTD3
+
+register(
+    id="KerasMOTD3-v0",
+    entry_point="jlab_opt_control.agents.keras_motd3:KerasMOTD3",
+    kwargs={"cfg": "keras_motd3.cfg"},
+)
