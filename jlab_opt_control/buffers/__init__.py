@@ -29,10 +29,17 @@
 from jlab_opt_control.buffers.registration import register, make, list_registered_modules
 from jlab_opt_control.buffers.per import PER
 from jlab_opt_control.buffers.er import ER
+from jlab_opt_control.buffers.mo_er import MO_ER
 
 register(
     id='ER-v0',
     entry_point='jlab_opt_control.buffers:ER',
+    kwargs={'cfg': 'er.cfg'},
+)
+
+register(
+    id='MO-ER-v0',
+    entry_point='jlab_opt_control.buffers:MO_ER',
     kwargs={'cfg': 'er.cfg'},
 )
 
