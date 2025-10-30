@@ -133,23 +133,19 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     agent.save_cfg()
     agent.save("init")
     ref = [env.linac.max_allowed_heat, env.linac.max_allowed_trip]
-
+    metric = Hypervolume(ref_point= ref)
     if benchmark_location is not None:
         if '8D' in env_id:
             ga_results = np.load(os.path.join(benchmark_location, "GA_benchmark_8D.npy"))
-            metric = Hypervolume(ref_point= ref)
             ga_hv = metric.do(ga_results)
         elif '16D' in env_id:
             ga_results = np.load(os.path.join(benchmark_location, "GA_benchmark_16D.npy"))
-            metric = Hypervolume(ref_point= ref)
             ga_hv = metric.do(ga_results)
         elif '32D' in env_id:
             ga_results = np.load(os.path.join(benchmark_location, "GA_benchmark_32D.npy"))
-            metric = Hypervolume(ref_point= ref)
             ga_hv = metric.do(ga_results)
         elif '-N-' in env_id:
             ga_results = np.load(os.path.join(benchmark_location, "GA_benchmark_200D.npy"))
-            metric = Hypervolume(ref_point=ref)
             ga_hv = metric.do(ga_results)
         else:
             print("="*40)
