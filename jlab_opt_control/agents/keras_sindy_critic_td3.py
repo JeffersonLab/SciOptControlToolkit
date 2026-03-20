@@ -74,16 +74,10 @@ class KerasSINDyCriticTD3(KerasTD3):
             "include_bias": True,
             "include_interaction": True
         })
-
-        if processor == "arm":
-            td3_log.info("Using legacy Adam")
-            self.sindy_optimizer = tf.keras.optimizers.legacy.Adam(
-                self.sindy_lr, epsilon=1e-08
-            )
-        else:
-            self.sindy_optimizer = tf.keras.optimizers.Adam(
-                self.sindy_lr, epsilon=1e-08
-            )
+        
+        self.sindy_optimizer = tf.keras.optimizers.Adam(
+            self.sindy_lr, epsilon=1e-08
+        )
 
         hparams = {
             "sindy_library": self.sindy_library,

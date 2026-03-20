@@ -123,17 +123,10 @@ class KerasDDPG(jlab_opt_control.Agent):
         self.actor_lr = float(cfg_utils.cfg_get(
             data, 'actor_learning_rate', 1e-4))
 
-        if processor == 'arm':
-            ddpg_log.info('Using legacy Adam')
-            self.critic_optimizer = tf.keras.optimizers.legacy.Adam(
-                self.critic_lr, epsilon=1e-08)
-            self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
-                self.actor_lr, epsilon=1e-08)
-        else:
-            self.critic_optimizer = tf.keras.optimizers.Adam(
-                self.critic_lr, epsilon=1e-08)
-            self.actor_optimizer = tf.keras.optimizers.Adam(
-                self.actor_lr, epsilon=1e-08)
+        self.critic_optimizer = tf.keras.optimizers.Adam(
+            self.critic_lr, epsilon=1e-08)
+        self.actor_optimizer = tf.keras.optimizers.Adam(
+            self.actor_lr, epsilon=1e-08)
 
         self.initialize_new_models()
 

@@ -76,13 +76,6 @@ class KerasREDQTD3(KerasTD3):
         # Call parent initialization with modified parameters
         super().__init__(env, logdir, buffer_type, buffer_size, cfg)
         
-        # Override parent's optimizers with legacy versions
-        redq_log.info('Using legacy Adam optimizers')
-        self.critic_optimizer = tf.keras.optimizers.legacy.Adam(
-            self.critic_lr, epsilon=1e-08)
-        self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
-            self.actor_lr, epsilon=1e-08)
-        
         redq_log.info('Running KerasREDQTD3 __init__')
         redq_log.info(f'Number of critics: {self.num_critics}')
         redq_log.info(f'UTD ratio: {self.utd_ratio}')
