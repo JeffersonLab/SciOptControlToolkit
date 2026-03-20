@@ -225,25 +225,25 @@ class KerasSINDyCriticTD3(KerasTD3):
         try:
             model_load_count = 0
             for file in os.listdir(self.model_load_path):
-                if "actor_model" in file and file.endswith(".h5"):
+                if "actor_model" in file and file.endswith(".weights.h5"):
                     self.actor_model.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif "target_actor" in file and file.endswith(".h5"):
+                elif "target_actor" in file and file.endswith(".weights.h5"):
                     self.target_actor.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif "critic_model1" in file and file.endswith(".h5"):
+                elif "critic_model1" in file and file.endswith(".weights.h5"):
                     self.critic_model1.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif "target_critic1" in file and file.endswith(".h5"):
+                elif "target_critic1" in file and file.endswith(".weights.h5"):
                     self.target_critic1.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif "critic_model2" in file and file.endswith(".h5"):
+                elif "critic_model2" in file and file.endswith(".weights.h5"):
                     self.critic_model2.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif "target_critic2" in file and file.endswith(".h5"):
+                elif "target_critic2" in file and file.endswith(".weights.h5"):
                     self.target_critic2.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif "critic_sindy" in file and file.endswith(".h5"):
+                elif "critic_sindy" in file and file.endswith(".weights.h5"):
                     self.critic_sindy.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
             if model_load_count == 7:
@@ -267,25 +267,25 @@ class KerasSINDyCriticTD3(KerasTD3):
                 os.makedirs(destination_file_path)
 
             self.actor_model.save_weights(
-                join(destination_file_path, "actor_model_" + post_fix + ".h5")
+                join(destination_file_path, "actor_model_" + post_fix + ".weights.h5")
             )
             self.target_actor.save_weights(
-                join(destination_file_path, "target_actor_" + post_fix + ".h5")
+                join(destination_file_path, "target_actor_" + post_fix + ".weights.h5")
             )
             self.critic_model1.save_weights(
-                join(destination_file_path, "critic_model1_" + post_fix + ".h5")
+                join(destination_file_path, "critic_model1_" + post_fix + ".weights.h5")
             )
             self.target_critic1.save_weights(
-                join(destination_file_path, "target_critic1_" + post_fix + ".h5")
+                join(destination_file_path, "target_critic1_" + post_fix + ".weights.h5")
             )
             self.critic_model2.save_weights(
-                join(destination_file_path, "critic_model2_" + post_fix + ".h5")
+                join(destination_file_path, "critic_model2_" + post_fix + ".weights.h5")
             )
             self.target_critic2.save_weights(
-                join(destination_file_path, "target_critic2_" + post_fix + ".h5")
+                join(destination_file_path, "target_critic2_" + post_fix + ".weights.h5")
             )
             self.critic_sindy.save_weights(
-                join(destination_file_path, "critic_sindy_" + post_fix + ".h5")
+                join(destination_file_path, "critic_sindy_" + post_fix + ".weights.h5")
             )
             td3_log.info("Agent models saved successfully")
         except:

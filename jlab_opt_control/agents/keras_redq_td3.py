@@ -267,20 +267,20 @@ class KerasREDQTD3(KerasTD3):
             
             # Load actor models
             for file in os.listdir(self.model_load_path):
-                if 'actor_model' in file and file.endswith('.h5'):
+                if 'actor_model' in file and file.endswith('.weights.h5'):
                     self.actor_model.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'target_actor' in file and file.endswith('.h5'):
+                elif 'target_actor' in file and file.endswith('.weights.h5'):
                     self.target_actor.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
             
             # Load critic models - pattern for filenames must match save method
             for i in range(self.num_critics):
                 for file in os.listdir(self.model_load_path):
-                    if f'critic_model_{i}' in file and file.endswith('.h5'):
+                    if f'critic_model_{i}' in file and file.endswith('.weights.h5'):
                         self.critic_models[i].load_weights(join(self.model_load_path, file))
                         model_load_count += 1
-                    elif f'target_critic_{i}' in file and file.endswith('.h5'):
+                    elif f'target_critic_{i}' in file and file.endswith('.weights.h5'):
                         self.target_critics[i].load_weights(join(self.model_load_path, file))
                         model_load_count += 1
             
@@ -306,16 +306,16 @@ class KerasREDQTD3(KerasTD3):
 
             # Save actor models
             self.actor_model.save_weights(
-                join(destination_file_path, f"actor_model_{post_fix}.h5"))
+                join(destination_file_path, f"actor_model_{post_fix}.weights.h5"))
             self.target_actor.save_weights(
-                join(destination_file_path, f"target_actor_{post_fix}.h5"))
+                join(destination_file_path, f"target_actor_{post_fix}.weights.h5"))
             
             # Save all critic models in ensemble
             for i, (critic_model, target_critic) in enumerate(zip(self.critic_models, self.target_critics)):
                 critic_model.save_weights(
-                    join(destination_file_path, f"critic_model_{i}_{post_fix}.h5"))
+                    join(destination_file_path, f"critic_model_{i}_{post_fix}.weights.h5"))
                 target_critic.save_weights(
-                    join(destination_file_path, f"target_critic_{i}_{post_fix}.h5"))
+                    join(destination_file_path, f"target_critic_{i}_{post_fix}.weights.h5"))
                 
             redq_log.info('Agent models saved successfully')
         except Exception as e:

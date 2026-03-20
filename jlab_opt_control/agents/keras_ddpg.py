@@ -322,16 +322,16 @@ class KerasDDPG(jlab_opt_control.Agent):
         try:
             model_load_count = 0
             for file in os.listdir(self.model_load_path):
-                if 'actor_model' in file and file.endswith('.h5'):
+                if 'actor_model' in file and file.endswith('.weights.h5'):
                     self.actor_model.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'target_actor' in file and file.endswith('.h5'):
+                elif 'target_actor' in file and file.endswith('.weights.h5'):
                     self.target_actor.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'critic_model1' in file and file.endswith('.h5'):
+                elif 'critic_model1' in file and file.endswith('.weights.h5'):
                     self.critic_model1.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'target_critic1' in file and file.endswith('.h5'):
+                elif 'target_critic1' in file and file.endswith('.weights.h5'):
                     self.target_critic1.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
             if model_load_count == 4:
@@ -353,13 +353,13 @@ class KerasDDPG(jlab_opt_control.Agent):
                 os.makedirs(destination_file_path)
 
             self.actor_model.save_weights(
-                join(destination_file_path, "actor_model_" + post_fix + ".h5"))
+                join(destination_file_path, "actor_model_" + post_fix + ".weights.h5"))
             self.target_actor.save_weights(
-                join(destination_file_path, "target_actor_" + post_fix + ".h5"))
+                join(destination_file_path, "target_actor_" + post_fix + ".weights.h5"))
             self.critic_model1.save_weights(
-                join(destination_file_path, "critic_model1_" + post_fix + ".h5"))
+                join(destination_file_path, "critic_model1_" + post_fix + ".weights.h5"))
             self.target_critic1.save_weights(
-                join(destination_file_path, "target_critic1_" + post_fix + ".h5"))
+                join(destination_file_path, "target_critic1_" + post_fix + ".weights.h5"))
         except:
             ddpg_log.error("Error in saving the models...")
 
