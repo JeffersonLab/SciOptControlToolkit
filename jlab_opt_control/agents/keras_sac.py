@@ -283,24 +283,14 @@ class KerasSAC(jlab_opt_control.Agent):
             target_weight.assign(weight * self.tau +
                                  target_weight * (1.0 - self.tau))
 
-    @tf.function   
+    @tf.function
     def update_alpha(self, states):
-        if self.automatic_entropy_tuning:
-            with tf.GradientTape() as tape:
-                # Sample actions from the policy for current states
-                actions, log_pi = self.actor_model(states, training=False)
-
-                alpha_loss = tf.reduce_mean(- self.log_alpha*(log_pi +
-                                                        self.target_entropy))
-
-            variables = [self.log_alpha]
-            grads = tape.gradient(alpha_loss, variables)
-            self.alpha_optimizer.apply_gradients(zip(grads, variables))
-
-            self.alpha = tf.exp(self.log_alpha).item()
-        else:
-            alpha_loss = 0.
-
+        with tf.GradientTape() as tape:
+            actions, log_pi = self.actor_model(states, training=False)
+            alpha_loss = tf.reduce_mean(-self.log_alpha * (log_pi + self.target_entropy))
+        grads = tape.gradient(alpha_loss, [self.log_alpha])
+        self.alpha_optimizer.apply_gradients(zip(grads, [self.log_alpha]))
+        self.alpha = tf.exp(self.log_alpha)
         return alpha_loss
 
     def train(self):
@@ -340,7 +330,10 @@ class KerasSAC(jlab_opt_control.Agent):
                 tf.summary.scalar('Actor Loss', data=actor_loss,
                                   step=int(self.ntrain_calls))
                 
-                alpha_loss = self.update_alpha(state_batch)
+                if self.automatic_entropy_tuning:
+                    alpha_loss = self.update_alpha(state_batch)
+                else:
+                    alpha_loss = 0.0
                 tf.summary.scalar('Alpha Loss', data=alpha_loss,
                                   step=int(self.ntrain_calls))
 
