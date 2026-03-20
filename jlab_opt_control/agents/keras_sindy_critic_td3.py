@@ -121,39 +121,32 @@ class KerasSINDyCriticTD3(KerasTD3):
         )
         self.critic_sindy(lib_batch)
 
-    @tf.function
     def train_sindy_critic(self, states, actions, weights):
-        target_q1 = self.critic_model1(
-            states, actions, training=False)
-        target_q2 = self.critic_model2(
-            states, actions, training=False)
+        target_q1 = self.critic_model1(states, actions, training=False)
+        target_q2 = self.critic_model2(states, actions, training=False)
         q_targets = tf.math.minimum(target_q1, target_q2)
+        
         with tf.GradientTape() as tape:
-            # SINDy Critic Predictions
-            states_actions = tf.keras.layers.Concatenate(axis=1)([states, actions])
+            # Use tf.concat instead of instantiating a new Concatenate layer
+            states_actions = tf.concat([states, actions], axis=1)
             lib_batch = self.library(states_actions)
             s_values = self.critic_sindy(lib_batch)
-
             sindy_loss = self.mse_loss(s_values, q_targets, sample_weight=weights)
 
-        # Update SINDy Critic
-        gradients = tape.gradient(
-            sindy_loss, self.critic_sindy.trainable_variables)
+        gradients = tape.gradient(sindy_loss, self.critic_sindy.trainable_variables)
         self.sindy_optimizer.apply_gradients(zip(
             gradients, self.critic_sindy.trainable_variables))
         
         return sindy_loss
 
-    @tf.function
     def train_actor(self, states):
-        # Use Critic 1
         with tf.GradientTape() as tape:
             actions = self.actor_model(states, training=True)
-            states_actions = tf.keras.layers.Concatenate(axis=1)([states, actions])
+            states_actions = tf.concat([states, actions], axis=1)  # fix here too
             lib_batch = self.library(states_actions)
 
-            q_critic = self.critic_model1(states, actions, training=False) #Train agent with NN critic
-            q_sindy = self.critic_sindy(lib_batch, training=False) # Train agent with SINDy critic
+            q_critic = self.critic_model1(states, actions, training=False)
+            q_sindy = self.critic_sindy(lib_batch, training=False)
             q_value = self.sindy_beta * q_sindy + (1 - self.sindy_beta) * q_critic
 
             loss = -tf.math.reduce_mean(q_value)
@@ -197,7 +190,7 @@ class KerasSINDyCriticTD3(KerasTD3):
 
             # Update Priorities
             if "PER" in self.buffer_type:
-                new_priorities = td_errors.numpy()
+                new_priorities = td_errors.numpy().squeeze()
                 self.buffer.update_priorities(new_priorities)
 
             # Train actor
@@ -205,14 +198,11 @@ class KerasSINDyCriticTD3(KerasTD3):
                 actor_loss = self.train_actor(state_batch)
                 tf.summary.scalar('Actor Loss', data=actor_loss,
                                   step=int(self.ntrain_calls))
-                self.soft_update(self.target_actor.variables,
-                                 self.actor_model.variables)
+                self.soft_update(self.target_actor, self.actor_model)
 
             if self.ntrain_calls % self.critic_update_freq == 0:
-                self.soft_update(self.target_critic1.variables,
-                                 self.critic_model1.variables)
-                self.soft_update(self.target_critic2.variables,
-                                 self.critic_model2.variables)
+                self.soft_update(self.target_critic1, self.critic_model1)
+                self.soft_update(self.target_critic2, self.critic_model2)
 
     def load(self):
         """Load the ML models"""

@@ -50,7 +50,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 class KerasTD3(jlab_opt_control.Agent):
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_td3.json'):
+    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_td3.cfg'):
         """ Define all key variables required for all agent """
 
         # Get env info
@@ -258,11 +258,14 @@ class KerasTD3(jlab_opt_control.Agent):
             zip(gradient, self.actor_model.trainable_variables))
         return loss
 
-    @tf.function
-    def soft_update(self, target_weights, weights):
-        for (target_weight, weight) in zip(target_weights, weights):
-            target_weight.assign(weight * self.tau +
-                                 target_weight * (1.0 - self.tau))
+    def soft_update(self, target_model, source_model):
+        target_weights = target_model.get_weights()
+        source_weights = source_model.get_weights()
+        new_weights = [
+            w * self.tau + tw * (1.0 - self.tau)
+            for w, tw in zip(source_weights, target_weights)
+        ]
+        target_model.set_weights(new_weights)
 
     def train(self):
         """ Method used to train """
@@ -293,21 +296,18 @@ class KerasTD3(jlab_opt_control.Agent):
 
             # Update Priorities
             if "PER" in self.buffer_type:
-                new_priorities = td_errors.numpy()
+                new_priorities = td_errors.numpy().squeeze()
                 self.buffer.update_priorities(new_priorities)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
                 actor_loss = self.train_actor(state_batch)
                 tf.summary.scalar('Actor Loss', data=actor_loss,
                                   step=int(self.ntrain_calls))
-                self.soft_update(self.target_actor.variables,
-                                 self.actor_model.variables)
+                self.soft_update(self.target_actor, self.actor_model)
 
             if self.ntrain_calls % self.critic_update_freq == 0:
-                self.soft_update(self.target_critic1.variables,
-                                 self.critic_model1.variables)
-                self.soft_update(self.target_critic2.variables,
-                                 self.critic_model2.variables)
+                self.soft_update(self.target_critic1, self.critic_model1)
+                self.soft_update(self.target_critic2, self.critic_model2)
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """

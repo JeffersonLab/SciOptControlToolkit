@@ -40,7 +40,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
 import gymnasium as gym
-from gymnasium.wrappers import FlattenObservation, FrameStack, RescaleAction, TimeLimit
+from gymnasium.wrappers import FlattenObservation, RescaleAction, TimeLimit
 
 # Local Application/Library Specific Imports
 import jlab_opt_control.agents

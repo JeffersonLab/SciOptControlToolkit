@@ -52,7 +52,7 @@ class KerasREDQTD3(KerasTD3):
     Uses an ensemble of critics and higher update-to-data ratio.
     """
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_redq_td3.json'):
+    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_redq_td3.cfg'):
         """
         Initialize REDQ-TD3 agent by reusing TD3 initialization and adding REDQ-specific components.
         """
@@ -234,7 +234,7 @@ class KerasREDQTD3(KerasTD3):
 
                 # Update Priorities if using PER
                 if "PER" in self.buffer_type:
-                    new_priorities = td_errors.numpy()
+                    new_priorities = td_errors.numpy().squeeze()
                     self.buffer.update_priorities(new_priorities)
 
                 # Update actor and target networks
@@ -242,13 +242,11 @@ class KerasREDQTD3(KerasTD3):
                     actor_loss = self.train_actor(state_batch)
                     tf.summary.scalar('Actor Loss', data=actor_loss,
                                     step=int(self.train_steps))
-                    self.soft_update(self.target_actor.variables,
-                                    self.actor_model.variables)
+                    self.soft_update(self.target_actor, self.actor_model)
 
                 if self.train_steps % self.critic_update_freq == 0:
                     for i in range(self.num_critics):
-                        self.soft_update(self.target_critics[i].variables,
-                                        self.critic_models[i].variables)
+                        self.soft_update(self.target_critics[i], self.critic_models[i])
 
     def load(self):
         """

@@ -58,7 +58,7 @@ def run(cfg="benchmark.cfg", args={'train': False}):
             std = np.std(agent_results, axis=0)
             plt.plot(mean, label=str(agent_name))
             plt.fill_between(x=np.arange(std.shape[0]), y1=mean+(std), y2=mean-(std), alpha=0.2)
-        plt.legend(fontsize=15, title="$\mu \pm \sigma$")
+        plt.legend(fontsize=15, title=r"$\mu \pm \sigma$")        
         plt.xlabel("Episodes", fontsize=18)
         plt.ylabel("Reward", fontsize=18)
         plt.xticks(fontsize=15)
