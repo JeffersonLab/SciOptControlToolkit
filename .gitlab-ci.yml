@@ -3,6 +3,11 @@ image: python:3.13
 stages:
   - test
 
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_PIPELINE_SOURCE != "merge_request_event"'
+
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   TF_CPP_MIN_LOG_LEVEL: "2"
