@@ -1,0 +1,27 @@
+image: python:3.13
+
+stages:
+  - test
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  TF_CPP_MIN_LOG_LEVEL: "2"
+
+cache:
+  paths:
+    - .cache/pip
+
+before_script:
+  - python --version
+  - pip install --upgrade pip
+  - pip install -r requirements.txt
+  - pip install -e .
+
+lightweight_unit_tests:
+  stage: test
+  script:
+    - bash utests/run_branch_utests.sh
+  rules:
+    - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "main"'
+      when: on_success
+    - when: never
