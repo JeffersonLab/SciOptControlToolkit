@@ -25,3 +25,12 @@ lightweight_unit_tests:
     - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "main"'
       when: on_success
     - when: never
+
+baseline_tests:
+  stage: test
+  script:
+    - python utests/run_utests.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: on_success
+    - when: never
