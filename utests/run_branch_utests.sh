@@ -1,8 +1,14 @@
 #!/bin/bash
 set -e
 
-python utests/utest_agents.py
-python utests/utest_buffers.py
-python utests/utest_envs_and_utils.py
-python utests/utest_models.py
-python utests/utest_registry.py
+REPO_PATH=$(git rev-parse --show-toplevel)/utests
+echo 'Repo directory '$REPO_PATH
+
+pytest \
+  "$REPO_PATH/utest_agents.py" \
+  "$REPO_PATH/utest_buffers.py" \
+  "$REPO_PATH/utest_envs_and_utils.py" \
+  "$REPO_PATH/utest_models.py" \
+  "$REPO_PATH/utest_registry.py" \
+  -v \
+  --tb=short
