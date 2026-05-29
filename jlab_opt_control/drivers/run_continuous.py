@@ -40,7 +40,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
 import gymnasium as gym
-from gymnasium.wrappers import FlattenObservation, FrameStack, RescaleAction, TimeLimit
+from gymnasium.wrappers import FlattenObservation, RescaleAction, TimeLimit
 
 # Local Application/Library Specific Imports
 import jlab_opt_control.agents
@@ -173,9 +173,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         return
 
     if max_nsteps != -1:
-        env._max_episode_steps = max_nsteps
-    run_openai_log.info(
-        "Environment max steps ->  {}".format(env._max_episode_steps))
+        env = TimeLimit(env, max_episode_steps=max_nsteps)
+    run_openai_log.info("Environment max steps -> {}".format(max_nsteps))
 
     num_states = env.observation_space.shape[0]
     run_openai_log.info("Size of State Space ->  {}".format(num_states))

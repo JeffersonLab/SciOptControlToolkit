@@ -52,7 +52,7 @@ class KerasREDQTD3(KerasTD3):
     Uses an ensemble of critics and higher update-to-data ratio.
     """
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_redq_td3.json'):
+    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_redq_td3.cfg'):
         """
         Initialize REDQ-TD3 agent by reusing TD3 initialization and adding REDQ-specific components.
         """
@@ -75,13 +75,6 @@ class KerasREDQTD3(KerasTD3):
         
         # Call parent initialization with modified parameters
         super().__init__(env, logdir, buffer_type, buffer_size, cfg)
-        
-        # Override parent's optimizers with legacy versions
-        redq_log.info('Using legacy Adam optimizers')
-        self.critic_optimizer = tf.keras.optimizers.legacy.Adam(
-            self.critic_lr, epsilon=1e-08)
-        self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
-            self.actor_lr, epsilon=1e-08)
         
         redq_log.info('Running KerasREDQTD3 __init__')
         redq_log.info(f'Number of critics: {self.num_critics}')
@@ -241,7 +234,7 @@ class KerasREDQTD3(KerasTD3):
 
                 # Update Priorities if using PER
                 if "PER" in self.buffer_type:
-                    new_priorities = td_errors.numpy()
+                    new_priorities = td_errors.numpy().squeeze()
                     self.buffer.update_priorities(new_priorities)
 
                 # Update actor and target networks
@@ -249,13 +242,11 @@ class KerasREDQTD3(KerasTD3):
                     actor_loss = self.train_actor(state_batch)
                     tf.summary.scalar('Actor Loss', data=actor_loss,
                                     step=int(self.train_steps))
-                    self.soft_update(self.target_actor.variables,
-                                    self.actor_model.variables)
+                    self.soft_update(self.target_actor, self.actor_model)
 
                 if self.train_steps % self.critic_update_freq == 0:
                     for i in range(self.num_critics):
-                        self.soft_update(self.target_critics[i].variables,
-                                        self.critic_models[i].variables)
+                        self.soft_update(self.target_critics[i], self.critic_models[i])
 
     def load(self):
         """
@@ -267,20 +258,20 @@ class KerasREDQTD3(KerasTD3):
             
             # Load actor models
             for file in os.listdir(self.model_load_path):
-                if 'actor_model' in file and file.endswith('.h5'):
+                if 'actor_model' in file and file.endswith('.weights.h5'):
                     self.actor_model.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'target_actor' in file and file.endswith('.h5'):
+                elif 'target_actor' in file and file.endswith('.weights.h5'):
                     self.target_actor.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
             
             # Load critic models - pattern for filenames must match save method
             for i in range(self.num_critics):
                 for file in os.listdir(self.model_load_path):
-                    if f'critic_model_{i}' in file and file.endswith('.h5'):
+                    if f'critic_model_{i}' in file and file.endswith('.weights.h5'):
                         self.critic_models[i].load_weights(join(self.model_load_path, file))
                         model_load_count += 1
-                    elif f'target_critic_{i}' in file and file.endswith('.h5'):
+                    elif f'target_critic_{i}' in file and file.endswith('.weights.h5'):
                         self.target_critics[i].load_weights(join(self.model_load_path, file))
                         model_load_count += 1
             
@@ -306,16 +297,16 @@ class KerasREDQTD3(KerasTD3):
 
             # Save actor models
             self.actor_model.save_weights(
-                join(destination_file_path, f"actor_model_{post_fix}.h5"))
+                join(destination_file_path, f"actor_model_{post_fix}.weights.h5"))
             self.target_actor.save_weights(
-                join(destination_file_path, f"target_actor_{post_fix}.h5"))
+                join(destination_file_path, f"target_actor_{post_fix}.weights.h5"))
             
             # Save all critic models in ensemble
             for i, (critic_model, target_critic) in enumerate(zip(self.critic_models, self.target_critics)):
                 critic_model.save_weights(
-                    join(destination_file_path, f"critic_model_{i}_{post_fix}.h5"))
+                    join(destination_file_path, f"critic_model_{i}_{post_fix}.weights.h5"))
                 target_critic.save_weights(
-                    join(destination_file_path, f"target_critic_{i}_{post_fix}.h5"))
+                    join(destination_file_path, f"target_critic_{i}_{post_fix}.weights.h5"))
                 
             redq_log.info('Agent models saved successfully')
         except Exception as e:

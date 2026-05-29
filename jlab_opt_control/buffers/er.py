@@ -68,7 +68,7 @@ class ER(Replay):
     def sample(self, nsamples):
         # Find actual size of filled buffer
         max_index = min(self.pointer, self.buffer_capacity)
-
+        nsamples = min(nsamples, max_index)
         self.indices = np.random.choice(
             max_index, size=nsamples, replace=False)
 

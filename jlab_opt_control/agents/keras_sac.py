@@ -50,7 +50,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 class KerasSAC(jlab_opt_control.Agent):
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_sac.json'):
+    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_sac.cfg'):
         """ Define all key variables required for all agent """
 
         # Get env info
@@ -127,21 +127,12 @@ class KerasSAC(jlab_opt_control.Agent):
         self.actor_lr = float(cfg_utils.cfg_get(
             data, 'actor_learning_rate', 1e-4))
 
-        if processor == 'arm':
-            sac_log.info('Using legacy Adam')
-            self.critic_optimizer = tf.keras.optimizers.legacy.Adam(
-                self.critic_lr, epsilon=1e-08)
-            self.actor_optimizer = tf.keras.optimizers.legacy.Adam(
-                self.actor_lr, epsilon=1e-08)
-            self.alpha_optimizer = tf.keras.optimizers.legacy.Adam(
-                self.actor_lr, epsilon=1e-08) #Adam([self.log_alpha], lr=args.lr)
-        else:
-            self.critic_optimizer = tf.keras.optimizers.Adam(
-                self.critic_lr, epsilon=1e-08)
-            self.actor_optimizer = tf.keras.optimizers.Adam(
-                self.actor_lr, epsilon=1e-08)
-            self.alpha_optimizer = tf.keras.optimizers.Adam(
-                self.actor_lr, epsilon=1e-08) #Adam([self.log_alpha], lr=args.lr)
+        self.critic_optimizer = tf.keras.optimizers.Adam(
+            self.critic_lr, epsilon=1e-08)
+        self.actor_optimizer = tf.keras.optimizers.Adam(
+            self.actor_lr, epsilon=1e-08)
+        self.alpha_optimizer = tf.keras.optimizers.Adam(
+            self.actor_lr, epsilon=1e-08)
 
         self.initialize_new_models()
 
@@ -286,30 +277,23 @@ class KerasSAC(jlab_opt_control.Agent):
             zip(gradient, self.actor_model.trainable_variables))
         return loss
 
+    def soft_update(self, target_model, source_model):
+        target_weights = target_model.get_weights()
+        source_weights = source_model.get_weights()
+        new_weights = [
+            w * self.tau + tw * (1.0 - self.tau)
+            for w, tw in zip(source_weights, target_weights)
+        ]
+        target_model.set_weights(new_weights)
+
     @tf.function
-    def soft_update(self, target_weights, weights):
-        for (target_weight, weight) in zip(target_weights, weights):
-            target_weight.assign(weight * self.tau +
-                                 target_weight * (1.0 - self.tau))
-
-    @tf.function   
     def update_alpha(self, states):
-        if self.automatic_entropy_tuning:
-            with tf.GradientTape() as tape:
-                # Sample actions from the policy for current states
-                actions, log_pi = self.actor_model(states, training=False)
-
-                alpha_loss = tf.reduce_mean(- self.log_alpha*(log_pi +
-                                                        self.target_entropy))
-
-            variables = [self.log_alpha]
-            grads = tape.gradient(alpha_loss, variables)
-            self.alpha_optimizer.apply_gradients(zip(grads, variables))
-
-            self.alpha = tf.exp(self.log_alpha).item()
-        else:
-            alpha_loss = 0.
-
+        with tf.GradientTape() as tape:
+            actions, log_pi = self.actor_model(states, training=False)
+            alpha_loss = tf.reduce_mean(-self.log_alpha * (log_pi + self.target_entropy))
+        grads = tape.gradient(alpha_loss, [self.log_alpha])
+        self.alpha_optimizer.apply_gradients(zip(grads, [self.log_alpha]))
+        self.alpha = tf.exp(self.log_alpha)
         return alpha_loss
 
     def train(self):
@@ -341,7 +325,7 @@ class KerasSAC(jlab_opt_control.Agent):
 
             # Update Priorities
             if "PER" in self.buffer_type:
-                new_priorities = td_errors.numpy()
+                new_priorities = td_errors.numpy().squeeze()
                 self.buffer.update_priorities(new_priorities)
 
             if self.ntrain_calls % self.actor_update_freq == 0:
@@ -349,16 +333,17 @@ class KerasSAC(jlab_opt_control.Agent):
                 tf.summary.scalar('Actor Loss', data=actor_loss,
                                   step=int(self.ntrain_calls))
                 
-                alpha_loss = self.update_alpha(state_batch)
+                if self.automatic_entropy_tuning:
+                    alpha_loss = self.update_alpha(state_batch)
+                else:
+                    alpha_loss = 0.0
                 tf.summary.scalar('Alpha Loss', data=alpha_loss,
                                   step=int(self.ntrain_calls))
 
 
             if self.ntrain_calls % self.critic_update_freq == 0:
-                self.soft_update(self.target_critic1.variables,
-                                 self.critic_model1.variables)
-                self.soft_update(self.target_critic2.variables,
-                                 self.critic_model2.variables)
+                self.soft_update(self.target_critic1, self.critic_model1)
+                self.soft_update(self.target_critic2, self.critic_model2)
 
     def action(self, state, train=True):
         """ Method used to provide the next action using the target model """
@@ -397,19 +382,19 @@ class KerasSAC(jlab_opt_control.Agent):
         try:
             model_load_count = 0
             for file in os.listdir(self.model_load_path):
-                if 'actor_model' in file and file.endswith('.h5'):
+                if 'actor_model' in file and file.endswith('.weights.h5'):
                     self.actor_model.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'critic_model1' in file and file.endswith('.h5'):
+                elif 'critic_model1' in file and file.endswith('.weights.h5'):
                     self.critic_model1.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'target_critic1' in file and file.endswith('.h5'):
+                elif 'target_critic1' in file and file.endswith('.weights.h5'):
                     self.target_critic1.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'critic_model2' in file and file.endswith('.h5'):
+                elif 'critic_model2' in file and file.endswith('.weights.h5'):
                     self.critic_model2.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
-                elif 'target_critic2' in file and file.endswith('.h5'):
+                elif 'target_critic2' in file and file.endswith('.weights.h5'):
                     self.target_critic2.load_weights(join(self.model_load_path, file))
                     model_load_count += 1
             if model_load_count == 5:
@@ -427,15 +412,15 @@ class KerasSAC(jlab_opt_control.Agent):
             os.makedirs(destination_file_path, exist_ok=True)
 
             self.actor_model.save_weights(
-                join(destination_file_path, "actor_model_" + post_fix + ".h5"))
+                join(destination_file_path, "actor_model_" + post_fix + ".weights.h5"))
             self.critic_model1.save_weights(
-                join(destination_file_path, "critic_model1_" + post_fix + ".h5"))
+                join(destination_file_path, "critic_model1_" + post_fix + ".weights.h5"))
             self.target_critic1.save_weights(
-                join(destination_file_path, "target_critic1_" + post_fix + ".h5"))
+                join(destination_file_path, "target_critic1_" + post_fix + ".weights.h5"))
             self.critic_model2.save_weights(
-                join(destination_file_path, "critic_model2_" + post_fix + ".h5"))
+                join(destination_file_path, "critic_model2_" + post_fix + ".weights.h5"))
             self.target_critic2.save_weights(
-                join(destination_file_path, "target_critic2_" + post_fix + ".h5"))
+                join(destination_file_path, "target_critic2_" + post_fix + ".weights.h5"))
             sac_log.info('Agent models saved successfully')
         except:
             sac_log.error("Error in saving the models...")

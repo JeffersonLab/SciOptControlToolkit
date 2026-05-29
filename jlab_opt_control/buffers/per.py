@@ -36,6 +36,7 @@ class PER(ER):
 
         # Find actual size of filled buffer
         max_index = min(self.pointer, self.buffer_capacity)
+        nsamples = min(nsamples, max_index)
 
         if self.prioritization_type == "proportional":
             probabilities = self.priorities[:max_index] ** self.alpha

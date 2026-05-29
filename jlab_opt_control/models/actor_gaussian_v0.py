@@ -60,12 +60,6 @@ class ActorGaussian(Model):
             x = layer(x)
         mean = self.mean_layer(x)
         std = self.std_layer(x) + 1. + 1e-6  # Add 1 to convert the range to positive [0.001, 2]; Add a tiny number to avoid zero
-        # clip log_std to avoid explosion
-        # log_std = tf.clip_by_value(log_std, -20.0, 1.0)
-        # log_std = (log_std * 10) - 9
-        # mean = mean * 3
-
-        # std = tf.exp(log_std)
 
         normal_dist = tfp.distributions.Normal(mean, std)
         unnorm_action = normal_dist.sample()
@@ -73,15 +67,14 @@ class ActorGaussian(Model):
         # Apply the tanh squashing to keep the gaussian bounded in (-1,1)
         action = tf.tanh(unnorm_action)
 
-        # Calculate the log probability
-        unnorm_log_pi = normal_dist.log_prob(unnorm_action)
+        # Calculate the log probability, summing over action dimensions -> (batch, 1)
+        unnorm_log_pi = tf.reduce_sum(normal_dist.log_prob(unnorm_action), axis=1, keepdims=True)
         # Change log probability to account for tanh squashing as mentioned in
         # Appendix C of the paper
         norm_log_pi = unnorm_log_pi - tf.reduce_sum(tf.math.log(1 - action**2 + 1e-6), axis=1, keepdims=True)
         norm_action = action * self.action_scale + self.action_bias
-        
-        return norm_action, norm_log_pi
 
+        return norm_action, norm_log_pi
 
     def save_cfg(self):
         """ Save the model cfg """

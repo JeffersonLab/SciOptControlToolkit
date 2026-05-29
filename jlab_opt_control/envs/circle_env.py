@@ -80,9 +80,10 @@ class Circle2D(gym.Env):
         if self.nsteps >= self._max_episode_steps:
             return self.states, reward, True, True, {}
 
-        return self.states, reward, True, True, {}
+        return self.states, reward, False, False, {}
 
     def reset(self):
+        self.nsteps = 0
         if self.rdm_reset_mode == 'uniform':
             self.states = self.observation_space.sample()
         if self.rdm_reset_mode == 'fixed':
