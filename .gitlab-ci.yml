@@ -39,18 +39,18 @@ baseline_tests:
   stage: test
   script:
     - bash utests/run_mr_utests.sh
-  artifacts:
-    when: always
-    expire_in: 1 month
-    name: "baseline_tests_${CI_COMMIT_SHORT_SHA}"
-    paths:
-      - results/
-      - test-reports/
-      - "**/models/"
-      - "**/cfgs/"
-      - "**/logs/"
-    reports:
-      junit: test-reports/junit.xml
+  # artifacts:
+  #   when: always
+  #   expire_in: 1 month
+  #   name: "baseline_tests_${CI_COMMIT_SHORT_SHA}"
+  #   paths:
+  #     - results/
+  #     - test-reports/
+  #     - "**/models/"
+  #     - "**/cfgs/"
+  #     - "**/logs/"
+    # reports:
+    #   junit: test-reports/junit.xml
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: on_success
