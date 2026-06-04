@@ -21,6 +21,7 @@ class ER(Replay):
         relative_path = "../cfgs/"
         full_path = os.path.join(absolute_path, relative_path)
         self.pfn_json_file = os.path.join(full_path, cfg)
+
         with open(self.pfn_json_file) as json_file:
             data = json.load(json_file)
 
@@ -29,11 +30,10 @@ class ER(Replay):
                 cfg_utils.cfg_get(data, 'buffer_capacity', 50000))
         else:
             self.buffer_capacity = buffer_size
+
         self.current_index = 0
         self.pointer = 0
-
         self.logdir = logdir
-
         self.num_states = state_dim
         self.num_actions = action_dim
 
@@ -43,15 +43,12 @@ class ER(Replay):
         self.next_states = np.zeros((self.buffer_capacity, self.num_states))
         self.dones = np.zeros((self.buffer_capacity, 1))
         self.priorities = np.ones(self.buffer_capacity)
-
         self.indices = None
         self.sample_counts = np.zeros((self.buffer_capacity, 1))
-
         self.max_priority = 1.0
 
     def record(self, memory):
         self.current_index = self.pointer % self.buffer_capacity
-
         self.states[self.current_index] = memory[0]
         self.actions[self.current_index] = memory[1]
         self.rewards[self.current_index] = memory[2]
@@ -68,7 +65,7 @@ class ER(Replay):
     def sample(self, nsamples):
         # Find actual size of filled buffer
         max_index = min(self.pointer, self.buffer_capacity)
-        nsamples = min(nsamples, max_index)
+
         self.indices = np.random.choice(
             max_index, size=nsamples, replace=False)
 
@@ -90,7 +87,8 @@ class ER(Replay):
             "rewards": self.rewards,
             "next_states": self.next_states,
             "dones": self.dones,
-            "priorities": self.priorities
+            "priorities": self.priorities,
+            "pointer": self.pointer,
         }
         np.save(filename, data)
 
@@ -115,6 +113,31 @@ class ER(Replay):
         self.next_states = data["next_states"]
         self.dones = data["dones"]
         self.priorities = data["priorities"]
+        self.buffer_capacity = self.states.shape[0]
+
+        if "pointer" in data:
+            # Pointer was saved — restore it directly
+            self.pointer = data["pointer"]
+            buf_log.info(
+                f'Loaded buffer with saved pointer: {self.pointer}')
+        else:
+            buf_log.warning(
+                'No pointer found in saved buffer, inferring from non-zero data. '
+                'This may be inaccurate if valid experiences contain all zeros.')
+            filled_indices = np.where(
+                np.any(self.states != 0, axis=1) |
+                np.any(self.actions != 0, axis=1) |
+                np.any(self.rewards != 0, axis=1) |
+                np.any(self.next_states != 0, axis=1) |
+                np.any(self.dones != 0, axis=1)
+            )[0]
+
+            if len(filled_indices) > 0:
+                self.pointer = filled_indices.max() + 1
+            else:
+                self.pointer = 0
+
+        self.sample_counts = np.zeros((self.buffer_capacity, 1))
 
     def size(self):
         return min(self.pointer, self.buffer_capacity)

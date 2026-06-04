@@ -32,6 +32,17 @@ def random_transition():
     return (state, action, reward, next_state, done, priority)
 
 
+def zero_transition():
+    """A fully valid experience where every field is zero."""
+    state      = np.zeros(STATE_DIM, dtype=np.float32)
+    action     = np.zeros(ACTION_DIM, dtype=np.float32)
+    reward     = 0.0
+    next_state = np.zeros(STATE_DIM, dtype=np.float32)
+    done       = 0.0
+    priority   = 1.0
+    return (state, action, reward, next_state, done, priority)
+
+
 class TestERBuffer(unittest.TestCase):
 
     def setUp(self):
@@ -107,6 +118,142 @@ class TestERBuffer(unittest.TestCase):
         buf2.load(filepath)
         np.testing.assert_array_equal(self.buf.states, buf2.states)
         np.testing.assert_array_equal(self.buf.actions, buf2.actions)
+
+    def test_save_and_load_preserves_pointer(self):
+        """Pointer value round-trips through save/load exactly."""
+        for _ in range(30):
+            self.buf.record(random_transition())
+        filepath = os.path.join(self.logdir, 'replay.npy')
+        self.buf.save(filepath)
+
+        buf2 = make_er(self.logdir)
+        buf2.load(filepath)
+        self.assertEqual(buf2.pointer, 30)
+        self.assertEqual(buf2.size(), 30)
+
+    def test_save_and_load_wrapped_buffer_preserves_pointer(self):
+        """After wrapping, pointer exceeds capacity and is restored exactly."""
+        overflow = 15
+        total = BUFFER_SIZE + overflow
+        for _ in range(total):
+            self.buf.record(random_transition())
+        filepath = os.path.join(self.logdir, 'replay.npy')
+        self.buf.save(filepath)
+
+        buf2 = make_er(self.logdir)
+        buf2.load(filepath)
+        # pointer should be the true count, not capped at capacity
+        self.assertEqual(buf2.pointer, total)
+        # size() caps at capacity
+        self.assertEqual(buf2.size(), BUFFER_SIZE)
+
+    def test_load_empty_buffer(self):
+        """An empty buffer round-trips with pointer at 0."""
+        filepath = os.path.join(self.logdir, 'replay.npy')
+        self.buf.save(filepath)
+
+        buf2 = make_er(self.logdir)
+        buf2.load(filepath)
+        self.assertEqual(buf2.pointer, 0)
+        self.assertEqual(buf2.size(), 0)
+
+    def test_load_with_all_zero_experiences(self):
+        """Experiences that are entirely zeros are not lost on save/load.
+
+        This is the core scenario the pointer-based fix addresses:
+        if the last experiences in the buffer are all zeros, a non-zero
+        heuristic would set the pointer too low and lose data.
+        """
+        # Record some normal transitions, then end with all-zero ones
+        for _ in range(5):
+            self.buf.record(random_transition())
+        for _ in range(3):
+            self.buf.record(zero_transition())
+        expected_pointer = 8
+
+        filepath = os.path.join(self.logdir, 'replay.npy')
+        self.buf.save(filepath)
+
+        buf2 = make_er(self.logdir)
+        buf2.load(filepath)
+        self.assertEqual(buf2.pointer, expected_pointer)
+        self.assertEqual(buf2.size(), expected_pointer)
+
+        # Verify the all-zero rows are actually present and sampable
+        np.testing.assert_array_equal(buf2.states[7], np.zeros(STATE_DIM))
+        np.testing.assert_array_equal(buf2.actions[7], np.zeros(ACTION_DIM))
+        np.testing.assert_array_equal(buf2.rewards[7], np.array([0.0]))
+
+    def test_load_only_zero_experiences(self):
+        """A buffer filled with nothing but all-zero experiences survives
+        a save/load cycle — the old heuristic would report pointer=0."""
+        for _ in range(5):
+            self.buf.record(zero_transition())
+
+        filepath = os.path.join(self.logdir, 'replay.npy')
+        self.buf.save(filepath)
+
+        buf2 = make_er(self.logdir)
+        buf2.load(filepath)
+        self.assertEqual(buf2.pointer, 5)
+        self.assertEqual(buf2.size(), 5)
+
+    def test_load_legacy_format_without_pointer(self):
+        """Old save files that lack 'pointer' fall back to the non-zero
+        heuristic without crashing."""
+        for _ in range(20):
+            self.buf.record(random_transition())
+
+        filepath = os.path.join(self.logdir, 'legacy.npy')
+        # Manually save without the pointer key to simulate an old file
+        data = {
+            "states": self.buf.states,
+            "actions": self.buf.actions,
+            "rewards": self.buf.rewards,
+            "next_states": self.buf.next_states,
+            "dones": self.buf.dones,
+            "priorities": self.buf.priorities,
+        }
+        np.save(filepath, data)
+
+        buf2 = make_er(self.logdir)
+        buf2.load(filepath)
+        # The heuristic should find the last non-zero row at index 19
+        self.assertEqual(buf2.pointer, 20)
+        self.assertEqual(buf2.size(), 20)
+
+    def test_load_legacy_format_empty(self):
+        """Old-format empty save results in pointer=0 via fallback."""
+        filepath = os.path.join(self.logdir, 'legacy_empty.npy')
+        data = {
+            "states": self.buf.states,
+            "actions": self.buf.actions,
+            "rewards": self.buf.rewards,
+            "next_states": self.buf.next_states,
+            "dones": self.buf.dones,
+            "priorities": self.buf.priorities,
+        }
+        np.save(filepath, data)
+
+        buf2 = make_er(self.logdir)
+        buf2.load(filepath)
+        self.assertEqual(buf2.pointer, 0)
+
+    def test_sample_counts_reset_on_load(self):
+        """Sample counts are zeroed out after loading."""
+        for _ in range(20):
+            self.buf.record(random_transition())
+        self.buf.sample(10)
+        # sample_counts should be non-zero now
+        self.assertGreater(self.buf.sample_counts.sum(), 0)
+
+        filepath = os.path.join(self.logdir, 'replay.npy')
+        self.buf.save(filepath)
+
+        buf2 = make_er(self.logdir)
+        buf2.load(filepath)
+        np.testing.assert_array_equal(
+            buf2.sample_counts, np.zeros((BUFFER_SIZE, 1)))
 
     # --- cfg save ---
 
