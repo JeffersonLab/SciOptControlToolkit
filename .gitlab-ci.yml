@@ -59,6 +59,8 @@ baseline_tests:
 push_to_external_gitlab:
   stage: release
   image: alpine:3.20
+  variables:
+    GIT_DEPTH: 0
   before_script:
     - apk add --no-cache git
   script:
