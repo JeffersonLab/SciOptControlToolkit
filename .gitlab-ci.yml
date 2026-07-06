@@ -6,7 +6,7 @@ stages:
 
 workflow:
   rules:
-    - if: '$CI_PROJECT_ID != "YOUR_PROJECT_ID_HERE"'
+    - if: '$CI_PROJECT_ID != "840"'
       when: never
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
