@@ -52,7 +52,7 @@ class KerasREDQTD3(KerasTD3):
     Uses an ensemble of critics and higher update-to-data ratio.
     """
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_redq_td3.cfg'):
+    def __init__(self, env, logdir, cfg='keras_redq_td3.cfg', **kwargs):
         """
         Initialize REDQ-TD3 agent by reusing TD3 initialization and adding REDQ-specific components.
         """
@@ -74,7 +74,7 @@ class KerasREDQTD3(KerasTD3):
         self.train_steps = 0
         
         # Call parent initialization with modified parameters
-        super().__init__(env, logdir, buffer_type, buffer_size, cfg)
+        super().__init__(env, logdir, cfg, **kwargs)
         
         redq_log.info('Running KerasREDQTD3 __init__')
         redq_log.info(f'Number of critics: {self.num_critics}')

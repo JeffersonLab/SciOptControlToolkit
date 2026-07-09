@@ -54,10 +54,10 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(name)s:%(message)s")
 class KerasSINDyCriticTD3(KerasTD3):
 
     def __init__(
-        self, env, logdir, buffer_type=None, buffer_size=None, cfg="keras_sindy_critic_td3.cfg"
+        self, env, logdir, cfg="keras_sindy_critic_td3.cfg", **kwargs
     ):
         """Define all key variables required for all agent"""
-        super().__init__(env, logdir, buffer_type, buffer_size, cfg)
+        super().__init__(env, logdir, cfg, **kwargs)
 
         # Extract relevant information for SINDy critic
         with open(self.pfn_json_file) as json_file:

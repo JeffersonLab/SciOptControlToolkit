@@ -50,7 +50,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 
 class KerasSAC(jlab_opt_control.Agent):
 
-    def __init__(self, env, logdir, buffer_type=None, buffer_size=None, cfg='keras_sac.cfg'):
+    def __init__(self, env, logdir, cfg='keras_sac.cfg', **kwargs):
         """ Define all key variables required for all agent """
 
         # Get env info
@@ -92,7 +92,7 @@ class KerasSAC(jlab_opt_control.Agent):
             data = json.load(json_file)
         self.warmup_size = int(cfg_utils.cfg_get(data, 'warmup_size', 10000))
         self.batch_size = int(cfg_utils.cfg_get(data, 'batch_size', 100))
-        self.model_load_path = cfg_utils.cfg_get(data, 'load_model', None)
+        self.model_load_path = kwargs.get('load_model', cfg_utils.cfg_get(data, 'load_model', None))
 
         self.actor_model_type = cfg_utils.cfg_get(
             data, 'actor_model', "actor_gaussian-v0")
@@ -104,10 +104,8 @@ class KerasSAC(jlab_opt_control.Agent):
         self.mse_loss = tf.keras.losses.MeanSquaredError()
 
         # Buffer
-        if buffer_type is None:
-            self.buffer_type = cfg_utils.cfg_get(data, 'buffer_type', None)
-        else:
-            self.buffer_type = buffer_type
+        self.buffer_type = kwargs.get('buffer_type', cfg_utils.cfg_get(data, 'buffer_type', None))
+        buffer_size = kwargs.get('buffer_size', cfg_utils.cfg_get(data, 'buffer_size', None))
 
         self.buffer = jlab_opt_control.buffers.make(
             self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir, buffer_size=buffer_size)

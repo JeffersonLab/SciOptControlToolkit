@@ -133,9 +133,9 @@ def create_and_configure_env(env_id, difficulty=None, max_nsteps=0):
 
     return env
 
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold, use_env_subdir=False, inference_interval=10):
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold, use_env_subdir=False, inference_interval=10, model_load_path=None):
     """Run the optimization process for reinforcement learning.
-    
+
     Args:
         index (int): Index for tracking multiple runs or ran.
         max_nepisodes (int): Maximum number of episodes to run.
@@ -150,7 +150,8 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         nepisode_avg (int): Number of episodes to average over for logging and saving.
         model_save_threshold (float): Threshold for improvement to trigger model saving.
         use_env_subdir (bool, optional): Whether to use environment as a subdirectory. Defaults to False.
-    
+        model_load_path (str, optional): Path to load a pretrained model from. Defaults to None.
+
     Returns:
         None
     """
@@ -201,8 +202,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     file_writer.set_as_default()
 
     # Agent Handling
+    agent_kwargs = {}
+    if buffer_type is not None:
+        agent_kwargs['buffer_type'] = buffer_type
+    if buffer_size is not None:
+        agent_kwargs['buffer_size'] = buffer_size
+    if model_load_path is not None:
+        agent_kwargs['load_model'] = model_load_path
+
     agent = jlab_opt_control.agents.make(
-        agent_id, env=env, logdir=logdir, buffer_type=buffer_type, buffer_size=buffer_size)
+        agent_id, env=env, logdir=logdir, **agent_kwargs)
 
     # Save agents initial configuration and models
     agent.save_cfg()
@@ -361,6 +370,8 @@ def main(args=None):
         "--use_env_subdir", action="store_true", help="Use environment as subdirectory in results folder")
     parser.add_argument(
         "--inference_interval", help="Use environment as subdirectory in results folder", type=int, default=10)
+    parser.add_argument(
+        "--load_model", help="Path to load a pretrained model from", type=str, default=None)
 
     # Get input arguments
     if args is not None:
@@ -382,9 +393,10 @@ def main(args=None):
     args_model_save_threshold = args.model_save_threshold
     args_use_env_subdir = args.use_env_subdir
     args_inference_interval = args.inference_interval
+    args_load_model = args.load_model
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
-            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold, args_use_env_subdir, args_inference_interval)
+            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold, args_use_env_subdir, args_inference_interval, args_load_model)
 
 if __name__ == "__main__":
     main()
