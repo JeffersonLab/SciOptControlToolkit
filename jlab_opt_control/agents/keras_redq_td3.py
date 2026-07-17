@@ -88,18 +88,25 @@ class KerasREDQTD3(KerasTD3):
         redq_log.info('Running KerasREDQTD3 initialize_new_models()')
 
         # Initialize actor and target actor (same as TD3)
-        self.actor_model = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, 
-            min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-        self.target_actor = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, 
-            min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+        actor_kwargs = dict(state_dim=self.num_states, action_dim=self.num_actions,
+                            min_action=self.lower_bound, max_action=self.upper_bound,
+                            logdir=self.logdir)
+        if self.actor_cfg is not None:
+            actor_kwargs['cfg'] = self.actor_cfg
+        self.actor_model = jlab_opt_control.models.make(self.actor_model_type, **actor_kwargs)
+        self.target_actor = jlab_opt_control.models.make(self.actor_model_type, **actor_kwargs)
 
         # Run through model once to initialize variables
         self.actor_model(tf.zeros([1, self.num_states]))
         self.target_actor(tf.zeros([1, self.num_states]))
 
         self.actor_model.save_cfg()
+
+        # Build critic kwargs once (branch-once), reused for every critic in the ensemble
+        critic_kwargs = dict(state_dim=self.num_states, action_dim=self.num_actions,
+                             logdir=self.logdir)
+        if self.critic_cfg is not None:
+            critic_kwargs['cfg'] = self.critic_cfg
 
         # Initialize ensemble of critics (REDQ-specific)
         for i in range(self.num_critics):
@@ -108,11 +115,9 @@ class KerasREDQTD3(KerasTD3):
             seed = int(str_seed[9:-3])
             redq_log.debug(f'seed for critic {i}: {seed}')
             tf.random.set_seed(seed)
-            
-            critic_model = jlab_opt_control.models.make(
-                self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
-            target_critic = jlab_opt_control.models.make(
-                self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+
+            critic_model = jlab_opt_control.models.make(self.critic_model_type, **critic_kwargs)
+            target_critic = jlab_opt_control.models.make(self.critic_model_type, **critic_kwargs)
             
             # Run through model once to initialize variables
             critic_model(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))

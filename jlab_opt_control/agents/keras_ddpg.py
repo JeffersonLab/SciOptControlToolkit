@@ -108,8 +108,15 @@ class KerasDDPG(jlab_opt_control.Agent):
         self.buffer_type = kwargs.get('buffer_type', cfg_utils.cfg_get(data, 'buffer_type', None))
         buffer_size = kwargs.get('buffer_size', cfg_utils.cfg_get(data, 'buffer_size', None))
 
-        self.buffer = jlab_opt_control.buffers.make(
-            self.buffer_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir, buffer_size=buffer_size)
+        self.actor_cfg = kwargs.get('actor_cfg')
+        self.critic_cfg = kwargs.get('critic_cfg')
+        self.buffer_cfg = kwargs.get('buffer_cfg')
+
+        buffer_kwargs = dict(state_dim=self.num_states, action_dim=self.num_actions,
+                              logdir=self.logdir, buffer_size=buffer_size)
+        if self.buffer_cfg is not None:
+            buffer_kwargs['cfg'] = self.buffer_cfg
+        self.buffer = jlab_opt_control.buffers.make(self.buffer_type, **buffer_kwargs)
         self.buffer.save_cfg()
 
         # Used to update target networks
@@ -149,27 +156,33 @@ class KerasDDPG(jlab_opt_control.Agent):
         """ Initialize new models from scratch """
         ddpg_log.info('Running KerasDDPG initialize_new_models()')
 
-        self.actor_model = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
-        self.target_actor = jlab_opt_control.models.make(
-            self.actor_model_type, state_dim=self.num_states, action_dim=self.num_actions, min_action=self.lower_bound, max_action=self.upper_bound, logdir=self.logdir)
+        actor_kwargs = dict(state_dim=self.num_states, action_dim=self.num_actions,
+                            min_action=self.lower_bound, max_action=self.upper_bound,
+                            logdir=self.logdir)
+        if self.actor_cfg is not None:
+            actor_kwargs['cfg'] = self.actor_cfg
+        self.actor_model = jlab_opt_control.models.make(self.actor_model_type, **actor_kwargs)
+        self.target_actor = jlab_opt_control.models.make(self.actor_model_type, **actor_kwargs)
 
         # Run through model once to initialize variables
         self.actor_model(tf.zeros([1, self.num_states]))
         self.target_actor(tf.zeros([1, self.num_states]))
 
         self.actor_model.save_cfg()
-        
+
         seed1 = time.time_ns()
         str_seed1 = str(seed1)
         seed1 = int(str_seed1[9:-3])
         ddpg_log.debug(f'seed1:{seed1}')
         tf.random.set_seed(seed1)
 
-        self.critic_model1 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
-        self.target_critic1 = jlab_opt_control.models.make(
-            self.critic_model_type, state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
+        critic_kwargs = dict(state_dim=self.num_states, action_dim=self.num_actions,
+                             logdir=self.logdir)
+        if self.critic_cfg is not None:
+            critic_kwargs['cfg'] = self.critic_cfg
+
+        self.critic_model1 = jlab_opt_control.models.make(self.critic_model_type, **critic_kwargs)
+        self.target_critic1 = jlab_opt_control.models.make(self.critic_model_type, **critic_kwargs)
 
         # Run through model once to initialize variables
         self.critic_model1(tf.zeros([1, self.num_states]), tf.zeros([1, self.num_actions]))
