@@ -10,6 +10,9 @@ import jlab_opt_control.agents as agents
 from jlab_opt_control.agents.keras_td3 import KerasTD3
 from jlab_opt_control.agents.keras_ddpg import KerasDDPG
 from jlab_opt_control.agents.keras_sac import KerasSAC
+from jlab_opt_control.agents.keras_sindy_critic_td3 import KerasSINDyCriticTD3
+from jlab_opt_control.agents.keras_uncertainty_td3 import KerasUncertaintyTD3
+from jlab_opt_control.agents.keras_sindy_uncertainty_td3 import KerasSINDyUncertaintyTD3
 from jlab_opt_control.drivers.run_continuous import run_opt
 
 
@@ -142,6 +145,27 @@ class TestKerasSACKwargsFallback(AgentKwargsFallbackMixin, unittest.TestCase):
         'nodes_per_layer': [16, 16, 16],
         'activation_functions': ['relu', 'relu', 'relu', 'tanh'],
     }
+
+
+class TestKerasSINDyCriticTD3KwargsFallback(AgentKwargsFallbackMixin, unittest.TestCase):
+    # keras_sindy_critic_td3.cfg uses actor_fcnn-v0/critic_fcnn-v0/ER-v0,
+    # same as KerasTD3, so no mixin attribute overrides are needed here.
+    agent_cls = KerasSINDyCriticTD3
+
+
+class TestKerasUncertaintyTD3KwargsFallback(AgentKwargsFallbackMixin, unittest.TestCase):
+    # keras_uncertainty_td3.cfg uses actor_fcnn-v0/ER-v0 like KerasTD3, but
+    # critic_model is critic_uncertainty_fcnn-v0 (CriticUncertaintyFCNN),
+    # which still exposes pfn_json_file/hidden_layers with the same shape as
+    # CriticFCNN, so the inherited critic_cfg test applies unmodified.
+    agent_cls = KerasUncertaintyTD3
+
+
+class TestKerasSINDyUncertaintyTD3KwargsFallback(AgentKwargsFallbackMixin, unittest.TestCase):
+    # keras_sindy_uncertainty_td3.cfg also uses actor_fcnn-v0/critic_fcnn-v0/ER-v0,
+    # and KerasSINDyUncertaintyTD3 only overrides action(), so the full
+    # mixin applies cleanly here too.
+    agent_cls = KerasSINDyUncertaintyTD3
 
 
 class TestRunOptAgentKwargs(unittest.TestCase):
