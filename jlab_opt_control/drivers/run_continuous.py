@@ -100,17 +100,19 @@ def generate_logdir(index, env_id, agent_id, use_env_subdir=False):
 
     return logdir
 
-def create_and_configure_env(env_id, difficulty=None, max_nsteps=0):
+def create_and_configure_env(env_id, difficulty=None, max_nsteps=0, env_cfg=None):
     """Create and configure an environment based on the given environment ID.
-    
+
     Args:
         env_id (str): Identifier for the environment to create.
         difficulty (float, optional): Difficulty level for curriculum learning. Defaults to None.
         max_nsteps (int, optional): Maximum number of steps per episode. Defaults to 0.
-    
+        env_cfg (str, optional): Path to a config file to forward to the environment's
+            constructor as `cfg`. Only forwarded when not None. Defaults to None.
+
     Returns:
         gym.Env: The created and configured environment.
-    
+
     Raises:
         ValueError: If the environment is not found in any registered modules.
     """
@@ -125,7 +127,8 @@ def create_and_configure_env(env_id, difficulty=None, max_nsteps=0):
 
     for env_type, (registry, make_func) in env_creators.items():
         if env_id in registry:
-            env = make_func(env_id)
+            env_kwargs = {'cfg': env_cfg} if env_cfg is not None else {}
+            env = make_func(env_id, **env_kwargs)
             run_openai_log.info(f'Created {env_type} environment: {env_id}')
             break
     else:
@@ -133,7 +136,10 @@ def create_and_configure_env(env_id, difficulty=None, max_nsteps=0):
 
     return env
 
-def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type, buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold, use_env_subdir=False, inference_interval=10, model_load_path=None):
+def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_type,
+            buffer_size, inference_flag, difficulty, nepisode_avg, model_save_threshold,
+            use_env_subdir=False, inference_interval=10, model_load_path=None,
+            agent_cfg=None, buffer_cfg=None, actor_cfg=None, critic_cfg=None, env_cfg=None):
     """Run the optimization process for reinforcement learning.
 
     Args:
@@ -151,11 +157,16 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         model_save_threshold (float): Threshold for improvement to trigger model saving.
         use_env_subdir (bool, optional): Whether to use environment as a subdirectory. Defaults to False.
         model_load_path (str, optional): Path to load a pretrained model from. Defaults to None.
+        agent_cfg (str, optional): Path to override the agent's cfg file. Defaults to None.
+        buffer_cfg (str, optional): Path to override the buffer's cfg file. Defaults to None.
+        actor_cfg (str, optional): Path to override the actor model's cfg file. Defaults to None.
+        critic_cfg (str, optional): Path to override the critic model's cfg file. Defaults to None.
+        env_cfg (str, optional): Path to override the environment's cfg file. Defaults to None.
 
     Returns:
         None
     """
-    
+
     # Generate Log Directory
     if logdir == 'None':
         logdir = generate_logdir(index, env_id, agent_id, use_env_subdir)
@@ -168,7 +179,7 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
     run_openai_log.info('Running env: {}'.format(env_id))
     
     try:
-        env = create_and_configure_env(env_id, difficulty, max_nsteps)
+        env = create_and_configure_env(env_id, difficulty, max_nsteps, env_cfg=env_cfg)
     except ValueError as e:
         run_openai_log.error(str(e))
         return
@@ -209,6 +220,14 @@ def run_opt(index, max_nepisodes, max_nsteps, agent_id, env_id, logdir, buffer_t
         agent_kwargs['buffer_size'] = buffer_size
     if model_load_path is not None:
         agent_kwargs['load_model'] = model_load_path
+    if buffer_cfg is not None:
+        agent_kwargs['buffer_cfg'] = buffer_cfg
+    if actor_cfg is not None:
+        agent_kwargs['actor_cfg'] = actor_cfg
+    if critic_cfg is not None:
+        agent_kwargs['critic_cfg'] = critic_cfg
+    if agent_cfg is not None:
+        agent_kwargs['cfg'] = agent_cfg
 
     agent = jlab_opt_control.agents.make(
         agent_id, env=env, logdir=logdir, **agent_kwargs)
@@ -372,6 +391,16 @@ def main(args=None):
         "--inference_interval", help="Use environment as subdirectory in results folder", type=int, default=10)
     parser.add_argument(
         "--load_model", help="Path to load a pretrained model from", type=str, default=None)
+    parser.add_argument(
+        "--agent_cfg", help="Path to override the agent's cfg file", type=os.path.abspath, default=None)
+    parser.add_argument(
+        "--buffer_cfg", help="Path to override the buffer's cfg file", type=os.path.abspath, default=None)
+    parser.add_argument(
+        "--actor_cfg", help="Path to override the actor model's cfg file", type=os.path.abspath, default=None)
+    parser.add_argument(
+        "--critic_cfg", help="Path to override the critic model's cfg file", type=os.path.abspath, default=None)
+    parser.add_argument(
+        "--env_cfg", help="Path to override the environment's cfg file", type=os.path.abspath, default=None)
 
     # Get input arguments
     if args is not None:
@@ -394,9 +423,15 @@ def main(args=None):
     args_use_env_subdir = args.use_env_subdir
     args_inference_interval = args.inference_interval
     args_load_model = args.load_model
+    args_agent_cfg = args.agent_cfg
+    args_buffer_cfg = args.buffer_cfg
+    args_actor_cfg = args.actor_cfg
+    args_critic_cfg = args.critic_cfg
+    args_env_cfg = args.env_cfg
 
     run_opt(args_index, args_nepisodes, args_nsteps, args_agent_id,
-            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold, args_use_env_subdir, args_inference_interval, args_load_model)
+            args_env_id, args_logdir, args_buf_type, args_buf_size, args_inference, args_difficulty, args_nepisode_avg, args_model_save_threshold, args_use_env_subdir, args_inference_interval, args_load_model,
+            agent_cfg=args_agent_cfg, buffer_cfg=args_buffer_cfg, actor_cfg=args_actor_cfg, critic_cfg=args_critic_cfg, env_cfg=args_env_cfg)
 
 if __name__ == "__main__":
     main()
