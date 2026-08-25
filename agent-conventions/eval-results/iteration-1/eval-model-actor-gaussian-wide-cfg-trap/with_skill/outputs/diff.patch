@@ -1,0 +1,121 @@
+diff --git a/jlab_opt_control/models/__init__.py b/jlab_opt_control/models/__init__.py
+index 41a79f0..376b836 100644
+--- a/jlab_opt_control/models/__init__.py
++++ b/jlab_opt_control/models/__init__.py
+@@ -29,6 +29,7 @@
+ from jlab_opt_control.models.registration import register, make, list_registered_modules
+ from jlab_opt_control.models.actor_fcnn import ActorFCNN
+ from jlab_opt_control.models.actor_gaussian_v0 import ActorGaussian
++from jlab_opt_control.models.actor_gaussian_wide import ActorGaussianWide
+ from jlab_opt_control.models.actor_fcnn_v2 import ActorFCNN_v2
+ from jlab_opt_control.models.critic_fcnn import CriticFCNN
+ from jlab_opt_control.models.critic_uncertainty_fcnn import CriticUncertaintyFCNN
+@@ -49,6 +50,12 @@ register(
+     kwargs={'cfg': 'actor_fcnn.cfg'},
+ )
+ 
++register(
++    id='actor_gaussian_wide-v0',
++    entry_point='jlab_opt_control.models:ActorGaussianWide',
++    kwargs={'cfg': 'actor_gaussian_wide.cfg'},
++)
++
+ register(
+     id='critic_fcnn-v0',
+     entry_point='jlab_opt_control.models:CriticFCNN',
+diff --git a/utests/test_models.py b/utests/test_models.py
+index 98ab94c..7aeab1f 100644
+--- a/utests/test_models.py
++++ b/utests/test_models.py
+@@ -6,6 +6,7 @@ import tensorflow as tf
+ import jlab_opt_control.models as models
+ from jlab_opt_control.models.actor_fcnn import ActorFCNN
+ from jlab_opt_control.models.actor_gaussian_v0 import ActorGaussian
++from jlab_opt_control.models.actor_gaussian_wide import ActorGaussianWide
+ from jlab_opt_control.models.critic_fcnn import CriticFCNN
+ 
+ 
+@@ -161,6 +162,83 @@ class TestActorGaussian(unittest.TestCase):
+         self.assertIsInstance(actor, ActorGaussian)
+ 
+ 
++class TestActorGaussianWide(unittest.TestCase):
++
++    def setUp(self):
++        self.logdir = tempfile.mkdtemp()
++        self.actor = ActorGaussianWide(
++            state_dim=STATE_DIM,
++            action_dim=ACTION_DIM,
++            min_action=MIN_ACTION,
++            max_action=MAX_ACTION,
++            logdir=self.logdir,
++        )
++
++    def test_output_is_tuple(self):
++        out = self.actor(zeros_state())
++        self.assertIsInstance(out, tuple)
++        self.assertEqual(len(out), 2)
++
++    def test_action_shape(self):
++        action, log_pi = self.actor(zeros_state())
++        self.assertEqual(action.shape, (BATCH_SIZE, ACTION_DIM))
++
++    def test_log_pi_shape(self):
++        action, log_pi = self.actor(zeros_state())
++        self.assertEqual(log_pi.shape, (BATCH_SIZE, 1))
++
++    def test_action_within_bounds(self):
++        state = tf.random.uniform([BATCH_SIZE, STATE_DIM], -1, 1)
++        action, _ = self.actor(state)
++        action = action.numpy()
++        self.assertTrue(np.all(action >= MIN_ACTION - 1e-5))
++        self.assertTrue(np.all(action <= MAX_ACTION + 1e-5))
++
++    def test_log_pi_is_finite(self):
++        state = tf.random.uniform([BATCH_SIZE, STATE_DIM], -1, 1)
++        _, log_pi = self.actor(state)
++        self.assertTrue(np.all(np.isfinite(log_pi.numpy())))
++
++    def test_stochastic_output(self):
++        # Two calls with the same input should generally differ (stochastic)
++        state = tf.ones([BATCH_SIZE, STATE_DIM])
++        a1, _ = self.actor(state)
++        a2, _ = self.actor(state)
++        self.assertFalse(np.allclose(a1.numpy(), a2.numpy()))
++
++    def test_architecture_is_wide(self):
++        # This variant's whole reason for existing: 3 hidden layers of 128
++        # units each, instead of ActorGaussian's 2 layers of 256.
++        self.assertEqual(len(self.actor.hidden_layers), 3)
++        for layer in self.actor.hidden_layers:
++            self.assertEqual(layer.units, 128)
++
++    def test_save_cfg(self):
++        self.actor.save_cfg()
++        cfg_path = os.path.join(self.logdir, 'cfgs', 'actor_gaussian_wide.cfg')
++        self.assertTrue(os.path.exists(cfg_path))
++
++    def test_registry(self):
++        actor = models.make(
++            'actor_gaussian_wide-v0',
++            state_dim=STATE_DIM,
++            action_dim=ACTION_DIM,
++            min_action=MIN_ACTION,
++            max_action=MAX_ACTION,
++            logdir=self.logdir,
++        )
++        self.assertIsInstance(actor, ActorGaussianWide)
++        # Guard against the exact silent cfg-mismatch bug class this
++        # package has shipped twice (KNOWN_ISSUES.md B2/B3): registering
++        # this id against the wrong packaged cfg wouldn't raise, it would
++        # just log an error and build 2x256 (or something else) instead of
++        # the intended 3x128. Assert the shape actually came from *this*
++        # model's own cfg, not a sibling's.
++        self.assertEqual(len(actor.hidden_layers), 3)
++        for layer in actor.hidden_layers:
++            self.assertEqual(layer.units, 128)
++
++
+ class TestCriticFCNN(unittest.TestCase):
+ 
+     def setUp(self):

@@ -1,0 +1,30 @@
+{
+  "expectations": [
+    {
+      "text": "New driver file exists under drivers/",
+      "passed": true,
+      "evidence": "jlab_opt_control/drivers/run_seed_sweep.py created."
+    },
+    {
+      "text": "Calls run_opt/main from run_continuous in a loop rather than reimplementing the training loop",
+      "passed": true,
+      "evidence": "from jlab_opt_control.drivers.run_continuous import run_opt; calls it once per seed inside run_seed_sweep()."
+    },
+    {
+      "text": "Defines its own argparse CLI (seeds, agent id, env id, episodes, shared logdir root)",
+      "passed": true,
+      "evidence": "argparse mirrors run_continuous.py's full flag surface plus --nseeds/--seed_start/--seeds."
+    },
+    {
+      "text": "Produces one subfolder per seed under a shared logdir root, consistent with run_continuous.py's directory naming",
+      "passed": true,
+      "evidence": "Passes logdir=<shared_logdir>/seed_<seed> per call, so run_opt's own subfolder-generation nests under a per-seed folder."
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4,
+    "pass_rate": 1.0
+  }
+}

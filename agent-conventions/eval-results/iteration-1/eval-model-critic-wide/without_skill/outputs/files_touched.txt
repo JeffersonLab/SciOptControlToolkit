@@ -1,0 +1,4 @@
+ M jlab_opt_control/models/__init__.py
+ M utests/test_models.py
+?? jlab_opt_control/cfgs/critic_fcnn_wide.cfg
+?? jlab_opt_control/models/critic_fcnn_wide.py

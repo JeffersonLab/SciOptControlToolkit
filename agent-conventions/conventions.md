@@ -84,7 +84,7 @@ this being settled as the standard; write new code against `cfg_get`.)
 (e.g. "does `activation_functions` have the right length for this many
 hidden layers?") but only *logs an error* on mismatch — it never raises.
 Combined with each model expecting a *different* activation-count convention
-(see `references/model.md`), it's easy to register a real, existing,
+(see `model.md`), it's easy to register a real, existing,
 validly-parsing cfg file that is simply the *wrong shape for this class*,
 and nothing will stop it from running with a silently-broken architecture.
 This shipped twice in this codebase (`KNOWN_ISSUES.md` B2 and B3) before

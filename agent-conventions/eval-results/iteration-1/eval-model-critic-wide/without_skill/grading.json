@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "New model file exists, subclasses jlab_opt_control.core.Model",
+      "passed": true,
+      "evidence": "critic_fcnn_wide.py defines CriticFCNNWide(Model)."
+    },
+    {
+      "text": "A new packaged cfg file was created (not reusing critic_fcnn.cfg)",
+      "passed": true,
+      "evidence": "cfgs/critic_fcnn_wide.cfg created, identical shape to the with-skill run."
+    },
+    {
+      "text": "New cfg's activation_functions length equals hidden_layers, matching CriticFCNN's convention",
+      "passed": true,
+      "evidence": "len(activation_functions)=2 == hidden_layers=2."
+    },
+    {
+      "text": "register(id='critic_fcnn-v3', ...) points kwargs['cfg'] at the NEW cfg file, not critic_fcnn.cfg",
+      "passed": true,
+      "evidence": "kwargs={'cfg': 'critic_fcnn_wide.cfg'} confirmed directly in models/__init__.py."
+    },
+    {
+      "text": "New TestCase added to test_models.py with a registry-instantiation test",
+      "passed": true,
+      "evidence": "TestCriticFCNNWide added mirroring TestCriticFCNN."
+    },
+    {
+      "text": "Uses cfg_utils.cfg_get rather than bare dict.get, per the skill's standard for new model code",
+      "passed": false,
+      "evidence": "grep confirms 0 occurrences of cfg_utils.cfg_get in critic_fcnn_wide.py; it copied CriticFCNN's original bare dict.get() pattern instead, since there was no guidance to prefer cfg_get."
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "total": 6,
+    "pass_rate": 0.833
+  }
+}

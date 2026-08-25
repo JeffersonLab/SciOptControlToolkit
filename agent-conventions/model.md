@@ -94,7 +94,7 @@ register(
 )
 ```
 
-Then: `python .claude/skills/soct-add-component/scripts/check_cfg_shape.py model new_model-v0`
+Then: `python agent-conventions/scripts/check_cfg_shape.py model new_model-v0`
 — this is the step that would have caught both B2 and B3 immediately instead
 of on manual review.
 

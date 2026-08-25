@@ -1,0 +1,188 @@
+diff --git a/jlab_opt_control/buffers/__init__.py b/jlab_opt_control/buffers/__init__.py
+index 90a35b3..db5f5b1 100644
+--- a/jlab_opt_control/buffers/__init__.py
++++ b/jlab_opt_control/buffers/__init__.py
+@@ -29,6 +29,7 @@
+ from jlab_opt_control.buffers.registration import register, make, list_registered_modules
+ from jlab_opt_control.buffers.per import PER
+ from jlab_opt_control.buffers.er import ER
++from jlab_opt_control.buffers.fifo import FIFO
+ 
+ register(
+     id='ER-v0',
+@@ -40,4 +41,10 @@ register(
+     id='PER-v0',
+     entry_point='jlab_opt_control.buffers:PER',
+     kwargs={'cfg': 'per.cfg'},
++)
++
++register(
++    id='FIFO-v0',
++    entry_point='jlab_opt_control.buffers:FIFO',
++    kwargs={'cfg': 'fifo.cfg'},
+ )
+\ No newline at end of file
+diff --git a/utests/test_buffers.py b/utests/test_buffers.py
+index 23bfe38..cec118d 100644
+--- a/utests/test_buffers.py
++++ b/utests/test_buffers.py
+@@ -5,6 +5,7 @@ import tempfile
+ import jlab_opt_control.buffers as buffers
+ from jlab_opt_control.buffers.er import ER
+ from jlab_opt_control.buffers.per import PER
++from jlab_opt_control.buffers.fifo import FIFO
+ 
+ 
+ STATE_DIM = 4
+@@ -22,6 +23,11 @@ def make_per(logdir):
+                logdir=logdir, buffer_size=BUFFER_SIZE)
+ 
+ 
++def make_fifo(logdir):
++    return FIFO(state_dim=STATE_DIM, action_dim=ACTION_DIM,
++                logdir=logdir, buffer_size=BUFFER_SIZE)
++
++
+ def random_transition():
+     state      = np.random.randn(STATE_DIM).astype(np.float32)
+     action     = np.random.randn(ACTION_DIM).astype(np.float32)
+@@ -371,6 +377,138 @@ class TestPERBuffer(unittest.TestCase):
+             buffers.make('NotABuffer-v0', state_dim=STATE_DIM,
+                          action_dim=ACTION_DIM, logdir=self.logdir)
+ 
++    def test_registry_fifo(self):
++        buf = buffers.make('FIFO-v0', state_dim=STATE_DIM,
++                           action_dim=ACTION_DIM, logdir=self.logdir)
++        self.assertIsInstance(buf, FIFO)
++
++
++class TestFIFOBuffer(unittest.TestCase):
++
++    def setUp(self):
++        self.logdir = tempfile.mkdtemp()
++        self.buf = make_fifo(self.logdir)
++
++    # --- inherits ER size / record behaviour ---
++
++    def test_size_starts_at_zero(self):
++        self.assertEqual(self.buf.size(), 0)
++
++    def test_size_increments_on_record(self):
++        for i in range(1, 11):
++            self.buf.record(random_transition())
++            self.assertEqual(self.buf.size(), i)
++
++    def test_size_caps_at_capacity(self):
++        for _ in range(BUFFER_SIZE + 20):
++            self.buf.record(random_transition())
++        self.assertEqual(self.buf.size(), BUFFER_SIZE)
++
++    # --- sample shapes ---
++
++    def test_sample_shapes(self):
++        for _ in range(50):
++            self.buf.record(random_transition())
++        states, actions, rewards, next_states, dones, priorities = self.buf.sample(10)
++        self.assertEqual(states.shape,      (10, STATE_DIM))
++        self.assertEqual(actions.shape,     (10, ACTION_DIM))
++        self.assertEqual(rewards.shape,     (10, 1))
++        self.assertEqual(next_states.shape, (10, STATE_DIM))
++        self.assertEqual(dones.shape,       (10, 1))
++        self.assertEqual(priorities.shape,  (10,))
++
++    # --- core FIFO behaviour: most-recent, not random ---
++
++    def test_sample_returns_most_recent_in_order(self):
++        # Record distinguishable transitions and verify sample(n) returns
++        # exactly the last n recorded, oldest-of-the-batch first.
++        for i in range(20):
++            state = np.ones(STATE_DIM, dtype=np.float32) * i
++            self.buf.record((state, np.zeros(ACTION_DIM), float(i),
++                             state, 0.0, 1.0))
++
++        states, _, rewards, _, _, _ = self.buf.sample(5)
++        expected = [15, 16, 17, 18, 19]
++        np.testing.assert_array_almost_equal(
++            rewards.flatten(), np.array(expected, dtype=float))
++        for row, val in zip(states, expected):
++            np.testing.assert_array_almost_equal(
++                row, np.ones(STATE_DIM, dtype=np.float32) * val)
++
++    def test_sample_is_deterministic(self):
++        for i in range(20):
++            state = np.ones(STATE_DIM, dtype=np.float32) * i
++            self.buf.record((state, np.zeros(ACTION_DIM), float(i),
++                             state, 0.0, 1.0))
++        states1, _, _, _, _, _ = self.buf.sample(5)
++        states2, _, _, _, _, _ = self.buf.sample(5)
++        np.testing.assert_array_equal(states1, states2)
++
++    def test_sample_after_wraparound_returns_newest(self):
++        # Fill exactly to capacity, then record a few more distinguishable
++        # transitions that force the circular buffer to wrap around.
++        for _ in range(BUFFER_SIZE):
++            self.buf.record(random_transition())
++
++        wrap_vals = [1000, 1001, 1002]
++        for v in wrap_vals:
++            state = np.ones(STATE_DIM, dtype=np.float32) * v
++            self.buf.record((state, np.zeros(ACTION_DIM), float(v),
++                             state, 0.0, 1.0))
++
++        states, _, rewards, _, _, _ = self.buf.sample(3)
++        np.testing.assert_array_almost_equal(
++            rewards.flatten(), np.array(wrap_vals, dtype=float))
++        for row, val in zip(states, wrap_vals):
++            np.testing.assert_array_almost_equal(
++                row, np.ones(STATE_DIM, dtype=np.float32) * val)
++
++    # --- guard: sample size capped at buffer size ---
++
++    def test_sample_does_not_exceed_buffer_size(self):
++        for _ in range(5):
++            self.buf.record(random_transition())
++        states, _, _, _, _, _ = self.buf.sample(10)
++        self.assertEqual(len(states), 5)
++
++    # --- circular overwrite (inherited from ER) ---
++
++    def test_circular_overwrite(self):
++        sentinel = np.ones(STATE_DIM, dtype=np.float32) * 99.0
++        for _ in range(BUFFER_SIZE):
++            self.buf.record(random_transition())
++        self.buf.record((sentinel, np.zeros(ACTION_DIM), 0.0,
++                         np.zeros(STATE_DIM), 0.0, 1.0))
++        np.testing.assert_array_almost_equal(self.buf.states[0], sentinel)
++
++    # --- save / load (inherited from ER) ---
++
++    def test_save_and_load(self):
++        for _ in range(30):
++            self.buf.record(random_transition())
++        filepath = os.path.join(self.logdir, 'replay.npy')
++        self.buf.save(filepath)
++        self.assertTrue(os.path.exists(filepath))
++
++        buf2 = make_fifo(self.logdir)
++        buf2.load(filepath)
++        np.testing.assert_array_equal(self.buf.states, buf2.states)
++        np.testing.assert_array_equal(self.buf.actions, buf2.actions)
++
++    # --- cfg save ---
++
++    def test_save_cfg(self):
++        self.buf.save_cfg()
++        cfg_path = os.path.join(self.logdir, 'cfgs', 'fifo.cfg')
++        self.assertTrue(os.path.exists(cfg_path))
++
++    # --- registry ---
++
++    def test_registry_fifo(self):
++        buf = buffers.make('FIFO-v0', state_dim=STATE_DIM,
++                           action_dim=ACTION_DIM, logdir=self.logdir)
++        self.assertIsInstance(buf, FIFO)
++
+ 
+ if __name__ == '__main__':
+     unittest.main()
+\ No newline at end of file

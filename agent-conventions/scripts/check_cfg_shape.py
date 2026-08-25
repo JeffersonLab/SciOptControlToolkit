@@ -128,7 +128,7 @@ def main():
             print(f"  {r}")
         print("\nThis almost always means the registered cfg's shape doesn't "
               "match what this class's constructor validates — see "
-              "references/model.md's activation-count table, or the "
+              "agent-conventions/model.md's activation-count table, or the "
               "equivalent check in your class's __init__.")
         sys.exit(1)
 

@@ -96,7 +96,7 @@ register(
 )
 ```
 
-Then: `python .claude/skills/soct-add-component/scripts/check_cfg_shape.py agent KerasX-v0`.
+Then: `python agent-conventions/scripts/check_cfg_shape.py agent KerasX-v0`.
 
 ## 4. Export
 

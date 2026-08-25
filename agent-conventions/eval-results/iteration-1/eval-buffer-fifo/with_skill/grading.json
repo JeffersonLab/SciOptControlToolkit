@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "New buffer file exists, subclasses Replay directly or via ER",
+      "passed": true,
+      "evidence": "fifo.py defines FIFO(ER)."
+    },
+    {
+      "text": "record/sample/save/save_cfg/load/size all present (implemented or inherited)",
+      "passed": true,
+      "evidence": "Only sample() overridden; rest inherited from ER."
+    },
+    {
+      "text": "sample() is recency-based, not np.random.choice",
+      "passed": true,
+      "evidence": "Uses modular index arithmetic (end - nsamples + arange) % buffer_capacity, no randomness; explicitly hand-simulated with numpy to confirm wraparound correctness."
+    },
+    {
+      "text": "register() call added with kwargs['cfg'] pointing at an existing cfg file",
+      "passed": true,
+      "evidence": "register(id='FIFO-v0', kwargs={'cfg': 'fifo.cfg'}); file created, mirrors er.cfg's shape."
+    },
+    {
+      "text": "New TestCase added to test_buffers.py",
+      "passed": true,
+      "evidence": "TestFIFOBuffer added with recency-ordering, determinism, wraparound, and save/load-pointer tests."
+    },
+    {
+      "text": "Buffer id does not contain the substring 'PER', consistent with agents' string-based update_priorities() gate skipping non-prioritized buffers",
+      "passed": true,
+      "evidence": "Registered id is 'FIFO-v0'; summary explicitly reasons about this gate."
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  }
+}

@@ -1,0 +1,119 @@
+diff --git a/jlab_opt_control/models/__init__.py b/jlab_opt_control/models/__init__.py
+index 41a79f0..2edff58 100644
+--- a/jlab_opt_control/models/__init__.py
++++ b/jlab_opt_control/models/__init__.py
+@@ -34,6 +34,7 @@ from jlab_opt_control.models.critic_fcnn import CriticFCNN
+ from jlab_opt_control.models.critic_uncertainty_fcnn import CriticUncertaintyFCNN
+ from jlab_opt_control.models.critic_fcnn_v1 import CriticFCNN_v1
+ from jlab_opt_control.models.critic_fcnn_v2 import CriticFCNN_v2
++from jlab_opt_control.models.critic_fcnn_wide import CriticFCNNWide
+ from jlab_opt_control.models.sindy_network import SINDyNetwork
+ from jlab_opt_control.models.uqsindy_network import UQSINDyNetwork
+ 
+@@ -79,6 +80,12 @@ register(
+     kwargs={'cfg': 'critic_fcnn_v2.cfg'},
+ )
+ 
++register(
++    id='critic_fcnn-v3',
++    entry_point='jlab_opt_control.models:CriticFCNNWide',
++    kwargs={'cfg': 'critic_fcnn_wide.cfg'},
++)
++
+ 
+ register(
+     id='sindy_network-v0',
+diff --git a/utests/test_models.py b/utests/test_models.py
+index 98ab94c..9aa14b2 100644
+--- a/utests/test_models.py
++++ b/utests/test_models.py
+@@ -7,6 +7,7 @@ import jlab_opt_control.models as models
+ from jlab_opt_control.models.actor_fcnn import ActorFCNN
+ from jlab_opt_control.models.actor_gaussian_v0 import ActorGaussian
+ from jlab_opt_control.models.critic_fcnn import CriticFCNN
++from jlab_opt_control.models.critic_fcnn_wide import CriticFCNNWide
+ 
+ 
+ STATE_DIM  = 4
+@@ -216,6 +217,61 @@ class TestCriticFCNN(unittest.TestCase):
+                         action_dim=ACTION_DIM, logdir=self.logdir)
+ 
+ 
++class TestCriticFCNNWide(unittest.TestCase):
++
++    def setUp(self):
++        self.logdir = tempfile.mkdtemp()
++        self.critic = CriticFCNNWide(
++            state_dim=STATE_DIM,
++            action_dim=ACTION_DIM,
++            logdir=self.logdir,
++        )
++
++    def test_output_shape(self):
++        out = self.critic(zeros_state(), zeros_action())
++        self.assertEqual(out.shape, (BATCH_SIZE, 1))
++
++    def test_output_shape_single(self):
++        out = self.critic(zeros_state(1), zeros_action(1))
++        self.assertEqual(out.shape, (1, 1))
++
++    def test_output_is_scalar_per_sample(self):
++        state  = tf.random.uniform([BATCH_SIZE, STATE_DIM],  -1, 1)
++        action = tf.random.uniform([BATCH_SIZE, ACTION_DIM], -1, 1)
++        out = self.critic(state, action)
++        self.assertEqual(out.shape, (BATCH_SIZE, 1))
++
++    def test_output_is_finite(self):
++        state  = tf.random.uniform([BATCH_SIZE, STATE_DIM],  -1, 1)
++        action = tf.random.uniform([BATCH_SIZE, ACTION_DIM], -1, 1)
++        out = self.critic(state, action).numpy()
++        self.assertTrue(np.all(np.isfinite(out)))
++
++    def test_training_flag_does_not_crash(self):
++        out_train = self.critic(zeros_state(), zeros_action(), training=True)
++        out_infer = self.critic(zeros_state(), zeros_action(), training=False)
++        self.assertEqual(out_train.shape, out_infer.shape)
++
++    def test_save_cfg(self):
++        self.critic.save_cfg()
++        cfg_path = os.path.join(self.logdir, 'cfgs', 'critic_fcnn_wide.cfg')
++        self.assertTrue(os.path.exists(cfg_path))
++
++    def test_registry(self):
++        critic = models.make(
++            'critic_fcnn-v3',
++            state_dim=STATE_DIM,
++            action_dim=ACTION_DIM,
++            logdir=self.logdir,
++        )
++        self.assertIsInstance(critic, CriticFCNNWide)
++
++    def test_registry_invalid_id_raises(self):
++        with self.assertRaises(Exception):
++            models.make('not_a_model-v0', state_dim=STATE_DIM,
++                        action_dim=ACTION_DIM, logdir=self.logdir)
++
++
+ class TestModelWeightSaveLoad(unittest.TestCase):
+     """Round-trip weight save/load for actor and critic."""
+ 
+@@ -248,6 +304,19 @@ class TestModelWeightSaveLoad(unittest.TestCase):
+         for w1, w2 in zip(critic.get_weights(), critic2.get_weights()):
+             np.testing.assert_array_equal(w1, w2)
+ 
++    def test_critic_fcnn_wide_weight_roundtrip(self):
++        critic = CriticFCNNWide(STATE_DIM, ACTION_DIM, self.logdir)
++        critic(zeros_state(), zeros_action())
++        path = os.path.join(self.logdir, 'critic_wide.weights.h5')
++        critic.save_weights(path)
++
++        critic2 = CriticFCNNWide(STATE_DIM, ACTION_DIM, self.logdir)
++        critic2(zeros_state(), zeros_action())
++        critic2.load_weights(path)
++
++        for w1, w2 in zip(critic.get_weights(), critic2.get_weights()):
++            np.testing.assert_array_equal(w1, w2)
++
+ 
+ if __name__ == '__main__':
+     unittest.main()

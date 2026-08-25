@@ -1,0 +1,612 @@
+{
+  "metadata": {
+    "skill_name": "soct-add-component",
+    "skill_path": "/Users/kishan/work/repositories/claude/soct-dev/.claude/skills/soct-add-component",
+    "executor_model": "claude-sonnet-5",
+    "analyzer_model": "claude-sonnet-5",
+    "timestamp": "2026-08-25T17:26:52.654626+00:00",
+    "evals_run": [
+      "agent-delayed-td3",
+      "model-critic-wide",
+      "buffer-fifo",
+      "env-circle3d",
+      "driver-seed-sweep",
+      "model-actor-gaussian-wide-cfg-trap"
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "eval_name": "agent-delayed-td3",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 386.991,
+        "tokens": 134581,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New agent file exists, subclasses jlab_opt_control.Agent (directly or via KerasTD3)",
+          "passed": true,
+          "evidence": "keras_td3_delayed.py defines KerasTD3Delayed(KerasTD3), and KerasTD3 subclasses jlab_opt_control.Agent."
+        },
+        {
+          "text": "Constructor signature is exactly (self, env, logdir, cfg=..., **kwargs)",
+          "passed": true,
+          "evidence": "def __init__(self, env, logdir, cfg='keras_td3_delayed.cfg', **kwargs):"
+        },
+        {
+          "text": "memory() is present on the class",
+          "passed": true,
+          "evidence": "Inherited unchanged from KerasTD3 (design choice: only train() is overridden)."
+        },
+        {
+          "text": "register() call added with kwargs['cfg'] pointing at an existing, valid-JSON cfg file",
+          "passed": true,
+          "evidence": "register(id='KerasTD3Delayed-v0', kwargs={'cfg': 'keras_td3_delayed.cfg'}); file exists and parses as JSON."
+        },
+        {
+          "text": "AgentTestMixin subclass added to test_agents.py",
+          "passed": true,
+          "evidence": "TestKerasTD3DelayedAgent(AgentTestMixin, unittest.TestCase) added, plus a dedicated TestKerasTD3DelayedActorUpdateGating class for the new behavior."
+        },
+        {
+          "text": "AgentKwargsFallbackMixin subclass added to test_cli_kwargs.py",
+          "passed": true,
+          "evidence": "TestKerasTD3DelayedKwargsFallback(AgentKwargsFallbackMixin, unittest.TestCase) added."
+        },
+        {
+          "text": "Delayed first policy update is actually implemented in train()/action(), not just described",
+          "passed": true,
+          "evidence": "ACTOR_WARMUP_MULTIPLIER=2 gate with a _first_actor_update_done latch flag in train(), overriding only the actor-update branch."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "agent-delayed-td3",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 338.332,
+        "tokens": 113497,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New agent file exists, subclasses jlab_opt_control.Agent (directly or via KerasTD3)",
+          "passed": true,
+          "evidence": "keras_td3_delayed.py defines KerasTD3Delayed(KerasTD3)."
+        },
+        {
+          "text": "Constructor signature is exactly (self, env, logdir, cfg=..., **kwargs)",
+          "passed": true,
+          "evidence": "def __init__(self, env, logdir, cfg='keras_td3_delayed.cfg', **kwargs):"
+        },
+        {
+          "text": "memory() is present on the class",
+          "passed": true,
+          "evidence": "Inherited unchanged from KerasTD3 (same subclassing design as with-skill run)."
+        },
+        {
+          "text": "register() call added with kwargs['cfg'] pointing at an existing, valid-JSON cfg file",
+          "passed": true,
+          "evidence": "register(id='KerasTD3Delayed-v0', kwargs={'cfg': 'keras_td3_delayed.cfg'}); file exists and parses as JSON."
+        },
+        {
+          "text": "AgentTestMixin subclass added to test_agents.py",
+          "passed": true,
+          "evidence": "TestKerasTD3DelayedAgent(AgentTestMixin) added, plus a dedicated TestKerasTD3DelayedActorDelay class."
+        },
+        {
+          "text": "AgentKwargsFallbackMixin subclass added to test_cli_kwargs.py",
+          "passed": true,
+          "evidence": "TestKerasTD3DelayedKwargsFallback(AgentKwargsFallbackMixin) added."
+        },
+        {
+          "text": "Delayed first policy update is actually implemented in train()/action(), not just described",
+          "passed": true,
+          "evidence": "actor_delay_warmup_multiplier (default 2.0) read via cfg_utils.cfg_get and gated in train() before the first actor update."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "model-critic-wide",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 174.585,
+        "tokens": 83214,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New model file exists, subclasses jlab_opt_control.core.Model",
+          "passed": true,
+          "evidence": "critic_fcnn_wide.py defines CriticFCNNWide(Model)."
+        },
+        {
+          "text": "A new packaged cfg file was created (not reusing critic_fcnn.cfg)",
+          "passed": true,
+          "evidence": "cfgs/critic_fcnn_wide.cfg created: {hidden_layers:2, nodes_per_layer:[512,512], activation_functions:['relu','relu']}."
+        },
+        {
+          "text": "New cfg's activation_functions length equals hidden_layers, matching CriticFCNN's convention",
+          "passed": true,
+          "evidence": "len(activation_functions)=2 == hidden_layers=2, len(nodes_per_layer)=2 == hidden_layers=2."
+        },
+        {
+          "text": "register(id='critic_fcnn-v3', ...) points kwargs['cfg'] at the NEW cfg file, not critic_fcnn.cfg",
+          "passed": true,
+          "evidence": "kwargs={'cfg': 'critic_fcnn_wide.cfg'} confirmed directly in models/__init__.py."
+        },
+        {
+          "text": "New TestCase added to test_models.py with a registry-instantiation test",
+          "passed": true,
+          "evidence": "TestCriticFCNNWide added mirroring TestCriticFCNN, including models.make('critic_fcnn-v3', ...) instance check."
+        },
+        {
+          "text": "Uses cfg_utils.cfg_get rather than bare dict.get, per the skill's standard for new model code",
+          "passed": true,
+          "evidence": "grep confirms 3 occurrences of cfg_utils.cfg_get in critic_fcnn_wide.py."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "model-critic-wide",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.833,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 120.381,
+        "tokens": 71461,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New model file exists, subclasses jlab_opt_control.core.Model",
+          "passed": true,
+          "evidence": "critic_fcnn_wide.py defines CriticFCNNWide(Model)."
+        },
+        {
+          "text": "A new packaged cfg file was created (not reusing critic_fcnn.cfg)",
+          "passed": true,
+          "evidence": "cfgs/critic_fcnn_wide.cfg created, identical shape to the with-skill run."
+        },
+        {
+          "text": "New cfg's activation_functions length equals hidden_layers, matching CriticFCNN's convention",
+          "passed": true,
+          "evidence": "len(activation_functions)=2 == hidden_layers=2."
+        },
+        {
+          "text": "register(id='critic_fcnn-v3', ...) points kwargs['cfg'] at the NEW cfg file, not critic_fcnn.cfg",
+          "passed": true,
+          "evidence": "kwargs={'cfg': 'critic_fcnn_wide.cfg'} confirmed directly in models/__init__.py."
+        },
+        {
+          "text": "New TestCase added to test_models.py with a registry-instantiation test",
+          "passed": true,
+          "evidence": "TestCriticFCNNWide added mirroring TestCriticFCNN."
+        },
+        {
+          "text": "Uses cfg_utils.cfg_get rather than bare dict.get, per the skill's standard for new model code",
+          "passed": false,
+          "evidence": "grep confirms 0 occurrences of cfg_utils.cfg_get in critic_fcnn_wide.py; it copied CriticFCNN's original bare dict.get() pattern instead, since there was no guidance to prefer cfg_get."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "buffer-fifo",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 310.808,
+        "tokens": 101810,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New buffer file exists, subclasses Replay directly or via ER",
+          "passed": true,
+          "evidence": "fifo.py defines FIFO(ER)."
+        },
+        {
+          "text": "record/sample/save/save_cfg/load/size all present (implemented or inherited)",
+          "passed": true,
+          "evidence": "Only sample() overridden; rest inherited from ER."
+        },
+        {
+          "text": "sample() is recency-based, not np.random.choice",
+          "passed": true,
+          "evidence": "Uses modular index arithmetic (end - nsamples + arange) % buffer_capacity, no randomness; explicitly hand-simulated with numpy to confirm wraparound correctness."
+        },
+        {
+          "text": "register() call added with kwargs['cfg'] pointing at an existing cfg file",
+          "passed": true,
+          "evidence": "register(id='FIFO-v0', kwargs={'cfg': 'fifo.cfg'}); file created, mirrors er.cfg's shape."
+        },
+        {
+          "text": "New TestCase added to test_buffers.py",
+          "passed": true,
+          "evidence": "TestFIFOBuffer added with recency-ordering, determinism, wraparound, and save/load-pointer tests."
+        },
+        {
+          "text": "Buffer id does not contain the substring 'PER', consistent with agents' string-based update_priorities() gate skipping non-prioritized buffers",
+          "passed": true,
+          "evidence": "Registered id is 'FIFO-v0'; summary explicitly reasons about this gate."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "buffer-fifo",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 186.505,
+        "tokens": 73681,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New buffer file exists, subclasses Replay directly or via ER",
+          "passed": true,
+          "evidence": "fifo.py defines FIFO(ER)."
+        },
+        {
+          "text": "record/sample/save/save_cfg/load/size all present (implemented or inherited)",
+          "passed": true,
+          "evidence": "Only sample() overridden; rest inherited from ER."
+        },
+        {
+          "text": "sample() is recency-based, not np.random.choice",
+          "passed": true,
+          "evidence": "No np.random call in sample(); index-based recency slicing."
+        },
+        {
+          "text": "register() call added with kwargs['cfg'] pointing at an existing cfg file",
+          "passed": true,
+          "evidence": "register(id='FIFO-v0', kwargs={'cfg': 'fifo.cfg'})."
+        },
+        {
+          "text": "New TestCase added to test_buffers.py",
+          "passed": true,
+          "evidence": "TestFIFOBuffer added covering size/sample/overwrite/save-load/cfg/registry."
+        },
+        {
+          "text": "Buffer id does not contain the substring 'PER', consistent with agents' string-based update_priorities() gate skipping non-prioritized buffers",
+          "passed": true,
+          "evidence": "Registered id is 'FIFO-v0'; not explicitly reasoned about in the summary, but the correct id was still chosen."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "eval_name": "env-circle3d",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 167.832,
+        "tokens": 71342,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New env file exists, subclasses gymnasium.Env",
+          "passed": true,
+          "evidence": "circle3d_env.py defines Circle3D(gym.Env) as a standalone class (ndim=3 hardcoded), separate file from circle_env.py."
+        },
+        {
+          "text": "action_space and observation_space are 3D Box spaces",
+          "passed": true,
+          "evidence": "spaces.Box(low=-np.ones(3), high=np.ones(3)) for both."
+        },
+        {
+          "text": "Two register() calls added (statefull + stateless), both ending in -v0",
+          "passed": true,
+          "evidence": "DnC3s-Circle3D-Statefull-v0 and DnC3s-Circle3D-Stateless-v0, matching the DnC2s-Circle2D-* naming pattern."
+        },
+        {
+          "text": "New tests added to test_envs_and_utils.py instantiating both new ids via envs.make()",
+          "passed": true,
+          "evidence": "TestCircle3DEnv mirrors TestCircle2DEnv (18 methods) including registry tests for both ids."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "eval_name": "env-circle3d",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 131.248,
+        "tokens": 59073,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New env file exists, subclasses gymnasium.Env",
+          "passed": true,
+          "evidence": "Circle3D(Circle2D) added inside the existing circle_env.py, reusing Circle2D's logic via a class-attribute override (ndim=3) rather than a new file."
+        },
+        {
+          "text": "action_space and observation_space are 3D Box spaces",
+          "passed": true,
+          "evidence": "Inherited Circle2D.__init__ builds spaces.Box from self.ndim, which Circle3D overrides to 3."
+        },
+        {
+          "text": "Two register() calls added (statefull + stateless), both ending in -v0",
+          "passed": true,
+          "evidence": "DnC3s-Circle3D-Statefull-v0 and DnC3s-Circle3D-Stateless-v0."
+        },
+        {
+          "text": "New tests added to test_envs_and_utils.py instantiating both new ids via envs.make()",
+          "passed": true,
+          "evidence": "TestCircle3DEnv added mirroring TestCircle2DEnv, plus a test_ndim_is_three check."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "eval_name": "driver-seed-sweep",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 416.259,
+        "tokens": 111303,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New driver file exists under drivers/",
+          "passed": true,
+          "evidence": "jlab_opt_control/drivers/run_seed_sweep.py created."
+        },
+        {
+          "text": "Calls run_opt/main from run_continuous in a loop rather than reimplementing the training loop",
+          "passed": true,
+          "evidence": "from jlab_opt_control.drivers.run_continuous import run_opt; calls it once per seed, explicitly citing driver.md's sweep-driver guidance."
+        },
+        {
+          "text": "Defines its own argparse CLI (seeds, agent id, env id, episodes, shared logdir root)",
+          "passed": true,
+          "evidence": "argparse mirrors run_continuous.py's flags plus --nseeds/--seeds."
+        },
+        {
+          "text": "Produces one subfolder per seed under a shared logdir root, consistent with run_continuous.py's directory naming",
+          "passed": true,
+          "evidence": "Reuses run_opt's own generate_logdir subfolder naming via distinct index values per seed; writes a seed_sweep_manifest.json mapping seed to logdir."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "eval_name": "driver-seed-sweep",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 482.331,
+        "tokens": 119820,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "New driver file exists under drivers/",
+          "passed": true,
+          "evidence": "jlab_opt_control/drivers/run_seed_sweep.py created."
+        },
+        {
+          "text": "Calls run_opt/main from run_continuous in a loop rather than reimplementing the training loop",
+          "passed": true,
+          "evidence": "from jlab_opt_control.drivers.run_continuous import run_opt; calls it once per seed inside run_seed_sweep()."
+        },
+        {
+          "text": "Defines its own argparse CLI (seeds, agent id, env id, episodes, shared logdir root)",
+          "passed": true,
+          "evidence": "argparse mirrors run_continuous.py's full flag surface plus --nseeds/--seed_start/--seeds."
+        },
+        {
+          "text": "Produces one subfolder per seed under a shared logdir root, consistent with run_continuous.py's directory naming",
+          "passed": true,
+          "evidence": "Passes logdir=<shared_logdir>/seed_<seed> per call, so run_opt's own subfolder-generation nests under a per-seed folder."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "eval_name": "model-actor-gaussian-wide-cfg-trap",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 270.807,
+        "tokens": 95050,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "A NEW packaged cfg file was created (not reusing actor_fcnn.cfg or the unmodified actor_gaussian.cfg), hidden_layers=3, 3-element nodes_per_layer",
+          "passed": true,
+          "evidence": "cfgs/actor_gaussian_wide.cfg: hidden_layers=3, nodes_per_layer=[128,128,128]."
+        },
+        {
+          "text": "activation_functions has length 4 (hidden_layers+1) and ends in 'tanh'",
+          "passed": true,
+          "evidence": "activation_functions=['relu','relu','relu','tanh'], length 4, last='tanh'."
+        },
+        {
+          "text": "Registration points kwargs['cfg'] at the new cfg file specifically",
+          "passed": true,
+          "evidence": "register(id='actor_gaussian_wide-v0', kwargs={'cfg': 'actor_gaussian_wide.cfg'})."
+        },
+        {
+          "text": "Final summary explicitly describes verifying the cfg shape against ActorGaussian's validation logic, not just asserting it works",
+          "passed": true,
+          "evidence": "Extracted the exact validation branch into a standalone TF-free script and confirmed hidden_layers/nodes_per_layer/activation_functions counts and every index access are in range."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "eval_name": "model-actor-gaussian-wide-cfg-trap",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 282.047,
+        "tokens": 86815,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "A NEW packaged cfg file was created (not reusing actor_fcnn.cfg or the unmodified actor_gaussian.cfg), hidden_layers=3, 3-element nodes_per_layer",
+          "passed": true,
+          "evidence": "cfgs/actor_gaussian_wide.cfg: hidden_layers=3, nodes_per_layer=[128,128,128] \u2014 identical shape to the with-skill run."
+        },
+        {
+          "text": "activation_functions has length 4 (hidden_layers+1) and ends in 'tanh'",
+          "passed": true,
+          "evidence": "activation_functions=['relu','relu','relu','tanh'], length 4, last='tanh'."
+        },
+        {
+          "text": "Registration points kwargs['cfg'] at the new cfg file specifically",
+          "passed": true,
+          "evidence": "register(id='actor_gaussian_wide-v0', kwargs={'cfg': 'actor_gaussian_wide.cfg'})."
+        },
+        {
+          "text": "Final summary explicitly describes verifying the cfg shape against ActorGaussian's validation logic, not just asserting it works",
+          "passed": true,
+          "evidence": "Re-implemented the exact validation branch standalone, ran it against both the new and existing cfgs, and (going further) discovered and fixed the real pre-existing actor_gaussian-v0 wrong-cfg bug in the same worktree as corroborating proof the check works."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 287.88,
+        "stddev": 95.192,
+        "min": 167.832,
+        "max": 416.259
+      },
+      "tokens": {
+        "mean": 99550,
+        "stddev": 20220.525,
+        "min": 71342,
+        "max": 134581
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.972,
+        "stddev": 0.062,
+        "min": 0.833,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 256.807,
+        "stddev": 127.452,
+        "min": 120.381,
+        "max": 482.331
+      },
+      "tokens": {
+        "mean": 87391.167,
+        "stddev": 22275.297,
+        "min": 59073,
+        "max": 119820
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.028",
+      "time_seconds": "+31.1",
+      "tokens": "+12159"
+    }
+  },
+  "notes": [
+    "Infrastructure caveat: isolation:worktree branched every run from 'main' (pre-fix, pre-skill), not from the branch these evals were designed against. With-skill agents still obtained real skill content (several explicitly note reading .claude/skills/soct-add-component/ from the original checkout path since their own worktree lacked it), so the with_skill vs without_skill manipulation itself is intact, but every worktree's underlying repo state is one branch older than intended. Verified by direct on-disk inspection, not just agent self-report.",
+    "Eval 'model-critic-wide' is the cleanest signal: with_skill and without_skill produced near-identical structural output, but only with_skill used cfg_utils.cfg_get (3 occurrences) instead of bare dict.get (0 occurrences) in the new model file, the exact convention the skill calls out as the standard for new model code. Same delta reproduced independently in 'model-actor-gaussian-wide-cfg-trap'.",
+    "Evals 'agent-delayed-td3', 'buffer-fifo', 'env-circle3d', and 'driver-seed-sweep' scored 100% in both configurations \u2014 these tasks' conventions (subclass the obvious sibling, mirror an existing test class, follow an explicit in-prompt naming pattern) were discoverable by a careful agent reading the codebase directly, without needing the skill. This is a ceiling effect worth knowing about, not a flaw in the skill: it means the skill's marginal value concentrates on the genuinely non-obvious conventions (cfg-shape/activation-count rules, cfg_utils.cfg_get, the memory() gotcha, the buffer_type PER-substring gate) rather than on structure a competent agent would infer anyway.",
+    "'model-actor-gaussian-wide-cfg-trap' was deliberately primed in its own prompt wording ('we've been bitten before by a silent cfg mismatch') \u2014 both configurations got the cfg shape exactly right, including the without_skill run independently finding and fixing the real pre-existing actor_gaussian-v0 bug in its worktree. This suggests the prompt's own wording did much of the work the skill would otherwise provide; a less-hinted version of this eval would likely show a larger gap and is worth adding in a future iteration.",
+    "with_skill runs took longer and used more tokens on average (skill files add real reading time), which is an expected, acceptable cost given the pass-rate/convention-adherence gain on the evals that did differentiate."
+  ]
+}
