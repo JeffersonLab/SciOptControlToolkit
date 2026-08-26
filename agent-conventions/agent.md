@@ -130,3 +130,37 @@ uses `actor_gaussian-v0`), also override `actor_cfg_data`/its counterpart —
 see `TestKerasSACKwargsFallback` for the pattern.
 
 Run `bash utests/run_branch_utests.sh` before considering this done.
+
+## When an agent genuinely has no critic and no buffer
+
+Not every agent fits the critic + replay-buffer shape above. `KerasDEPO`
+(`agents/keras_depo.py`, DEPO = Differentiable Environment Policy
+Optimization) is a critic-free, gradient-based agent: it
+requires a *differentiable* environment (TF ops all the way through
+`step()`, see `envs/diff_circle_env.py`), unrolls the actor forward through
+it for a configurable number of steps inside one `tf.GradientTape`, and
+backpropagates the discounted, done-masked sum of rewards straight into the
+actor — no critic, no bootstrapped value, no replay buffer, no target
+networks.
+
+This is a deliberate, sanctioned exception, not a shortcut — follow the same
+principle it followed, not its literal shape:
+
+- Constructor signature is still exactly `(self, env, logdir, cfg=..., **kwargs)`.
+- Every abstract method on `Agent` still needs a real implementation, even
+  if some are one-line no-ops (`soft_update()` returns immediately; there's
+  nothing to soft-update without a target network). Say why in the
+  docstring/comment, don't just leave it empty and unexplained.
+- `memory()` still needs to exist even though it's a no-op — the driver
+  calls it unconditionally every training step regardless of which agent is
+  behind it (see `conventions.md`'s registry section on why this matters).
+- Don't force `buffer_type`/`buffer_size` kwargs onto an agent that has no
+  use for them just to match `AgentKwargsFallbackMixin`'s shape. Skip the
+  mixin, write standalone tests instead, and say in a comment why the mixin
+  doesn't apply — that's what keeps this a documented exception instead of
+  a silent inconsistency the next person has to re-discover.
+- If your agent needs something fundamentally different from a standard Gym
+  env (here: differentiability), exclude it explicitly from any blanket
+  cross-agent smoke test (see `utests/test_registry.py`'s
+  `test_continuous_agents`) rather than letting it fail there — with a
+  comment explaining why, and a pointer to where it *is* actually tested.
