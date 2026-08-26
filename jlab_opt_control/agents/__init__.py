@@ -35,6 +35,7 @@ from jlab_opt_control.agents.keras_sindy_critic_td3 import KerasSINDyCriticTD3
 from jlab_opt_control.agents.keras_uncertainty_td3 import KerasUncertaintyTD3
 from jlab_opt_control.agents.keras_sindy_uncertainty_td3 import KerasSINDyUncertaintyTD3
 from jlab_opt_control.agents.keras_depo import KerasDEPO
+from jlab_opt_control.agents.torch_depo import TorchDEPO
 
 
 # Single Objective Agents
@@ -81,10 +82,20 @@ register(
 )
 
 # DEPO (Differentiable Environment Policy Optimization) — critic-free,
-# requires a differentiable env (see jlab_opt_control/envs/diff_circle_env.py),
-# not a standard Gym env.
+# requires a differentiable env, not a standard Gym env.
 register(
     id="KerasDEPO-v0",
     entry_point="jlab_opt_control.agents:KerasDEPO",
     kwargs={"cfg": "keras_depo.cfg"},
+)
+
+# Torch port of KerasDEPO-v0 — pairs with fel_dt.envs' FELDigitalTwinBatchEnv
+# ("FELDigitalTwin-Torch-Batch-v0" in Gymnasium's own registry, not this
+# one — see fel_dt/envs/__init__.py). Gradients flow straight from fel_dt's
+# MLPRegressor through the env into this actor, no cross-framework bridge,
+# since both sides are plain PyTorch.
+register(
+    id="TorchDEPO-v0",
+    entry_point="jlab_opt_control.agents:TorchDEPO",
+    kwargs={"cfg": "torch_depo.cfg"},
 )
