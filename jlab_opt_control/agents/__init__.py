@@ -34,6 +34,7 @@ from jlab_opt_control.agents.keras_sac import KerasSAC
 from jlab_opt_control.agents.keras_sindy_critic_td3 import KerasSINDyCriticTD3
 from jlab_opt_control.agents.keras_uncertainty_td3 import KerasUncertaintyTD3
 from jlab_opt_control.agents.keras_sindy_uncertainty_td3 import KerasSINDyUncertaintyTD3
+from jlab_opt_control.agents.keras_depo import KerasDEPO
 
 
 # Single Objective Agents
@@ -77,4 +78,13 @@ register(
     id="KerasSINDyUncertaintyTD3-v0",
     entry_point="jlab_opt_control.agents:KerasSINDyUncertaintyTD3",
     kwargs={"cfg": "keras_sindy_uncertainty_td3.cfg"},
+)
+
+# DEPO (Differentiable Environment Policy Optimization) — critic-free,
+# requires a differentiable env (see jlab_opt_control/envs/diff_circle_env.py),
+# not a standard Gym env.
+register(
+    id="KerasDEPO-v0",
+    entry_point="jlab_opt_control.agents:KerasDEPO",
+    kwargs={"cfg": "keras_depo.cfg"},
 )
