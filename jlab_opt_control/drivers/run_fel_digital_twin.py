@@ -33,6 +33,7 @@ Usage:
 
 import argparse
 import logging
+import os
 
 import gymnasium
 
@@ -65,8 +66,10 @@ def main(args=None):
         model_path=args.model_path, base_minimums_path=args.base_minimums_path,
         base_maximums_path=args.base_maximums_path, vars_path=args.vars_path,
         recent_data_path=args.recent_data_path, delta_fraction=args.delta_fraction,
-        episode_length=args.episode_length,
+        episode_length=args.episode_length, reward="lcb"
     )
+
+    os.makedirs(args.logdir, exist_ok=True)
 
     agent = agents.make(
         "TorchDEPO-v0", env=env, logdir=args.logdir,
