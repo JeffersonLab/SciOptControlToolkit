@@ -46,7 +46,7 @@ register(
 register(
     id='actor_gaussian-v0',
     entry_point='jlab_opt_control.models:ActorGaussian',
-    kwargs={'cfg': 'actor_fcnn.cfg'},
+    kwargs={'cfg': 'actor_gaussian.cfg'},
 )
 
 register(
@@ -58,7 +58,7 @@ register(
 register(
     id='critic_uncertainty_fcnn-v0',
     entry_point='jlab_opt_control.models:CriticUncertaintyFCNN',
-    kwargs={'cfg': 'critic_fcnn.cfg'},
+    kwargs={'cfg': 'critic_uncertainty_fcnn.cfg'},
 )
 
 register(
