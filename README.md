@@ -13,7 +13,6 @@
 ├── README.md                         : Readme documentation
 ├── AGENTS.md                         : Conventions for adding a new agent/model/buffer/env/driver
 ├── agent-conventions                 : Full recipes AGENTS.md points to (per-kind + shared conventions)
-├── KNOWN_ISSUES.md                   : Known bugs/inconsistencies tracked for future development
 ├── utests                            : Folder containing a collection of unit tests
 ├── jlab_opt_control
     ├── agents                        : Folder containing different agents
