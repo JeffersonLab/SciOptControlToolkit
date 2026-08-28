@@ -193,7 +193,7 @@ class TorchDEPO(jlab_opt_control.Agent):
 
             torch.save(
                 self.actor_model.state_dict(),
-                join(destination_file_path, "actor_model_" + post_fix + ".pt"),
+                join(destination_file_path, "actor_model.pt"),
             )
             depo_log.info('Agent models saved successfully')
         except Exception:
