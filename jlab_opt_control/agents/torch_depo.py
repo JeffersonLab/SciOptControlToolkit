@@ -176,15 +176,30 @@ class TorchDEPO(jlab_opt_control.Agent):
         return
 
     def load(self):
-        """ Load the ML models """
+        """ Load the ML models
+
+        self.model_load_path is only ever set from an explicit --load_model
+        (or load_model=...) request (see __init__/run_continuous.py) -- never
+        an ambient "resume if present" check. A failure here means the
+        caller asked for a specific checkpoint and didn't get it, so this
+        raises (after logging) instead of silently continuing with a
+        freshly-initialized actor, which would look like a successful load
+        while actually training/evaluating from random weights."""
         try:
             self.actor_model.load_state_dict(torch.load(join(self.model_load_path, "actor_model.pt")))
             depo_log.info('Models loaded successfully')
-        except Exception:
-            depo_log.error("Error while loading models, initializing new models...")
+        except Exception as error:
+            depo_log.error(f"Error while loading models from {self.model_load_path}: {error}")
+            raise
 
     def save(self, post_fix="test"):
-        """ Save the ML models """
+        """ Save the ML models
+
+        Written as models/<post_fix>/actor_model.pt -- the post_fix already
+        makes the directory unique, so the filename itself stays fixed,
+        matching what load() looks for (join(model_load_path,
+        "actor_model.pt")) when model_load_path is set to one of these
+        directories."""
         try:
             destination_file_path = os.path.join(self.logdir, 'models/')
             os.makedirs(destination_file_path, exist_ok=True)

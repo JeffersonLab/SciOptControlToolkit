@@ -87,3 +87,25 @@ class TestTorchDEPO(unittest.TestCase):
     def test_memory_and_soft_update_are_safe_no_ops(self):
         self.agent.memory((None, None, None, None, None))
         self.agent.soft_update()  # must not raise
+
+    def test_save_then_load_round_trips_actor_weights_into_a_fresh_agent(self):
+        for _ in range(5):
+            self.agent.train()  # move weights away from fresh-init defaults
+        self.agent.save(post_fix="final")
+        saved_state = {k: v.clone() for k, v in self.agent.actor_model.state_dict().items()}
+
+        loaded_agent = agents.make(
+            'TorchDEPO-v0', env=self.env, logdir=tempfile.mkdtemp(),
+            unroll_steps=1, discount=0.99, load_model=f"{self.logdir}/models/final",
+        )
+
+        loaded_state = loaded_agent.actor_model.state_dict()
+        for key in saved_state:
+            self.assertTrue(torch.equal(saved_state[key], loaded_state[key]), f"mismatch at {key}")
+
+    def test_load_raises_instead_of_silently_keeping_random_weights(self):
+        with self.assertRaises(Exception):
+            agents.make(
+                'TorchDEPO-v0', env=self.env, logdir=tempfile.mkdtemp(),
+                unroll_steps=1, discount=0.99, load_model="/no/such/checkpoint/dir",
+            )
