@@ -59,9 +59,9 @@ class RegistryTests(unittest.TestCase):
         for agent_id in registered_agents:
             # KerasDEPO requires a differentiable env (TF ops, batched
             # reset/step) — a plain Gym env like MountainCarContinuous-v0
-            # doesn't satisfy that contract. See test_agents.py's
-            # TestKerasDEPO for its actual coverage, against
-            # DnC2s-DiffCircle2D-Statefull-v0.
+            # doesn't satisfy that contract. See
+            # utests/test_keras_depo.py's TestKerasDEPO for its actual
+            # coverage, against a fake differentiable env.
             if agent_id == 'KerasDEPO-v0':
                 continue
             print('Continuous env test agent:', agent_id)
