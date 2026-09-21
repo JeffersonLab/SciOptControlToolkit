@@ -218,8 +218,15 @@ class KerasDEPO(jlab_opt_control.Agent):
     def load(self):
         """ Load the ML models """
         try:
-            self.actor_model.load_weights(join(self.model_load_path, "actor_model.weights.h5"))
-            depo_log.info('Models loaded successfully')
+            model_load_count = 0
+            for file in os.listdir(self.model_load_path):
+                if 'actor_model' in file and file.endswith('.weights.h5'):
+                    self.actor_model.load_weights(join(self.model_load_path, file))
+                    model_load_count += 1
+            if model_load_count == 1:
+                depo_log.info('Models loaded successfully')
+            else:
+                depo_log.error('Models not loaded properly, please check model save directory')
         except:
             depo_log.error("Error while loading models, initializing new models...")
 
