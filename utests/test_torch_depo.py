@@ -7,8 +7,6 @@ from gymnasium import spaces
 
 import jlab_opt_control.agents as agents
 import jlab_opt_control.models as models
-from jlab_opt_control.agents.torch_depo import TorchDEPO
-from jlab_opt_control.models.torch_actor_fcnn import TorchActorFCNN
 
 
 class _FakeDiffEnv:
