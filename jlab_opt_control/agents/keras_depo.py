@@ -35,7 +35,6 @@ so this agent can still sit under drivers/run_continuous.py's per-step
 import json
 import logging
 import os
-import platform
 import shutil
 import sys
 from os.path import join
@@ -46,8 +45,6 @@ import tensorflow as tf
 import jlab_opt_control as jlab_opt_control
 import jlab_opt_control.models
 import jlab_opt_control.utils.cfg_utils as cfg_utils
-
-processor = platform.processor()
 
 depo_log = logging.getLogger("DEPO-Agent")
 depo_log.setLevel(logging.DEBUG)
@@ -108,11 +105,7 @@ class KerasDEPO(jlab_opt_control.Agent):
         self.logdir = logdir
 
         self.actor_lr = float(cfg_utils.cfg_get(data, 'actor_learning_rate', 1e-4))
-        if processor == 'arm':
-            depo_log.info('Using legacy Adam')
-            self.actor_optimizer = tf.keras.optimizers.legacy.Adam(self.actor_lr, epsilon=1e-08)
-        else:
-            self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
+        self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
 
         self.initialize_new_models()
 
