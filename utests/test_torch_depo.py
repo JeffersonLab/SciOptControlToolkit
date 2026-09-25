@@ -109,3 +109,7 @@ class TestTorchDEPO(unittest.TestCase):
                 'TorchDEPO-v0', env=self.env, logdir=tempfile.mkdtemp(),
                 unroll_steps=1, discount=0.99, load_model="/no/such/checkpoint/dir",
             )
+
+
+if __name__ == "__main__":
+    unittest.main()
