@@ -79,7 +79,7 @@ class Circle2D(gym.Env):
         circle_env_log.info(f'Max episode steps: {self._max_episode_steps}')
 
         # Reset the env
-        self.states, _ = self.reset()
+        self.reset()
 
     def step(self, action):
         self.nsteps += 1
