@@ -137,7 +137,8 @@ Not every agent fits the critic + replay-buffer shape above. `KerasDEPO`
 (`agents/keras_depo.py`, DEPO = Differentiable Environment Policy
 Optimization) is a critic-free, gradient-based agent: it
 requires a *differentiable* environment (TF ops all the way through
-`step()`, see `envs/diff_circle_env.py`), unrolls the actor forward through
+`step()`, see `envs/circle_env.py`'s `Circle2D(backend='tensorflow')`),
+unrolls the actor forward through
 it for a configurable number of steps inside one `tf.GradientTape`, and
 backpropagates the discounted, done-masked sum of rewards straight into the
 actor — no critic, no bootstrapped value, no replay buffer, no target
