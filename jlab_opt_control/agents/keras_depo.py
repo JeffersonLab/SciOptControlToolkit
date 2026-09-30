@@ -7,8 +7,8 @@ Standard TD3/DDPG/SAC in this package learn a critic to approximate the value
 of a state-action pair, then move the actor to increase that estimate. DEPO
 skips the critic entirely: it requires the environment's own step() to be
 differentiable (built from TF ops, not numpy — see
-jlab_opt_control/envs/diff_circle_env.py for the interface contract and a
-stub implementation), unrolls the current actor `unroll_steps` steps forward
+jlab_opt_control/envs/circle_env.py's Circle2D(backend='tensorflow') for the
+interface contract and a reference implementation), unrolls the current actor `unroll_steps` steps forward
 inside a single tf.GradientTape, sums the (discounted, done-masked) rewards
 from that unroll as a direct stand-in for a value function, and backpropagates
 straight through the chain of environment steps into the actor's weights.
