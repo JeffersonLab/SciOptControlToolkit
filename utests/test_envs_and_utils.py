@@ -170,6 +170,15 @@ class TestCircle2DEnv(unittest.TestCase):
         self.assertIn('DnC2s-Circle2D-Statefull-v0', registered)
         self.assertIn('DnC2s-Circle2D-Stateless-v0', registered)
 
+    # --- action space sampling stays in bounds ---
+
+    def test_sampled_action_in_bounds(self):
+        env = self._make_env()
+        for _ in range(20):
+            action = env.action_space.sample()
+            self.assertTrue(np.all(action >= -1.0))
+            self.assertTrue(np.all(action <=  1.0))
+
 
 class TestCircle2DEnvTensorFlowBackend(unittest.TestCase):
     """backend='tensorflow' -- differentiable, dual calling convention."""
@@ -256,15 +265,6 @@ class TestCircle2DEnvTorchBackend(unittest.TestCase):
     def test_registry_instantiation(self):
         env = envs.make('DnC2s-Circle2D-Diff-Torch-v0')
         self.assertEqual(env.backend, 'torch')
-
-    # --- action space sampling stays in bounds ---
-
-    def test_sampled_action_in_bounds(self):
-        env = self._make_env()
-        for _ in range(20):
-            action = env.action_space.sample()
-            self.assertTrue(np.all(action >= -1.0))
-            self.assertTrue(np.all(action <=  1.0))
 
 
 if __name__ == '__main__':
