@@ -4,7 +4,7 @@ keras_depo.py's module docstring for the full rationale -- it applies
 unchanged here). The only real differences are mechanical: torch builds the
 autograd graph automatically (no explicit GradientTape), parameter groups
 hold the learning rate instead of a Keras optimizer attribute, and this
-agent is meant to be paired with fel_dt.envs' FELDigitalTwinBatchEnv
+agent is meant to be paired with a torch-differentiable env
 (reset(batch_size=...) / step(actions) returning torch tensors with
 gradients preserved) rather than a TF-based differentiable env.
 """
@@ -106,8 +106,8 @@ class TorchDEPO(jlab_opt_control.Agent):
         differentiable env and backprop the discounted, done-masked sum of
         rewards straight into the actor's weights. No explicit "tape" is
         needed -- torch builds the graph automatically as long as nothing
-        along this path is .detach()'d or wrapped in no_grad() (see
-        fel_dt.envs.FELDigitalTwinBatchEnv.step / MLPRegressor.eval_mode)."""
+        along this path is .detach()'d or wrapped in no_grad() by the env's
+        own step()."""
         states, _ = self.env.reset(batch_size=self.rollout_batch_size)
 
         discounted_return = torch.zeros(self.rollout_batch_size, 1)
