@@ -131,7 +131,7 @@ class Circle2D(gym.Env):
     def reset(self, *, batch_size=None, seed=None, options=None):
         if self.backend == 'numpy':
             if batch_size is not None:
-                raise NotImplementedError('batch_size is only supported by the numpy backend')
+                raise NotImplementedError('batch_size is only supported by the tensorflow/torch backends')
             self.nsteps = 0
             if self.rdm_reset_mode == 'uniform':
                 self.states = self.observation_space.sample()
