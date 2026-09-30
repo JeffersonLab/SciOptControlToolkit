@@ -89,11 +89,10 @@ register(
     kwargs={"cfg": "keras_depo.cfg"},
 )
 
-# Torch port of KerasDEPO-v0 — pairs with fel_dt.envs' FELDigitalTwinBatchEnv
-# ("FELDigitalTwin-Torch-Batch-v0" in Gymnasium's own registry, not this
-# one — see fel_dt/envs/__init__.py). Gradients flow straight from fel_dt's
-# MLPRegressor through the env into this actor, no cross-framework bridge,
-# since both sides are plain PyTorch.
+# Torch port of KerasDEPO-v0 — pairs with a torch-differentiable env
+# (reset(batch_size=...) / step(actions) returning torch tensors with
+# gradients preserved), no cross-framework bridge, since both sides are
+# plain PyTorch.
 register(
     id="TorchDEPO-v0",
     entry_point="jlab_opt_control.agents:TorchDEPO",
