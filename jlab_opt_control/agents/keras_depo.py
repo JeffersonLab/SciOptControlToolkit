@@ -43,6 +43,7 @@ import numpy as np
 import tensorflow as tf
 
 import jlab_opt_control as jlab_opt_control
+import jlab_opt_control.buffers
 import jlab_opt_control.models
 import jlab_opt_control.utils.cfg_utils as cfg_utils
 
@@ -106,6 +107,11 @@ class KerasDEPO(jlab_opt_control.Agent):
 
         self.actor_lr = float(cfg_utils.cfg_get(data, 'actor_learning_rate', 1e-4))
         self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr, epsilon=1e-08)
+
+        # No replay buffer to train from (see module docstring), but the
+        # driver's agent.buffer.save(...) calls are unconditional.
+        self.buffer = jlab_opt_control.buffers.make(
+            'NoOpBuffer-v0', state_dim=self.num_states, action_dim=self.num_actions, logdir=self.logdir)
 
         self.initialize_new_models()
 
