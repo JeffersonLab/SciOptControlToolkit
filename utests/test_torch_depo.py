@@ -10,11 +10,11 @@ import jlab_opt_control.models as models
 
 
 class _FakeDiffEnv:
-    """Minimal stand-in for fel_dt.envs.FELDigitalTwinBatchEnv -- just
-    enough surface for TorchDEPO (action_space/observation_space as Box,
+    """Minimal stand-in for a torch-differentiable env -- just enough
+    surface for TorchDEPO (action_space/observation_space as Box,
     reset(batch_size=...)/step(actions) returning torch tensors with
-    gradients preserved) without depending on fel_dt or a real trained
-    model. reward = -sum(state^2), so an actor that pushes state toward 0
+    gradients preserved) without depending on a real trained model.
+    reward = -sum(state^2), so an actor that pushes state toward 0
     has something real to learn; state = action (stateless, one-step-per-
     reset is enough to exercise TorchDEPO's unroll loop)."""
 
