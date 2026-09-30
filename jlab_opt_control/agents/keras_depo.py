@@ -61,8 +61,10 @@ class KerasDEPO(jlab_opt_control.Agent):
         # train_actor() unrolls its own rollout through this private copy
         # rather than the live env the driver is stepping through the
         # "real" episode, so training no longer corrupts the driver's
-        # in-progress episode state.
-        self.train_env = copy.deepcopy(env)
+        # in-progress episode state. Unwrapped because wrappers like
+        # TimeLimit (applied by the driver when --nsteps is set) don't
+        # support DEPO's batched reset(batch_size=...)/step() contract.
+        self.train_env = copy.deepcopy(getattr(env, 'unwrapped', env))
 
         try:
             assert "Box" in str(type(env.action_space)), 'Invalid action space'
