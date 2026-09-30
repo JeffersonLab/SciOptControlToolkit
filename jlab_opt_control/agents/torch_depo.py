@@ -9,6 +9,7 @@ agent is meant to be paired with a torch-differentiable env
 gradients preserved) rather than a TF-based differentiable env.
 """
 
+import copy
 import json
 import logging
 import os
@@ -38,6 +39,11 @@ class TorchDEPO(jlab_opt_control.Agent):
         self.actor_model = None
         self.ntrain_calls = 0
         self.env = env
+        # train_actor() unrolls its own rollout through this private copy
+        # rather than the live env the driver is stepping through the
+        # "real" episode, so training no longer corrupts the driver's
+        # in-progress episode state.
+        self.train_env = copy.deepcopy(env)
 
         try:
             assert "Box" in str(type(env.action_space)), 'Invalid action space'
@@ -114,14 +120,14 @@ class TorchDEPO(jlab_opt_control.Agent):
         needed -- torch builds the graph automatically as long as nothing
         along this path is .detach()'d or wrapped in no_grad() by the env's
         own step()."""
-        states, _ = self.env.reset(batch_size=self.rollout_batch_size)
+        states, _ = self.train_env.reset(batch_size=self.rollout_batch_size)
 
         discounted_return = torch.zeros(self.rollout_batch_size, 1)
         mask = torch.ones(self.rollout_batch_size, 1)
 
         for k in range(self.unroll_steps):
             actions = self.actor_model(states)
-            states, reward, terminated, truncated, _ = self.env.step(actions)
+            states, reward, terminated, truncated, _ = self.train_env.step(actions)
 
             reward = reward.reshape(-1, 1).to(torch.float32)
             discounted_return = discounted_return + (self.gamma ** k) * reward * mask

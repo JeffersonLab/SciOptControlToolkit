@@ -13,16 +13,13 @@ inside a single tf.GradientTape, sums the (discounted, done-masked) rewards
 from that unroll as a direct stand-in for a value function, and backpropagates
 straight through the chain of environment steps into the actor's weights.
 
-IMPORTANT — this agent's train() calls reset()/step() on the SAME env object
-the driver is using for the "real" episode, to run its own internal training
-rollout (see train_actor() below). That rollout has nothing to do with
-whatever point the driver's real episode is at — it resets fresh every call.
-This means the "real" episode's env state gets silently overwritten every
-time train() runs mid-episode. That's expected for this agent (there is no
-way to backprop through a differentiable env without actually stepping it),
-but it does mean the driver's own logged episode reward is decorative for
-this agent's actual learning signal — the real signal is entirely internal
-to train_actor().
+IMPORTANT — this agent's train() runs its own internal training rollout
+(see train_actor() below) against a private deep copy of the env it was
+constructed with, not the live env object the driver is stepping through
+the "real" episode. That rollout has nothing to do with whatever point the
+driver's real episode is at — it resets fresh every call. This means the
+driver's own logged episode reward is decorative for this agent's actual
+learning signal — the real signal is entirely internal to train_actor().
 
 Consequences of having no critic and no bootstrapped value: there's also no
 replay buffer (nothing sampled from the past — every update is a fresh
@@ -32,6 +29,7 @@ so this agent can still sit under drivers/run_continuous.py's per-step
 `agent.memory(...); agent.train()` calling convention unchanged.
 """
 
+import copy
 import json
 import logging
 import os
@@ -60,6 +58,11 @@ class KerasDEPO(jlab_opt_control.Agent):
         self.actor_model = None
         self.ntrain_calls = 0
         self.env = env
+        # train_actor() unrolls its own rollout through this private copy
+        # rather than the live env the driver is stepping through the
+        # "real" episode, so training no longer corrupts the driver's
+        # in-progress episode state.
+        self.train_env = copy.deepcopy(env)
 
         try:
             assert "Box" in str(type(env.action_space)), 'Invalid action space'
@@ -146,7 +149,7 @@ class KerasDEPO(jlab_opt_control.Agent):
         """Unroll the current actor unroll_steps forward through the
         differentiable env and backprop the discounted, done-masked sum of
         rewards straight into the actor's weights."""
-        states, _ = self.env.reset(batch_size=self.rollout_batch_size)
+        states, _ = self.train_env.reset(batch_size=self.rollout_batch_size)
 
         discounted_return = tf.zeros([self.rollout_batch_size, 1], dtype=tf.float32)
         mask = tf.ones([self.rollout_batch_size, 1], dtype=tf.float32)
@@ -154,7 +157,7 @@ class KerasDEPO(jlab_opt_control.Agent):
         with tf.GradientTape() as tape:
             for k in range(self.unroll_steps):
                 actions = self.actor_model(states, training=True)
-                states, reward, terminated, truncated, _ = self.env.step(actions)
+                states, reward, terminated, truncated, _ = self.train_env.step(actions)
 
                 reward = tf.reshape(tf.cast(reward, tf.float32), [-1, 1])
                 discounted_return += (self.gamma ** k) * reward * mask
