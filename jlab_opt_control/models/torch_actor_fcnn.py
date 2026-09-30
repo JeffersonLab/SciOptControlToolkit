@@ -2,8 +2,7 @@
 file, same action_scale/action_bias convention, driving TorchDEPO instead of
 KerasDEPO. Doesn't subclass jlab_opt_control.core.model_core.Model (that
 base class extends tf.keras.Model, TF-specific) -- just a plain nn.Module,
-matching how MLPRegressor (fel_dt, the model this agent is trained against)
-is a plain torch.nn.Module/LightningModule too.
+since TorchDEPO's whole training path (actor and env) is plain PyTorch.
 """
 
 import json
