@@ -46,5 +46,13 @@ class MyTestCase(unittest.TestCase):
         args = ['--env','Pendulum-v1', '--agent', 'KerasSAC-v0', '--nepisodes','50', '--btype', 'PER-v0']
         main(args)
 
+    def test_keras_depo(self):
+        args = ['--env', 'DnC2s-Circle2D-Diff-TF-v0', '--agent', 'KerasDEPO-v0', '--nepisodes', '1000']
+        main(args)
+
+    def test_torch_depo(self):
+        args = ['--env', 'DnC2s-Circle2D-Diff-Torch-v0', '--agent', 'TorchDEPO-v0', '--nepisodes', '1000']
+        main(args)
+
 if __name__ == '__main__':
     unittest.main()
