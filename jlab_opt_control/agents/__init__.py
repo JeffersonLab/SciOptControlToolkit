@@ -34,6 +34,8 @@ from jlab_opt_control.agents.keras_sac import KerasSAC
 from jlab_opt_control.agents.keras_sindy_critic_td3 import KerasSINDyCriticTD3
 from jlab_opt_control.agents.keras_uncertainty_td3 import KerasUncertaintyTD3
 from jlab_opt_control.agents.keras_sindy_uncertainty_td3 import KerasSINDyUncertaintyTD3
+from jlab_opt_control.agents.keras_depo import KerasDEPO
+from jlab_opt_control.agents.torch_depo import TorchDEPO
 
 
 # Single Objective Agents
@@ -77,4 +79,22 @@ register(
     id="KerasSINDyUncertaintyTD3-v0",
     entry_point="jlab_opt_control.agents:KerasSINDyUncertaintyTD3",
     kwargs={"cfg": "keras_sindy_uncertainty_td3.cfg"},
+)
+
+# DEPO (Differentiable Environment Policy Optimization) — critic-free,
+# requires a differentiable env, not a standard Gym env.
+register(
+    id="KerasDEPO-v0",
+    entry_point="jlab_opt_control.agents:KerasDEPO",
+    kwargs={"cfg": "keras_depo.cfg"},
+)
+
+# Torch port of KerasDEPO-v0 — pairs with a torch-differentiable env
+# (reset(batch_size=...) / step(actions) returning torch tensors with
+# gradients preserved), no cross-framework bridge, since both sides are
+# plain PyTorch.
+register(
+    id="TorchDEPO-v0",
+    entry_point="jlab_opt_control.agents:TorchDEPO",
+    kwargs={"cfg": "torch_depo.cfg"},
 )

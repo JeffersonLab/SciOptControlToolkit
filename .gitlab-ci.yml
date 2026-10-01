@@ -26,6 +26,7 @@ before_script:
   - python --version
   - pip install --upgrade pip
   - pip install -r requirements.txt
+  - pip uninstall -y triton
   - pip install -e .
   - pip install pytest
 

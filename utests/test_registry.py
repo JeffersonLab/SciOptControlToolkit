@@ -57,6 +57,13 @@ class RegistryTests(unittest.TestCase):
         env = gym.make('MountainCarContinuous-v0')
         registered_agents = agents.list_registered_modules()
         for agent_id in registered_agents:
+            # DEPO agents requires a differentiable env (TF ops, batched
+            # reset/step) — a plain Gym env like MountainCarContinuous-v0
+            # doesn't satisfy that contract. See
+            # utests/test_keras_depo.py's TestKerasDEPO for its actual
+            # coverage, against a fake differentiable env.
+            if agent_id == 'KerasDEPO-v0' or agent_id == 'TorchDEPO-v0':
+                continue
             print('Continuous env test agent:', agent_id)
             agents.make(agent_id, env=env, logdir='./')
 

@@ -6,6 +6,8 @@ echo 'Repo directory '$REPO_PATH
 
 pytest \
   "$REPO_PATH/test_agents.py" \
+  "$REPO_PATH/test_keras_depo.py" \
+  "$REPO_PATH/test_torch_depo.py" \
   "$REPO_PATH/test_buffers.py" \
   "$REPO_PATH/test_envs_and_utils.py" \
   "$REPO_PATH/test_models.py" \

@@ -372,5 +372,31 @@ class TestPERBuffer(unittest.TestCase):
                          action_dim=ACTION_DIM, logdir=self.logdir)
 
 
+class TestNoOpBuffer(unittest.TestCase):
+    """For buffer-free agents (KerasDEPO, TorchDEPO) so agent.buffer.save(...)
+    works under drivers/run_continuous.py without special-casing the driver."""
+
+    def setUp(self):
+        self.logdir = tempfile.mkdtemp()
+        self.buf = buffers.make('NoOpBuffer-v0', state_dim=STATE_DIM,
+                                 action_dim=ACTION_DIM, logdir=self.logdir)
+
+    def test_size_is_always_zero(self):
+        self.assertEqual(self.buf.size(), 0)
+        self.buf.record(random_transition())
+        self.assertEqual(self.buf.size(), 0)
+
+    def test_record_sample_save_load_save_cfg_are_safe_no_ops(self):
+        self.buf.record(random_transition())
+        self.assertIsNone(self.buf.sample(10))
+        self.buf.save(os.path.join(self.logdir, 'buffer.npy'))
+        self.buf.load(os.path.join(self.logdir, 'buffer.npy'))
+        self.buf.save_cfg()
+
+    def test_registry_instantiation(self):
+        from jlab_opt_control.buffers.no_op_buffer import NoOpBuffer
+        self.assertIsInstance(self.buf, NoOpBuffer)
+
+
 if __name__ == '__main__':
     unittest.main()

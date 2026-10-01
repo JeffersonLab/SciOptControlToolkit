@@ -1,5 +1,7 @@
 import unittest
 import numpy as np
+import tensorflow as tf
+import torch
 import jlab_opt_control.envs as envs
 from jlab_opt_control.envs.circle_env import Circle2D
 from jlab_opt_control.utils.cfg_utils import cfg_get
@@ -138,6 +140,15 @@ class TestCircle2DEnv(unittest.TestCase):
         _, _, term2, trunc2, _ = env.step(env.action_space.sample())
         self.assertTrue(term2 or trunc2)
 
+    def test_default_backend_is_numpy(self):
+        env = self._make_env()
+        self.assertEqual(env.backend, 'numpy')
+
+    def test_batch_size_is_rejected_for_numpy_backend(self):
+        env = self._make_env()
+        with self.assertRaises(NotImplementedError):
+            env.reset(batch_size=4)
+
     # --- registry ---
 
     def test_registry_statefull(self):
@@ -167,6 +178,93 @@ class TestCircle2DEnv(unittest.TestCase):
             action = env.action_space.sample()
             self.assertTrue(np.all(action >= -1.0))
             self.assertTrue(np.all(action <=  1.0))
+
+
+class TestCircle2DEnvTensorFlowBackend(unittest.TestCase):
+    """backend='tensorflow' -- differentiable, dual calling convention."""
+
+    def _make_env(self, max_episode_steps=1):
+        return Circle2D(backend='tensorflow', rdm_reset_mode='uniform',
+                         statefull=True, max_episode_steps=max_episode_steps)
+
+    def test_single_mode_step_returns_plain_types(self):
+        env = self._make_env()
+        env.reset()
+        state, reward, terminated, truncated, _ = env.step(env.action_space.sample())
+        self.assertIsInstance(state, np.ndarray)
+        self.assertEqual(state.shape, (2,))
+        self.assertIsInstance(reward, float)
+        self.assertIsInstance(terminated, bool)
+        self.assertIsInstance(truncated, bool)
+
+    def test_batched_mode_shapes(self):
+        env = self._make_env()
+        states, _ = env.reset(batch_size=8)
+        self.assertEqual(states.shape, (8, 2))
+        actions = tf.zeros([8, 2])
+        next_states, reward, terminated, truncated, _ = env.step(actions)
+        self.assertEqual(next_states.shape, (8, 2))
+        self.assertEqual(reward.shape, (8,))
+        self.assertEqual(terminated.shape, (8,))
+        self.assertEqual(truncated.shape, (8,))
+
+    def test_gradient_flows_through_step(self):
+        env = self._make_env()
+        env.reset(batch_size=4)
+        actions = tf.Variable(tf.zeros([4, 2]))
+        with tf.GradientTape() as tape:
+            _, reward, _, _, _ = env.step(actions)
+            loss = -tf.reduce_mean(reward)
+        gradient = tape.gradient(loss, actions)
+        self.assertIsNotNone(gradient)
+        self.assertGreater(float(tf.reduce_sum(tf.abs(gradient))), 0.0)
+
+    def test_registry_instantiation(self):
+        env = envs.make('DnC2s-Circle2D-Diff-TF-v0')
+        self.assertEqual(env.backend, 'tensorflow')
+
+
+class TestCircle2DEnvTorchBackend(unittest.TestCase):
+    """backend='torch' -- differentiable, dual calling convention."""
+
+    def _make_env(self, max_episode_steps=1):
+        return Circle2D(backend='torch', rdm_reset_mode='uniform',
+                         statefull=True, max_episode_steps=max_episode_steps)
+
+    def test_single_mode_step_returns_plain_types(self):
+        env = self._make_env()
+        env.reset()
+        state, reward, terminated, truncated, _ = env.step(env.action_space.sample())
+        self.assertIsInstance(state, np.ndarray)
+        self.assertEqual(state.shape, (2,))
+        self.assertIsInstance(reward, float)
+        self.assertIsInstance(terminated, bool)
+        self.assertIsInstance(truncated, bool)
+
+    def test_batched_mode_shapes(self):
+        env = self._make_env()
+        states, _ = env.reset(batch_size=8)
+        self.assertEqual(tuple(states.shape), (8, 2))
+        actions = torch.zeros(8, 2)
+        next_states, reward, terminated, truncated, _ = env.step(actions)
+        self.assertEqual(tuple(next_states.shape), (8, 2))
+        self.assertEqual(tuple(reward.shape), (8,))
+        self.assertEqual(tuple(terminated.shape), (8,))
+        self.assertEqual(tuple(truncated.shape), (8,))
+
+    def test_gradient_flows_through_step(self):
+        env = self._make_env()
+        env.reset(batch_size=4)
+        actions = torch.zeros(4, 2, requires_grad=True)
+        _, reward, _, _, _ = env.step(actions)
+        loss = -reward.mean()
+        loss.backward()
+        self.assertIsNotNone(actions.grad)
+        self.assertGreater(float(actions.grad.abs().sum()), 0.0)
+
+    def test_registry_instantiation(self):
+        env = envs.make('DnC2s-Circle2D-Diff-Torch-v0')
+        self.assertEqual(env.backend, 'torch')
 
 
 if __name__ == '__main__':
